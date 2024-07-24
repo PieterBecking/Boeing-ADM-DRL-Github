@@ -1,0 +1,9 @@
+numpy==1.26.0
+pandas
+matplotlib
+seaborn
+scikit-learn
+scipy
+jupyter
+statsmodels
+torch # or tensorflow
