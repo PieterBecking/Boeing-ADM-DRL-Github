@@ -7,3 +7,4 @@ scipy
 jupyter
 statsmodels
 torch # or tensorflow
+import-ipynb
