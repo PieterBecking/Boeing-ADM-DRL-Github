@@ -1,0 +1,5 @@
+%Flight Orig Dest DepTime ArrTime PrevFlight
+1 CDG BKK 11:00 13:00 0
+2 CDG BKK 14:00 16:00 0
+3 BKK CDG 17:00 19:00 0
+#

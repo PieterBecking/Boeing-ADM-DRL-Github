@@ -1,0 +1,4 @@
+%Aircraft Model Family Config Dist Cost/h TurnRound Transit Orig Maint
+B767#1 B767 Boeing 10/20/160 12250 3000.0 75 50 CDG CDG-10/01/08-06:00-10/01/08-10:00-20
+B767#3 B767 Boeing 10/20/160 12250 3000.0 75 50 BKK NULL
+#
