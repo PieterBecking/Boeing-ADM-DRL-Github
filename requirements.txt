@@ -9,3 +9,5 @@ statsmodels
 torch # or tensorflow
 import-ipynb
 gym
+gymnasium
+stable_baselines3
