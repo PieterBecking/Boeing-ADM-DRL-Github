@@ -1,0 +1,15 @@
+%RecoveryPeriod
+06/09/24 6:00 06/09/24 21:30
+%DelayCosts
+Economy ShortHaul 100.0 
+%CancellationCostsOutbound
+Economy ShortHaul 500.0 
+%CancellationCostsInbound
+Economy ShortHaul 600.0 
+%DowngradingCosts
+Business Economy ShortHaul 200.0 
+%PenaltyCosts
+200 300 400 
+%Weights
+1.0 0.5 0.2 
+#
