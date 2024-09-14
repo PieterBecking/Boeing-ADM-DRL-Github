@@ -29,7 +29,6 @@ def read_csv_with_comments(file_path):
 
         # Return an empty list if no data lines were found
         if not data_lines:
-            print(f"File contains no valid data: {file_path}")
             return []
         
         return data_lines
@@ -194,15 +193,6 @@ def load_data(data_folder):
     positions_file = os.path.join(data_folder, 'position.csv')
     rotations_file = os.path.join(data_folder, 'rotations.csv')
 
-    print(f"Loading data from folder: {data_folder}")
-    
-    # Read and parse data
-    alt_flights_data = read_csv_with_comments(alt_flights_file)
-    if alt_flights_data is None:
-        print(f"read_csv_with_comments returned None for alt_flights_file: {alt_flights_file}")
-    else:
-        print(f"read_csv_with_comments returned {len(alt_flights_data)} lines for alt_flights_file")
-
     data_dict = {
         'config': parse_config(read_csv_with_comments(config_file)) if read_csv_with_comments(config_file) else {},
         'aircraft': parse_aircraft(read_csv_with_comments(aircraft_file)) if read_csv_with_comments(aircraft_file) else {},
@@ -212,7 +202,7 @@ def load_data(data_folder):
         'rotations': parse_rotations(read_csv_with_comments(rotations_file)) if read_csv_with_comments(rotations_file) else {},
         'itineraries': parse_itineraries(read_csv_with_comments(itineraries_file)) if read_csv_with_comments(itineraries_file) else {},
         'positions': parse_positions(read_csv_with_comments(positions_file)) if read_csv_with_comments(positions_file) else {},
-        'alt_flights': parse_alt_flights(alt_flights_data),
+        'alt_flights': parse_alt_flights(read_csv_with_comments(alt_flights_file)),
         'alt_aircraft': parse_alt_aircraft(read_csv_with_comments(alt_aircraft_file)),
         'alt_airports': parse_alt_airports(read_csv_with_comments(alt_airports_file))
     }
@@ -221,18 +211,13 @@ def load_data(data_folder):
 
 
 
-
-
-
-
 # Visualization Functions
-
 def visualize_aircraft_rotations(data_dict):
-    """Visualizes aircraft rotations and delays."""
+    """Visualizes aircraft rotations, delays, and unavailability."""
     flights_dict = data_dict['flights']
     rotations_dict = data_dict['rotations']
-    alt_flights_dict = data_dict['alt_flights']
-    alt_aircraft_dict = data_dict['alt_aircraft']
+    alt_flights_dict = data_dict.get('alt_flights', {})
+    alt_aircraft_dict = data_dict.get('alt_aircraft', {})
     config_dict = data_dict['config']
 
     # Time parsing
@@ -255,11 +240,11 @@ def visualize_aircraft_rotations(data_dict):
     # Create the figure
     fig, ax = plt.subplots(figsize=(14, 8))
 
-    # Plot logic (from the notebook)
+    # Plot logic
     aircraft_ids = sorted(list(set([rotation_info['Aircraft'] for rotation_info in rotations_dict.values()])), reverse=False)
     aircraft_indices = {aircraft_id: index + 1 for index, aircraft_id in enumerate(aircraft_ids)}
 
-    # Plot each flight's schedule
+    # Plot each flight's schedule in blue
     for rotation_id, rotation_info in rotations_dict.items():
         flight_id = rotation_id
         aircraft_id = rotation_info['Aircraft']
@@ -269,65 +254,154 @@ def visualize_aircraft_rotations(data_dict):
             dep_datetime = parse_time_with_day_offset(flight_info['DepTime'], start_datetime)
             arr_datetime = parse_time_with_day_offset(flight_info['ArrTime'], dep_datetime)
 
-            ax.plot([dep_datetime, arr_datetime], [aircraft_indices[aircraft_id], aircraft_indices[aircraft_id]], color='blue', marker='o')
+            ax.plot([dep_datetime, arr_datetime], [aircraft_indices[aircraft_id], aircraft_indices[aircraft_id]], color='blue', marker='o', label='Scheduled Flight' if rotation_id == 1 else "")
 
-    # Plot disruptions (from the notebook)
+    # Plot flight disruptions (delays) in red
     if alt_flights_dict:
         for flight_id, disruption_info in alt_flights_dict.items():
-            dep_datetime = parse_time_with_day_offset(flights_dict[flight_id]['DepTime'], start_datetime)
-            delay_duration = timedelta(minutes=disruption_info['Delay'])
-            delayed_datetime = dep_datetime + delay_duration
-            aircraft_id = rotations_dict[flight_id]['Aircraft']
+            if flight_id in flights_dict:
+                dep_datetime = parse_time_with_day_offset(flights_dict[flight_id]['DepTime'], start_datetime)
+                delay_duration = timedelta(minutes=disruption_info['Delay'])
+                delayed_datetime = dep_datetime + delay_duration
 
-            ax.plot([dep_datetime, delayed_datetime], [aircraft_indices[aircraft_id], aircraft_indices[aircraft_id]], color='red', linestyle='-')
+                aircraft_id = rotations_dict[flight_id]['Aircraft']
+                ax.plot(dep_datetime, aircraft_indices[aircraft_id], 'X', color='red', label='Flight Delay Start' if flight_id == list(alt_flights_dict.keys())[0] else "")
+                ax.plot([dep_datetime, delayed_datetime], [aircraft_indices[aircraft_id], aircraft_indices[aircraft_id]], color='red', linestyle='-', label='Flight Delay' if flight_id == list(alt_flights_dict.keys())[0] else "")
+                ax.plot(delayed_datetime, aircraft_indices[aircraft_id], '>', color='red', label='Flight Delay End' if flight_id == list(alt_flights_dict.keys())[0] else "")
 
-    # Customize the plot
+    # Plot aircraft unavailability in red
+    if alt_aircraft_dict:
+        for aircraft_id, unavailability_info in alt_aircraft_dict.items():
+            unavail_start_datetime = datetime.strptime(unavailability_info['StartDate'] + ' ' + unavailability_info['StartTime'], '%d/%m/%y %H:%M')
+            unavail_end_datetime = datetime.strptime(unavailability_info['EndDate'] + ' ' + unavailability_info['EndTime'], '%d/%m/%y %H:%M')
+
+            ax.plot(unavail_start_datetime, aircraft_indices[aircraft_id], 'rx', label='Unavailability Start' if aircraft_id == list(alt_aircraft_dict.keys())[0] else "")
+            ax.plot([unavail_start_datetime, unavail_end_datetime], [aircraft_indices[aircraft_id], aircraft_indices[aircraft_id]], color='red', linestyle='--', label='Aircraft Unavailable' if aircraft_id == list(alt_aircraft_dict.keys())[0] else "")
+            ax.plot(unavail_end_datetime, aircraft_indices[aircraft_id], 'rx', label='Unavailability End' if aircraft_id == list(alt_aircraft_dict.keys())[0] else "")
+
+    # Plot the recovery period
+    ax.axvline(start_datetime, color='green', linestyle='--', label='Start Recovery Period')
+    ax.axvline(end_datetime, color='green', linestyle='-', label='End Recovery Period')
+
+    # Grey out periods outside recovery time
+    ax.axvspan(end_datetime, latest_datetime + timedelta(hours=1), color='lightgrey', alpha=0.3)
+    ax.axvspan(earliest_datetime - timedelta(hours=1), start_datetime, color='lightgrey', alpha=0.3)
+
+    # Formatting the plot
     ax.set_xlim(earliest_datetime - timedelta(hours=1), latest_datetime + timedelta(hours=1))
+    ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
+    ax.xaxis.set_minor_locator(mdates.MinuteLocator(interval=30))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+
+    # Set y-ticks for aircraft indices
+    plt.yticks(range(1, len(aircraft_ids) + 1), aircraft_ids)
     plt.xlabel('Time')
     plt.ylabel('Aircraft')
     plt.title('Aircraft Rotations, AC Unavailability and Flight Delays')
     plt.grid(True)
     plt.xticks(rotation=45)
+    plt.tight_layout()
+
+    # Create legend on the right
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
     plt.show()
 
 
 def visualize_flight_airport_unavailability(data_dict):
-    """Visualizes flight and airport unavailability."""
+    """Visualizes flight schedules and airport unavailability."""
     flights_dict = data_dict['flights']
-    alt_airports_dict = data_dict['alt_airports']
+    alt_airports_dict = data_dict.get('alt_airports', {})
     config_dict = data_dict['config']
 
     start_datetime = datetime.strptime(config_dict['RecoveryPeriod']['StartDate'] + ' ' + config_dict['RecoveryPeriod']['StartTime'], '%d/%m/%y %H:%M')
     end_datetime = datetime.strptime(config_dict['RecoveryPeriod']['EndDate'] + ' ' + config_dict['RecoveryPeriod']['EndTime'], '%d/%m/%y %H:%M')
 
-    # Plot logic (from the notebook)
-    airports = list(set([flight_info['Orig'] for flight_info in flights_dict.values()] + [flight_info['Dest'] for flight_info in flights_dict.values()]))
-    airport_indices = {airport: index + 1 for index, airport in enumerate(airports)}
+    # Determine the earliest and latest times from the flight data
+    earliest_datetime = start_datetime
+    latest_datetime = end_datetime
 
+    for flight_info in flights_dict.values():
+        dep_datetime = parse_time_with_day_offset(flight_info['DepTime'], start_datetime)
+        arr_datetime = parse_time_with_day_offset(flight_info['ArrTime'], dep_datetime)
+
+        if dep_datetime < earliest_datetime:
+            earliest_datetime = dep_datetime
+        if arr_datetime > latest_datetime:
+            latest_datetime = arr_datetime
+
+    # Create the figure
     fig, ax = plt.subplots(figsize=(14, 8))
+
+    # Collect airports from both origins and destinations and sort them alphabetically
+    airports = sorted(list(set([flight_info['Orig'] for flight_info in flights_dict.values()] + [flight_info['Dest'] for flight_info in flights_dict.values()])))
+    airport_indices = {airport: index + 1 for index, airport in enumerate(airports)}
 
     # Plot each flight's schedule based on airports in blue
     for flight_id, flight_info in flights_dict.items():
         dep_datetime = parse_time_with_day_offset(flight_info['DepTime'], start_datetime)
         arr_datetime = parse_time_with_day_offset(flight_info['ArrTime'], dep_datetime)
-        ax.plot([dep_datetime, arr_datetime], [airport_indices[flight_info['Orig']], airport_indices[flight_info['Dest']]], color='blue', marker='o')
+        ax.plot([dep_datetime, arr_datetime], [airport_indices[flight_info['Orig']], airport_indices[flight_info['Dest']]], color='blue', marker='o', label='Scheduled Flight' if flight_id == 1 else "")
 
-    # Plot airport disruptions (from the notebook)
+    # Track which labels have been added to the legend
+    labels_added = set()
+
+    # Plot airport disruptions with different styles
     if alt_airports_dict:
         for airport, disruptions in alt_airports_dict.items():
             for disruption_info in disruptions:
                 unavail_start_datetime = datetime.strptime(disruption_info['StartDate'] + ' ' + disruption_info['StartTime'], '%d/%m/%y %H:%M')
                 unavail_end_datetime = datetime.strptime(disruption_info['EndDate'] + ' ' + disruption_info['EndTime'], '%d/%m/%y %H:%M')
 
-                ax.plot([unavail_start_datetime, unavail_end_datetime], [airport_indices[airport], airport_indices[airport]], color='red', linestyle='solid')
+                dep_h = disruption_info['Dep/h']
+                arr_h = disruption_info['Arr/h']
+                
+                if dep_h == 0 and arr_h == 0:
+                    linestyle = 'solid'
+                    linewidth = 3
+                    label = 'Completely Closed'
+                elif dep_h == 0 or arr_h == 0:
+                    linestyle = 'solid'
+                    linewidth = 1
+                    label = 'Partially Closed (Dep/Arr)'
+                else:
+                    linestyle = 'dashed'
+                    linewidth = 1
+                    label = 'Constrained'
 
-    # Customize the plot
-    ax.set_xlim(start_datetime - timedelta(hours=1), end_datetime + timedelta(hours=1))
+                # Only add each label once
+                if label not in labels_added:
+                    ax.plot([unavail_start_datetime, unavail_end_datetime], [airport_indices[airport], airport_indices[airport]], color='red', linestyle=linestyle, linewidth=linewidth, label=label)
+                    labels_added.add(label)
+                else:
+                    ax.plot([unavail_start_datetime, unavail_end_datetime], [airport_indices[airport], airport_indices[airport]], color='red', linestyle=linestyle, linewidth=linewidth)
+                ax.plot(unavail_start_datetime, airport_indices[airport], 'rx')
+                ax.plot(unavail_end_datetime, airport_indices[airport], 'rx')
+
+    # Formatting the plot
+    ax.set_xlim(earliest_datetime - timedelta(hours=1), latest_datetime + timedelta(hours=1))
+    ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
+    ax.xaxis.set_minor_locator(mdates.MinuteLocator(interval=30))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+    ax.axvline(start_datetime, color='green', linestyle='--', label='Start Recovery Period')
+    ax.axvline(end_datetime, color='green', linestyle='-', label='End Recovery Period')
+
+    # Grey out periods outside recovery time
+    ax.axvspan(end_datetime, latest_datetime + timedelta(hours=1), color='lightgrey', alpha=0.3)
+    ax.axvspan(earliest_datetime - timedelta(hours=1), start_datetime, color='lightgrey', alpha=0.3)
+
+    # Set y-ticks for airport indices
+    plt.yticks(range(1, len(airport_indices) + 1), airport_indices.keys())
     plt.xlabel('Time')
     plt.ylabel('Airports')
     plt.title('Flights and Airport Unavailability')
     plt.grid(True)
     plt.xticks(rotation=45)
+    plt.tight_layout()
+
+    # Create legend on the right
+    ax.legend()
+
     plt.show()
 
 
