@@ -1,4 +1,5 @@
 import os
+import numpy as np
 from datetime import datetime, timedelta
 import re
 
@@ -36,6 +37,13 @@ def clear_file(file_name):
     with open(file_name, 'w') as file:
         file.write('')
 
+# Convert time to string
+def convert_time_to_str(current_datetime, time_obj):
+    time_str = time_obj.strftime('%H:%M')
+    if time_obj.date() > current_datetime.date():
+        time_str += ' +1'
+    return time_str
+
 # Parse time with day offset
 def parse_time_with_day_offset(time_str, reference_date):
     """Parses time and adds a day offset if '+1' is present."""
@@ -45,6 +53,12 @@ def parse_time_with_day_offset(time_str, reference_date):
         return datetime.combine(reference_date, time_obj.time()) + timedelta(days=1)
     else:
         return datetime.strptime(time_str, '%H:%M').replace(year=reference_date.year, month=reference_date.month, day=reference_date.day)
+
+
+# Print state
+def print_state(self):
+    with np.printoptions(precision=0, suppress=True, formatter={'float': '{:0.0f}'.format}):
+        print(self)
 
 
 
@@ -132,7 +146,7 @@ class FileParsers:
         return itineraries_dict
 
     @staticmethod
-    def parse_positions(data_lines):
+    def parse_position(data_lines):
         positions_dict = {}
         for line in data_lines:
             parts = re.split(r'\s+', line)
@@ -219,10 +233,22 @@ def load_data(data_folder):
         'flights': FileParsers.parse_flights(read_csv_with_comments(flights_file)) if read_csv_with_comments(flights_file) else {},
         'rotations': FileParsers.parse_rotations(read_csv_with_comments(rotations_file)) if read_csv_with_comments(rotations_file) else {},
         'itineraries': FileParsers.parse_itineraries(read_csv_with_comments(itineraries_file)) if read_csv_with_comments(itineraries_file) else {},
-        'positions': FileParsers.parse_positions(read_csv_with_comments(positions_file)) if read_csv_with_comments(positions_file) else {},
+        'position': FileParsers.parse_position(read_csv_with_comments(positions_file)) if read_csv_with_comments(positions_file) else {},
         'alt_flights': FileParsers.parse_alt_flights(read_csv_with_comments(alt_flights_file)),
         'alt_aircraft': FileParsers.parse_alt_aircraft(read_csv_with_comments(alt_aircraft_file)),
         'alt_airports': FileParsers.parse_alt_airports(read_csv_with_comments(alt_airports_file))
     }
     
     return data_dict
+
+
+# The name of the model is the current date in the format YYYYMMDD-X where X is the subsequent number of the model, based on the number of models already saved for the current day
+def get_model_name():
+    today = datetime.now().strftime('%Y%m%d')
+    model_name = today
+    model_number = 1
+    for file in os.listdir('Models'):
+        if file.startswith(today):
+            model_number += 1
+    model_name += '-' + str(model_number)
+    return model_name
