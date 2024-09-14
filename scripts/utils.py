@@ -56,11 +56,12 @@ def parse_time_with_day_offset(time_str, reference_date):
 
 
 # Print state
-def print_state(self):
+def print_state_nicely(state):
     with np.printoptions(precision=0, suppress=True, formatter={'float': '{:0.0f}'.format}):
-        print(self)
+        print(state)
 
-
+def print_state_raw(state):
+    print(state)
 
 # Parsing all the data files
 class FileParsers:

@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 from config import *
 from scripts.utils import *
 
-
 class AircraftDisruptionEnv(gym.Env):
     def __init__(self, aircraft_dict, flights_dict, rotations_dict, alt_aircraft_dict, config_dict):
         super(AircraftDisruptionEnv, self).__init__()
@@ -155,6 +154,10 @@ class AircraftDisruptionEnv(gym.Env):
 
     def step(self, action):
         assert self.action_space.contains(action), "Invalid action"
+
+        if DEBUG_MODE:
+            print_state_nicely(self.state)
+
 
         action_explain = "No action taken" if action == 0 else f"Action: Aircraft {self.aircraft_ids[action - 1]}"
         conflicting_aircraft = None
