@@ -1,0 +1,228 @@
+import os
+from datetime import datetime, timedelta
+import re
+
+
+# File reader with comment filtering
+def read_csv_with_comments(file_path):
+    """Reads a CSV file and skips comment lines (lines starting with '%') and stops at '#'."""
+    if not os.path.exists(file_path):
+        print(f"File not found: {file_path}")
+        return []
+
+    try:
+        with open(file_path, 'r') as file:
+            lines = file.readlines()
+
+        data_lines = []
+        for line in lines:
+            if line.startswith('#'):
+                break
+            if not line.startswith('%'):
+                data_lines.append(line.strip())
+
+        # Return an empty list if no data lines were found
+        if not data_lines:
+            return []
+        
+        return data_lines
+    except Exception as e:
+        print(f"Error reading file {file_path}: {e}")
+        return []
+    
+# Clear file content
+def clear_file(file_name):
+    """Clears the content of a file."""
+    with open(file_name, 'w') as file:
+        file.write('')
+
+# Parse time with day offset
+def parse_time_with_day_offset(time_str, reference_date):
+    """Parses time and adds a day offset if '+1' is present."""
+    if '+1' in time_str:
+        time_str = time_str.replace('+1', '').strip()
+        time_obj = datetime.strptime(time_str, '%H:%M')
+        return datetime.combine(reference_date, time_obj.time()) + timedelta(days=1)
+    else:
+        return datetime.strptime(time_str, '%H:%M').replace(year=reference_date.year, month=reference_date.month, day=reference_date.day)
+
+
+
+# Parsing all the data files
+class FileParsers:
+    
+    @staticmethod
+    def parse_config(data_lines):
+        config_dict = {}
+        config_dict['RecoveryPeriod'] = {
+            'StartDate': data_lines[0].split()[0],
+            'StartTime': data_lines[0].split()[1],
+            'EndDate': data_lines[0].split()[2],
+            'EndTime': data_lines[0].split()[3]
+        }
+
+        def parse_costs(line):
+            parts = re.split(r'\s+', line)
+            costs = [{'Cabin': parts[i], 'Type': parts[i+1], 'Cost': float(parts[i+2])} for i in range(0, len(parts), 3)]
+            return costs
+
+        config_dict['DelayCosts'] = parse_costs(data_lines[1])
+        config_dict['CancellationCostsOutbound'] = parse_costs(data_lines[2])
+        config_dict['CancellationCostsInbound'] = parse_costs(data_lines[3])
+
+        def parse_downgrading_costs(line):
+            parts = re.split(r'\s+', line)
+            costs = [{'FromCabin': parts[i], 'ToCabin': parts[i+1], 'Type': parts[i+2], 'Cost': float(parts[i+3])} for i in range(0, len(parts), 4)]
+            return costs
+
+        config_dict['DowngradingCosts'] = parse_downgrading_costs(data_lines[4])
+        config_dict['PenaltyCosts'] = [float(x) for x in re.split(r'\s+', data_lines[5])]
+        config_dict['Weights'] = [float(x) for x in re.split(r'\s+', data_lines[6])]
+        return config_dict
+
+    @staticmethod
+    def parse_airports(data_lines):
+        airports_dict = {}
+        for line in data_lines:
+            parts = re.split(r'\s+', line)
+            airport = parts[0]
+            capacities = [{'Dep/h': int(parts[i]), 'Arr/h': int(parts[i+1]), 'StartTime': parts[i+2], 'EndTime': parts[i+3]} for i in range(1, len(parts), 4)]
+            airports_dict[airport] = capacities
+        return airports_dict
+
+    @staticmethod
+    def parse_dist(data_lines):
+        dist_dict = {}
+        for line in data_lines:
+            parts = re.split(r'\s+', line)
+            dist_dict[(parts[0], parts[1])] = {'Dist': int(parts[2]), 'Type': parts[3]}
+        return dist_dict
+
+    @staticmethod
+    def parse_flights(data_lines):
+        flights_dict = {}
+        for line in data_lines:
+            parts = re.split(r'\s+', line)
+            flights_dict[int(parts[0])] = {'Orig': parts[1], 'Dest': parts[2], 'DepTime': parts[3], 'ArrTime': parts[4], 'PrevFlight': int(parts[5])}
+        return flights_dict
+
+    @staticmethod
+    def parse_aircraft(data_lines):
+        aircraft_dict = {}
+        for line in data_lines:
+            parts = re.split(r'\s+', line)
+            aircraft_dict[parts[0]] = {'Model': parts[1], 'Family': parts[2], 'Config': parts[3], 'Dist': int(parts[4]), 'Cost/h': float(parts[5]),
+                                       'TurnRound': int(parts[6]), 'Transit': int(parts[7]), 'Orig': parts[8], 'Maint': parts[9] if len(parts) > 9 else None}
+        return aircraft_dict
+
+    @staticmethod
+    def parse_rotations(data_lines):
+        rotations_dict = {}
+        for line in data_lines:
+            parts = re.split(r'\s+', line)
+            rotations_dict[int(parts[0])] = {'DepDate': parts[1], 'Aircraft': parts[2]}
+        return rotations_dict
+
+    @staticmethod
+    def parse_itineraries(data_lines):
+        itineraries_dict = {}
+        for line in data_lines:
+            parts = re.split(r'\s+', line)
+            itineraries_dict[int(parts[0])] = {'Type': parts[1], 'Price': float(parts[2]), 'Count': int(parts[3]), 'Flights': parts[4:]}
+        return itineraries_dict
+
+    @staticmethod
+    def parse_positions(data_lines):
+        positions_dict = {}
+        for line in data_lines:
+            parts = re.split(r'\s+', line)
+            if parts[0] not in positions_dict:
+                positions_dict[parts[0]] = []
+            positions_dict[parts[0]].append({'Model': parts[1], 'Config': parts[2], 'Count': int(parts[3])})
+        return positions_dict
+
+    @staticmethod
+    def parse_alt_flights(data_lines):
+        """Parses the alt_flights file into a dictionary."""
+        if not data_lines:
+            return {}
+
+        alt_flights_dict = {}
+        for line in data_lines:
+            parts = re.split(r'\s+', line)
+            alt_flights_dict[int(parts[0])] = {'DepDate': parts[1], 'Delay': int(parts[2])}
+        return alt_flights_dict
+
+    @staticmethod
+    def parse_alt_aircraft(data_lines):
+        """Parses the alt_aircraft file into a dictionary."""
+        if data_lines is None:
+            return {}
+
+        alt_aircraft_dict = {}
+        for line in data_lines:
+            parts = re.split(r'\s+', line)
+            alt_aircraft_dict[parts[0]] = {
+                'StartDate': parts[1],
+                'StartTime': parts[2],
+                'EndDate': parts[3],
+                'EndTime': parts[4]
+            }
+        return alt_aircraft_dict
+
+    @staticmethod
+    def parse_alt_airports(data_lines):
+        """Parses the alt_airports file into a dictionary."""
+        if data_lines is None:
+            return {}
+
+        alt_airports_dict = {}
+        for line in data_lines:
+            parts = re.split(r'\s+', line)
+            airport = parts[0]
+            if airport not in alt_airports_dict:
+                alt_airports_dict[airport] = []
+            alt_airports_dict[airport].append({
+                'StartDate': parts[1],
+                'StartTime': parts[2],
+                'EndDate': parts[3],
+                'EndTime': parts[4],
+                'Dep/h': int(parts[5]),
+                'Arr/h': int(parts[6])
+            })
+        return alt_airports_dict
+
+
+
+# Data Processing Function
+def load_data(data_folder):
+    """Loads all the CSV files and returns a dictionary with parsed data."""
+    
+    # File paths
+    aircraft_file = os.path.join(data_folder, 'aircraft.csv')
+    airports_file = os.path.join(data_folder, 'airports.csv')
+    alt_aircraft_file = os.path.join(data_folder, 'alt_aircraft.csv')
+    alt_airports_file = os.path.join(data_folder, 'alt_airports.csv')
+    alt_flights_file = os.path.join(data_folder, 'alt_flights.csv')
+    config_file = os.path.join(data_folder, 'config.csv')
+    dist_file = os.path.join(data_folder, 'dist.csv')
+    flights_file = os.path.join(data_folder, 'flights.csv')
+    itineraries_file = os.path.join(data_folder, 'itineraries.csv')
+    positions_file = os.path.join(data_folder, 'position.csv')
+    rotations_file = os.path.join(data_folder, 'rotations.csv')
+
+    data_dict = {
+        'config': FileParsers.parse_config(read_csv_with_comments(config_file)) if read_csv_with_comments(config_file) else {},
+        'aircraft': FileParsers.parse_aircraft(read_csv_with_comments(aircraft_file)) if read_csv_with_comments(aircraft_file) else {},
+        'airports': FileParsers.parse_airports(read_csv_with_comments(airports_file)) if read_csv_with_comments(airports_file) else {},
+        'dist': FileParsers.parse_dist(read_csv_with_comments(dist_file)) if read_csv_with_comments(dist_file) else {},
+        'flights': FileParsers.parse_flights(read_csv_with_comments(flights_file)) if read_csv_with_comments(flights_file) else {},
+        'rotations': FileParsers.parse_rotations(read_csv_with_comments(rotations_file)) if read_csv_with_comments(rotations_file) else {},
+        'itineraries': FileParsers.parse_itineraries(read_csv_with_comments(itineraries_file)) if read_csv_with_comments(itineraries_file) else {},
+        'positions': FileParsers.parse_positions(read_csv_with_comments(positions_file)) if read_csv_with_comments(positions_file) else {},
+        'alt_flights': FileParsers.parse_alt_flights(read_csv_with_comments(alt_flights_file)),
+        'alt_aircraft': FileParsers.parse_alt_aircraft(read_csv_with_comments(alt_aircraft_file)),
+        'alt_airports': FileParsers.parse_alt_airports(read_csv_with_comments(alt_airports_file))
+    }
+    
+    return data_dict

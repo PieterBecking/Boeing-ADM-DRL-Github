@@ -4,78 +4,10 @@ import random
 import shutil
 import re
 from datetime import datetime, timedelta
-
-
-# Utility functions
-
-def read_csv_with_comments(file_path):
-    """
-    Reads a CSV file, skipping comment lines that start with '%' and stopping at lines that start with '#'.
-    """
-    with open(file_path, 'r') as file:
-        lines = file.readlines()
-
-    data_lines = []
-    for line in lines:
-        if line.startswith('#'):
-            break
-        if not line.startswith('%'):
-            data_lines.append(line.strip())
-
-    return data_lines if data_lines else None
-
-
-def clear_file(file_name):
-    """Clears the content of a file."""
-    with open(file_name, 'w') as file:
-        file.write('')
-
-
-def parse_time_with_day_offset(time_str, reference_date):
-    """Parses time and adds a day offset if '+1' is present."""
-    if '+1' in time_str:
-        time_str = time_str.replace('+1', '').strip()
-        time_obj = datetime.strptime(time_str, '%H:%M')
-        return datetime.combine(reference_date, time_obj.time()) + timedelta(days=1)
-    else:
-        return datetime.strptime(time_str, '%H:%M').replace(year=reference_date.year, month=reference_date.month, day=reference_date.day)
+from scripts.utils import *
 
 
 # Function to generate the config file
-def parse_config(data_lines):
-    """Parses the configuration file data lines."""
-    config_dict = {}
-    config_dict['RecoveryPeriod'] = {
-        'StartDate': data_lines[0].split()[0],
-        'StartTime': data_lines[0].split()[1],
-        'EndDate': data_lines[0].split()[2],
-        'EndTime': data_lines[0].split()[3]
-    }
-
-    def parse_costs(line):
-        parts = re.split(r'\s+', line)
-        costs = []
-        for i in range(0, len(parts), 3):
-            costs.append({'Cabin': parts[i], 'Type': parts[i+1], 'Cost': float(parts[i+2])})
-        return costs
-
-    config_dict['DelayCosts'] = parse_costs(data_lines[1])
-    config_dict['CancellationCostsOutbound'] = parse_costs(data_lines[2])
-    config_dict['CancellationCostsInbound'] = parse_costs(data_lines[3])
-
-    def parse_downgrading_costs(line):
-        parts = re.split(r'\s+', line)
-        costs = []
-        for i in range(0, len(parts), 4):
-            costs.append({'FromCabin': parts[i], 'ToCabin': parts[i+1], 'Type': parts[i+2], 'Cost': float(parts[i+3])})
-        return costs
-
-    config_dict['DowngradingCosts'] = parse_downgrading_costs(data_lines[4])
-    config_dict['PenaltyCosts'] = [float(x) for x in re.split(r'\s+', data_lines[5])]
-    config_dict['Weights'] = [float(x) for x in re.split(r'\s+', data_lines[6])]
-    return config_dict
-
-
 def generate_config_file(file_name, config_dict, recovery_start_date, recovery_start_time, recovery_end_date, recovery_end_time):
     """Generates the config file."""
     clear_file(file_name)
