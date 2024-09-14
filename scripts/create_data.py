@@ -123,7 +123,6 @@ def generate_aircraft_file(file_name, aircraft_types, total_aircraft_range):
     """Generates the aircraft.csv file."""
     clear_file(file_name)
     total_aircraft = random.randint(*total_aircraft_range)
-    print(f"Generating {total_aircraft} aircraft data")
     
     aircraft_data = []
     aircraft_counter = {aircraft['Model']: 0 for aircraft in aircraft_types}
@@ -292,4 +291,4 @@ def create_data_scenario(
     rotations_file = os.path.join(data_folder, 'rotations.csv')
     generate_rotations_file(rotations_file, flight_rotation_data, start_datetime)
 
-    print(f"Data creation for scenario {scenario_name} completed.")
+    print(f"Data creation for scenario {scenario_name} completed with {len(aircraft_ids)} aircraft and {len(flights_dict)} flights.")
