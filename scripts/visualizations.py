@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import matplotlib.dates as mdates
 from scripts.utils import *
 from stable_baselines3.common.evaluation import evaluate_policy
-
+from config import *
 
 
 # Callable entry point for visualization process
@@ -300,6 +300,9 @@ class StatePlotter:
         )
 
     def plot_state(self, flights_dict, swapped_flights, environment_delayed_flights, current_datetime):
+        if DEBUG_MODE:
+            print(f"Plotting state with following flights: {flights_dict}")
+
         updated_rotations_dict = self.rotations_dict.copy()
         for swap in swapped_flights:
             flight_id, new_aircraft_id = swap

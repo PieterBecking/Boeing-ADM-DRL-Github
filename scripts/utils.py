@@ -44,15 +44,28 @@ def convert_time_to_str(current_datetime, time_obj):
         time_str += ' +1'
     return time_str
 
-# Parse time with day offset
 def parse_time_with_day_offset(time_str, reference_date):
-    """Parses time and adds a day offset if '+1' is present."""
+    """
+    Parses time and adds a day offset if '+1' is present, or if the arrival time 
+    is earlier than the departure time (indicating a flight crosses midnight).
+    """
+    # Check if '+1' exists in the time string
     if '+1' in time_str:
+        # Remove the '+1' and strip any whitespace
         time_str = time_str.replace('+1', '').strip()
         time_obj = datetime.strptime(time_str, '%H:%M')
+        # Add 1 day to the time
         return datetime.combine(reference_date, time_obj.time()) + timedelta(days=1)
     else:
-        return datetime.strptime(time_str, '%H:%M').replace(year=reference_date.year, month=reference_date.month, day=reference_date.day)
+        # No '+1', parse the time normally
+        time_obj = datetime.strptime(time_str, '%H:%M')
+        parsed_time = datetime.combine(reference_date, time_obj.time())
+        
+        # If the parsed time is earlier than the reference time, it's the next day
+        if parsed_time < reference_date:
+            parsed_time += timedelta(days=1)
+            
+        return parsed_time
 
 
 # Print state
@@ -244,12 +257,23 @@ def load_data(data_folder):
 
 
 # The name of the model is the current date in the format YYYYMMDD-X where X is the subsequent number of the model, based on the number of models already saved for the current day
-def get_model_name():
-    today = datetime.now().strftime('%Y%m%d')
-    model_name = today
+def get_model_version(model_name):
     model_number = 1
     for file in os.listdir('Models'):
-        if file.startswith(today):
+        print(f"checking file: {file}")
+        if file.startswith(model_name):
+            print(f" - file starts with {model_name}")
             model_number += 1
-    model_name += '-' + str(model_number)
-    return model_name
+    return str(model_number)
+
+
+
+
+
+def format_time(time_dt, start_datetime):
+    # Calculate the number of days difference from the start date
+    delta_days = (time_dt.date() - start_datetime.date()).days
+    time_str = time_dt.strftime('%H:%M')
+    if delta_days >= 1:
+        time_str += f'+{delta_days}'
+    return time_str

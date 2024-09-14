@@ -1,7 +1,8 @@
 # General Environment Settings
 MAX_AIRCRAFT = 10  # Maximum number of aircraft considered in the environment
 MAX_FLIGHTS_PER_AIRCRAFT = 10  # Maximum number of flights per aircraft
-COLUMNS_STATE_SPACE = 1 + 2 + 2 * MAX_FLIGHTS_PER_AIRCRAFT # Number of columns in the state space
+ROWS_STATE_SPACE = 1 + MAX_AIRCRAFT  # Number of rows in the state space
+COLUMNS_STATE_SPACE = 1 + 2 + 3 * MAX_FLIGHTS_PER_AIRCRAFT # Number of columns in the state space: 1 for ac id, 2 for ac unavail, 3 for each flight (id, start, end)
 
 # Time Settings for intervals
 TIMESTEP_HOURS = 1  # Length of each timestep in hours
@@ -15,6 +16,10 @@ CONFLICT_PENALTY = 500  # Penalty for conflicts
 DELAY_PENALTY_PER_MINUTE = 5  # Penalty per minute of delay
 RESOLVED_CONFLICT_REWARD = 5000  # Reward for resolving a conflict
 EXCESS_FLIGHTS_PENALTY = 10  # Penalty per excess flight assigned to an aircraft
+
+# Environment Settings
+MIN_TURN_TIME = 0  # Minimum gap between flights for the same aircraft
+
 
 # Model Settings (if you have a model-based environment)
 MODEL_LAYERS = 3  # Number of layers in the model (if used)
