@@ -3,7 +3,7 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 from datetime import datetime, timedelta
-from config import *
+from src.config import *
 from scripts.utils import *
 
 MIN_TURN_TIME = 0  # Minimum turnaround time in minutes

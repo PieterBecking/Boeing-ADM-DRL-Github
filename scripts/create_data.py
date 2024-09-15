@@ -149,16 +149,26 @@ def generate_flights_file(file_name, aircraft_ids, average_flights_per_aircraft,
                 dep_time_obj = parse_time_with_day_offset(arr_time_prev, start_datetime) + timedelta(hours=random.randint(0, 2), minutes=random.randint(0, 59))
                 arr_time_obj = dep_time_obj + timedelta(hours=random.randint(1, 4), minutes=random.randint(0, 59))
 
+            # Check if the departure time exceeds the end_datetime with a reasonable buffer (e.g., 2 hours max)
+            if dep_time_obj > end_datetime + timedelta(hours=2):
+                break  # Stop generating flights if departure time exceeds the limit
+            
+            # Add day offset to arrival and departure times when necessary
             if arr_time_obj.day > start_datetime.day:
                 arr_time = f"{arr_time_obj.strftime('%H:%M')}+1"
             else:
                 arr_time = arr_time_obj.strftime('%H:%M')
 
-            dep_time = dep_time_obj.strftime('%H:%M')
+            # Check if departure time crosses into the next day (after midnight)
+            if dep_time_obj.day > start_datetime.day:
+                dep_time = f"{dep_time_obj.strftime('%H:%M')}+1"
+            else:
+                dep_time = dep_time_obj.strftime('%H:%M')
 
             flights_dict[flight_id] = {'Orig': orig, 'Dest': dest, 'DepTime': dep_time, 'ArrTime': arr_time, 'PrevFlight': 0, 'Aircraft': aircraft_id}
             flight_rotation_data[flight_id] = {'Aircraft': aircraft_id}
 
+            # Also, break if arrival time exceeds the end of the recovery period
             if arr_time_obj > end_datetime:
                 break
 
@@ -169,6 +179,7 @@ def generate_flights_file(file_name, aircraft_ids, average_flights_per_aircraft,
         file.write('#')
 
     return flights_dict, flight_rotation_data
+
 
 
 # Function to generate rotations.csv

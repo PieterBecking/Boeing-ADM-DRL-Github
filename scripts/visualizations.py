@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import matplotlib.dates as mdates
 from scripts.utils import *
 from stable_baselines3.common.evaluation import evaluate_policy
-from config import *
+from src.config import *
 
 
 # Callable entry point for visualization process

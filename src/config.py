@@ -26,4 +26,4 @@ MODEL_LAYERS = 3  # Number of layers in the model (if used)
 UNITS_PER_LAYER = 128  # Number of units per layer
 
 # Logging and Debug Settings
-DEBUG_MODE = True  # Turn on/off debug mode
+DEBUG_MODE = False  # Turn on/off debug mode
