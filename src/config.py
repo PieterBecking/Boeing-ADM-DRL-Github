@@ -20,10 +20,12 @@ EXCESS_FLIGHTS_PENALTY = 10  # Penalty per excess flight assigned to an aircraft
 # Environment Settings
 MIN_TURN_TIME = 0  # Minimum gap between flights for the same aircraft
 
-
 # Model Settings (if you have a model-based environment)
 MODEL_LAYERS = 3  # Number of layers in the model (if used)
 UNITS_PER_LAYER = 128  # Number of units per layer
 
 # Logging and Debug Settings
 DEBUG_MODE = False  # Turn on/off debug mode
+
+# Data Generation Settings
+DEPARTURE_AFTER_END_RECOVERY = 1  # how many hours after the end of the recovery period can a generated flight depart

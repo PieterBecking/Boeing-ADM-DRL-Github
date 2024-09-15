@@ -5,6 +5,7 @@ import shutil
 import re
 from datetime import datetime, timedelta
 from scripts.utils import *
+from src.config import *
 
 
 # Function to generate the config file
@@ -149,8 +150,8 @@ def generate_flights_file(file_name, aircraft_ids, average_flights_per_aircraft,
                 dep_time_obj = parse_time_with_day_offset(arr_time_prev, start_datetime) + timedelta(hours=random.randint(0, 2), minutes=random.randint(0, 59))
                 arr_time_obj = dep_time_obj + timedelta(hours=random.randint(1, 4), minutes=random.randint(0, 59))
 
-            # Check if the departure time exceeds the end_datetime with a reasonable buffer (e.g., 2 hours max)
-            if dep_time_obj > end_datetime + timedelta(hours=2):
+            # Check if the departure time exceeds the end_datetime with a reasonable buffer
+            if dep_time_obj > end_datetime + timedelta(hours=DEPARTURE_AFTER_END_RECOVERY):
                 break  # Stop generating flights if departure time exceeds the limit
             
             # Add day offset to arrival and departure times when necessary
