@@ -10,19 +10,22 @@ from src.config import *
 
 
 # Callable entry point for visualization process
-def run_visualization(scenario_name, data_root_folder):
+def run_visualization(scenario_name, data_root_folder, aircraft_rotations, airport_rotations):
     data_folder = os.path.join(data_root_folder, scenario_name)
     
     # Load data from CSV files
     data_dict = load_data(data_folder)
 
     # Visualize aircraft rotations
-    visualize_aircraft_rotations(data_dict)
+    if aircraft_rotations:
+        print(f"Aircraft Rotations for {data_folder}")
+        visualize_aircraft_rotations(data_dict)
 
     # Visualize flight and airport unavailability
-    visualize_flight_airport_unavailability(data_dict)
+    if airport_rotations:
+        print(f"Flight and Airport Unavailability for {data_folder}")
+        visualize_flight_airport_unavailability(data_dict)
 
-    print(f"Visualization for scenario {scenario_name} completed.")
 
     
 # Visualization Functions
