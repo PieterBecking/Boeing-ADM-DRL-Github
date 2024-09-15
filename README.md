@@ -1,6 +1,7 @@
 ## How to use
 
-1. **Scenario Setup**: Each scenario (e.g., `Example-scenario-1`, `Training-modified/Scenario_01`) provides the input data (aircraft, airports, flights, etc.) in CSV format. The DQN model uses this data to create the initial state space for learning.
+1. **Scenario Setup**: 
+    - Each scenario (e.g., `Example-scenario-1`, `Training-modified/Scenario_01`) provides the input data (aircraft, airports, flights, etc.) in CSV format. The DQN model uses this data to create the initial state space for learning.
   
 2. **DQN Training**:
    - The `dqn_train.ipynb` notebook trains the model using the scenario data. The DQN learns by interacting with the environment (airline operations), using the states (aircraft positions, flight schedules) and actions (flight routing, scheduling decisions) to maximize rewards (e.g., minimizing delays or optimizing resource usage).
