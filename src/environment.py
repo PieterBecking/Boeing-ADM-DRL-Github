@@ -176,10 +176,10 @@ class AircraftDisruptionEnv(gym.Env):
         return obs_with_mask
 
     def step(self, action=None):
-        """
-        Step through the environment. If there are no conflicts, advance time without asking the agent for an action.
-        If there is a conflict, the agent will choose an action.
-        """
+        if DEBUG_MODE_PRINT_STATE:
+            print_state_nicely(self.state)
+            print("")
+
         # Ensure action is a scalar value if provided
         if isinstance(action, (list, np.ndarray)):
             action_value = action[0]
