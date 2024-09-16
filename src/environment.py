@@ -39,9 +39,11 @@ class AircraftDisruptionEnv(gym.Env):
         )
 
         # Define observation and action spaces
-        self.state_space_size = (self.rows_state_space, self.columns_state_space)  # Size of the state space
-        self.observation_space = spaces.Box(low=0, high=2880, shape=self.state_space_size, dtype=np.float32)  # 48 hours = 2880 minutes
-
+        self.state_space_size = (self.rows_state_space, self.columns_state_space)
+        self.observation_space = spaces.Box(
+            low=-np.inf, high=np.inf, shape=(self.rows_state_space * self.columns_state_space * 2,), dtype=np.float32
+        )
+        
         # Action space: index of the aircraft to reassign (0 to number of aircraft)
         self.full_action_space = spaces.Discrete(len(self.aircraft_ids) + 1)
         self.action_space = self.full_action_space

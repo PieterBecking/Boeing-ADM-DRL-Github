@@ -7,7 +7,8 @@ COLUMNS_STATE_SPACE = 1 + 2 + 3 * MAX_FLIGHTS_PER_AIRCRAFT # Number of columns i
 # Time Settings for intervals
 TIMESTEP_HOURS = 1  # Length of each timestep in hours
 
-# Hyperparameters for the simulation
+# Hyperparameters for the training agent
+DUMMY_VALUE = -999  # Dummy value for padding
 LEARNING_RATE = 0.001  # Learning rate for RL agent
 EPOCHS = 100  # Number of training epochs
 
@@ -26,6 +27,7 @@ UNITS_PER_LAYER = 128  # Number of units per layer
 
 # Logging and Debug Settings
 DEBUG_MODE = False  # Turn on/off debug mode
+DEBUG_MODE_TRAINING = True  # Turn on/off debug mode for training
 
 # Data Generation Settings
 DEPARTURE_AFTER_END_RECOVERY = 1  # how many hours after the end of the recovery period can a generated flight depart
