@@ -297,7 +297,7 @@ def load_data(data_folder):
 def get_model_version(model_name):
     model_number = 1
     for file in os.listdir('../trained_models'):
-        print(f"checking file: {file}")
+        # print(f"checking file: {file}")
         if file.startswith(model_name):
             print(f" - file starts with {model_name}")
             model_number += 1
@@ -314,3 +314,21 @@ def format_time(time_dt, start_datetime):
     if delta_days >= 1:
         time_str += f'+{delta_days}'
     return time_str
+
+
+def print_train_hyperparams():
+    hyperparams = {
+        "LEARNING_RATE": LEARNING_RATE,
+        "GAMMA": GAMMA,
+        "BUFFER_SIZE": BUFFER_SIZE,
+        "BATCH_SIZE": BATCH_SIZE,
+        "TARGET_UPDATE_INTERVAL": TARGET_UPDATE_INTERVAL,
+        "EPSILON_START": EPSILON_START,
+        "EPSILON_MIN": EPSILON_MIN,
+        "EPSILON_DECAY_RATE": EPSILON_DECAY_RATE,
+        "MAX_TIMESTEPS": MAX_TIMESTEPS,
+    }
+    
+    for param, value in hyperparams.items():
+        print(f"{param}: {value}")
+    print("")
