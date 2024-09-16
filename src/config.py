@@ -29,18 +29,10 @@ UNITS_PER_LAYER = 128  # Number of units per layer
 DEBUG_MODE = False  # Turn on/off debug mode
 DEBUG_MODE_TRAINING = False  # Turn on/off debug mode for training
 DEBUG_MODE_REWARD = True  # Turn on/off debug mode for reward calculation
+DEBUG_MODE_PRINT_STATE = True  # Turn on/off debug mode for printing state
 
 # Data Generation Settings
 DEPARTURE_AFTER_END_RECOVERY = 1  # how many hours after the end of the recovery period can a generated flight depart
 
 
-# Training Settings
-LEARNING_RATE = 0.001
-GAMMA = 0.99
-BUFFER_SIZE = 50000
-BATCH_SIZE = 32
-TARGET_UPDATE_INTERVAL = 100
-EPSILON_START = 1.0
-EPSILON_MIN = 0.05
-EPSILON_DECAY_RATE = 0.0005
-MAX_TIMESTEPS = 500         # maximum number of timesteps per episode (not relevant here)
+
