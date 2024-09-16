@@ -13,10 +13,10 @@ LEARNING_RATE = 0.001  # Learning rate for RL agent
 EPOCHS = 100  # Number of training epochs
 
 # Reward and Penalty Values
-CONFLICT_PENALTY = 500  # Penalty for conflicts
 DELAY_PENALTY_PER_MINUTE = 5  # Penalty per minute of delay
-RESOLVED_CONFLICT_REWARD = 5000  # Reward for resolving a conflict
-EXCESS_FLIGHTS_PENALTY = 10  # Penalty per excess flight assigned to an aircraft
+RESOLVED_CONFLICT_REWARD = 1000  # Reward for resolving a conflict
+DELAY_MINUTE_PENALTY = 5  # Penalty per minute of delay
+NO_ACTION_PENALTY = 200  # Penalty for no action while conflict(s) exist
 
 # Environment Settings
 MIN_TURN_TIME = 0  # Minimum gap between flights for the same aircraft
