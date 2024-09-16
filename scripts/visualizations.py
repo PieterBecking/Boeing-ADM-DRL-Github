@@ -302,7 +302,7 @@ class StatePlotter:
             end_datetime
         )
 
-    def plot_state(self, flights_dict, swapped_flights, environment_delayed_flights, current_datetime):
+    def plot_state(self, flights_dict, swapped_flights, environment_delayed_flights, cancelled_flights, current_datetime):
         if DEBUG_MODE:
             print(f"Plotting state with following flights: {flights_dict}")
 
@@ -321,6 +321,7 @@ class StatePlotter:
             'Scheduled Flight': False,
             'Swapped Flight': False,
             'Environment Delayed Flight': False,
+            'Cancelled Flight': False,
             'Aircraft Unavailable': False,
             'Disruption Start': False,
             'Disruption End': False,
@@ -341,15 +342,29 @@ class StatePlotter:
                 
                 swapped = any(flight_id == swap[0] for swap in swapped_flights)
                 delayed = flight_id in environment_delayed_flights
-                plot_color = 'green' if swapped else 'orange' if delayed else 'blue'
-                plot_label = 'Swapped Flight' if swapped else 'Environment Delayed Flight' if delayed else 'Scheduled Flight'
+                cancelled = flight_id in cancelled_flights
+                
+                # Set color based on the flight status
+                if cancelled:
+                    plot_color = 'red'
+                    plot_label = 'Cancelled Flight'
+                elif swapped:
+                    plot_color = 'green'
+                    plot_label = 'Swapped Flight'
+                elif delayed:
+                    plot_color = 'orange'
+                    plot_label = 'Environment Delayed Flight'
+                else:
+                    plot_color = 'blue'
+                    plot_label = 'Scheduled Flight'
                 
                 y_offset = aircraft_indices[aircraft_id] + self.offset_baseline
                 if delayed:
                     y_offset += self.offset_delayed_flight
 
                 # Plot the line representing the flight without markers
-                ax.plot([dep_datetime, arr_datetime], [y_offset, y_offset], color=plot_color, label=plot_label if (swapped and not labels['Swapped Flight']) or (delayed and not labels['Environment Delayed Flight']) or (not swapped and not delayed and not labels['Scheduled Flight']) else None)
+                ax.plot([dep_datetime, arr_datetime], [y_offset, y_offset], color=plot_color, label=plot_label if not labels[plot_label] else None)
+                
                 # Offset the markers slightly by reducing/increasing time
                 marker_offset = timedelta(minutes=self.offset_marker_minutes)
 
@@ -371,6 +386,7 @@ class StatePlotter:
                 # flight id above line
                 ax.text(mid_datetime, y_offset + self.offset_id_number, flight_id, 
                         ha='center', va='bottom', fontsize=10, color='black')
+
 
         if self.alt_aircraft_dict:
             for aircraft_id, unavailability_info in self.alt_aircraft_dict.items():
