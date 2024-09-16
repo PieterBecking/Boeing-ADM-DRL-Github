@@ -12,7 +12,7 @@
    - You can compare the results with random actions using `random_inference.ipynb` for baseline performance and to check the correct working of the environment.
 
 4. **Visualization**:
-   - The `visualize_scenario.ipynb` notebook provides visual insights into how the DQN is performing under different scenarios, showcasing aircraft movements, scheduling, and bottlenecks.
+   - The `visualize_scenario.ipynb` notebook provides plots of the different scenarios.
 
 
 ## Key Directories
