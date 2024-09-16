@@ -59,6 +59,8 @@ class AircraftDisruptionEnv(gym.Env):
         self.penalized_delays = set()           # Set of penalized delays
         self.penalized_conflicts = set()        # Set of penalized conflicts
         self.resolved_conflicts = set()         # Set of resolved conflicts
+        self.penalized_cancelled_flights = set()  # To keep track of penalized cancelled flights
+
 
         # Initialize the environment state
         self.reset()
@@ -281,7 +283,7 @@ class AircraftDisruptionEnv(gym.Env):
 
                 # Get post-action conflicts and calculate the reward
                 post_action_conflicts = self.get_current_conflicts()
-                resolved_conflicts = pre_action_conflicts - post_action_conflicts
+                resolved_conflicts = []
                 reward = self._calculate_reward(resolved_conflicts, post_action_conflicts, action_value)
 
                 terminated = self._is_done()
@@ -490,25 +492,32 @@ class AircraftDisruptionEnv(gym.Env):
 
         reward -= delay_penalty_total
 
-        if DEBUG_MODE_REWARD and delay_penalty_total > 0:
+        if DEBUG_MODE_REWARD:
             penalty_info = f"  -{delay_penalty_total} for delays ({delay_penalty} minutes)"
             if capped_delay_penalty:
                 penalty_info += " (capped at maximum allowed penalty)"
             print(penalty_info)
 
         # 3. **Penalty for cancelled flights**
-        if len(self.cancelled_flights) > 0:
-            cancel_penalty = CANCELLED_FLIGHT_PENALTY * len(self.cancelled_flights)
-            reward -= cancel_penalty
-            if DEBUG_MODE_REWARD:
-                print(f"  -{cancel_penalty} penalty for {len(self.cancelled_flights)} cancelled flights")
+        cancel_penalty = 0
+        for flight_id in self.cancelled_flights:
+            if flight_id not in self.penalized_cancelled_flights:
+                cancel_penalty += CANCELLED_FLIGHT_PENALTY
+                self.penalized_cancelled_flights.add(flight_id)  # Mark flight as penalized
+
+        reward -= cancel_penalty
+
+        if DEBUG_MODE_REWARD:
+            print(f"  -{cancel_penalty} penalty for cancelled flights")
+
 
         # 4. **Penalty for taking no action when conflicts exist**
+        inaction_penalty = 0
         if action == 0 and len(remaining_conflicts) > 0:
             inaction_penalty = NO_ACTION_PENALTY
             reward -= inaction_penalty
-            if DEBUG_MODE_REWARD:
-                print(f"  -{inaction_penalty} for inaction with conflicts")
+        if DEBUG_MODE_REWARD:
+            print(f"  -{inaction_penalty} for inaction with conflicts")
 
         if DEBUG_MODE_REWARD:
             print("_______________")
@@ -539,6 +548,8 @@ class AircraftDisruptionEnv(gym.Env):
         self.penalized_delays = set()  # Reset the penalized delays
         self.penalized_conflicts = set()
         self.resolved_conflicts = set()
+        self.penalized_cancelled_flights = set()  # Reset penalized cancelled flights
+
 
         valid_actions = self.get_valid_actions()
         self.action_space = spaces.Discrete(len(valid_actions))
