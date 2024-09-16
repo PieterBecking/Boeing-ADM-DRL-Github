@@ -16,7 +16,9 @@ EPOCHS = 100  # Number of training epochs
 DELAY_PENALTY_PER_MINUTE = 5  # Penalty per minute of delay
 RESOLVED_CONFLICT_REWARD = 1000  # Reward for resolving a conflict
 DELAY_MINUTE_PENALTY = 5  # Penalty per minute of delay
-NO_ACTION_PENALTY = 200  # Penalty for no action while conflict(s) exist
+NO_ACTION_PENALTY = 500  # Penalty for no action while conflict(s) exist
+MAX_DELAY_PENALTY = RESOLVED_CONFLICT_REWARD  # Maximum penalty for delay is the negative of the resolved conflict reward
+CANCELLED_FLIGHT_PENALTY = 1000  # Penalty for cancelling a flight
 
 # Environment Settings
 MIN_TURN_TIME = 0  # Minimum gap between flights for the same aircraft
@@ -28,6 +30,7 @@ UNITS_PER_LAYER = 128  # Number of units per layer
 # Logging and Debug Settings
 DEBUG_MODE = False  # Turn on/off debug mode
 DEBUG_MODE_TRAINING = False  # Turn on/off debug mode for training
+DEBUG_MODE_REWARD = True  # Turn on/off debug mode for reward calculation
 
 # Data Generation Settings
 DEPARTURE_AFTER_END_RECOVERY = 1  # how many hours after the end of the recovery period can a generated flight depart
