@@ -395,6 +395,7 @@ class AircraftDisruptionEnv(gym.Env):
         self.flights_dict[flight_id]['ArrTime'] = arr_time.strftime('%H:%M')
 
     def _calculate_reward(self, state, action):
+        # NEW VERSION
         # Initialize reward
         reward = 0
 
