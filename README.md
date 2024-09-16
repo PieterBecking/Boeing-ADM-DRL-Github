@@ -26,7 +26,7 @@
   - `dqn_inference.ipynb`: Inference using a trained DQN model.
   - `plot_epsilon.ipynb`: Plots and visualizes the epsilon decay. Just fore testing purposes when choosing the epsilon hyperparameters.
   - `random_inference.ipynb`: Random action inference.
-  - `visualize_scenario.ipynb`: Visualizes the scenario and the results of the model.
+  - `visualize_scenario.ipynb`: Visualizes the scenario.
 
 - **`scripts/`**: Python scripts for data processing, utility functions, and visualizations.
   - `create_data.py`: Handles the generation and manipulation of training data.
