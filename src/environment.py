@@ -151,16 +151,35 @@ class AircraftDisruptionEnv(gym.Env):
         state[0, 2] = earliest_conf_flight_id
 
         return state
+    
+    def process_observation(self, state):
+        """Processes the observation: applies mask and flattens the state and mask."""
+        # Create a mask where 1 indicates valid values, 0 indicates NaN
+        mask = np.where(np.isnan(state), 0, 1)
+        # Replace NaN with the dummy value
+        state = np.nan_to_num(state, nan=DUMMY_VALUE)
+        # Flatten both state and mask
+        state_flat = state.flatten()
+        mask_flat = mask.flatten()
+        # Concatenate state and mask
+        obs_with_mask = np.concatenate([state_flat, mask_flat])
+        return obs_with_mask
+
 
     def step(self, action):
-        # Ensure action is a scalar (unwrap from list if necessary)
+        # Ensure action is a scalar value
         if isinstance(action, (list, np.ndarray)):
-            action = action[0]
-        assert self.action_space.contains(action), "Invalid action"
+            action_value = action[0]
+        else:
+            action_value = action
+
+        assert self.action_space.contains(action_value), f"Invalid action: {action_value}"
+        if DEBUG_MODE:
+            print(f"Processed action: {action} of type: {type(action)}")
 
         if DEBUG_MODE:
             print_state_nicely(self.state)
-        action_explain = "No action taken" if action == 0 else f"Action: Aircraft {self.aircraft_ids[action - 1]}"
+        action_explain = "No action taken" if action_value == 0 else f"Action: Aircraft {self.aircraft_ids[action_value - 1]}"
         conflicting_aircraft = None
         conflicting_flight_id = None
 
@@ -197,21 +216,29 @@ class AircraftDisruptionEnv(gym.Env):
             reward = 0  # No reward change
             terminated = self._is_done()
             truncated = False
-            return self.state, reward, terminated, truncated, {}
+
+            processed_state = self.process_observation(self.state)
+            if DEBUG_MODE:
+                print(f"Processed observation shape: {processed_state.shape}")
+            return processed_state, reward, terminated, truncated, {}
 
         conflicting_idx = self.aircraft_id_to_idx[conflicting_aircraft]
 
         # No action taken (action == 0)
-        if action == 0:
-            reward = self._calculate_reward(self.state, action)
+        if action_value == 0:
+            reward = self._calculate_reward(self.state, action_value)
             next_datetime = self.current_datetime + self.timestep
             self.current_datetime = next_datetime
             self.state = self._get_initial_state()
             terminated = self._is_done()
             truncated = False
-            return self.state, reward, terminated, truncated, {}
 
-        selected_aircraft_id = self.aircraft_ids[action - 1]
+            processed_state = self.process_observation(self.state)
+            if DEBUG_MODE:
+                print(f"Processed observation shape: {processed_state.shape}")
+            return processed_state, reward, terminated, truncated, {}
+
+        selected_aircraft_id = self.aircraft_ids[action_value - 1]
         selected_idx = self.aircraft_id_to_idx[selected_aircraft_id]
 
         # Get the conflicting flight's dep and arr times
@@ -238,13 +265,17 @@ class AircraftDisruptionEnv(gym.Env):
             self.update_flight_times(conflicting_flight_id, conf_dep_time, conf_arr_time)
             # Now, schedule the flight and resolve conflicts
             self.schedule_flight_on_aircraft(selected_aircraft_id, conflicting_flight_id, conf_dep_time, conf_arr_time)
-            reward = self._calculate_reward(self.state, action)
+            reward = self._calculate_reward(self.state, action_value)
             next_datetime = self.current_datetime + self.timestep
             self.current_datetime = next_datetime
             self.state = self._get_initial_state()
             terminated = self._is_done()
             truncated = False
-            return self.state, reward, terminated, truncated, {}
+
+            processed_state = self.process_observation(self.state)
+            if DEBUG_MODE:
+                print(f"Processed observation shape: {processed_state.shape}")
+            return processed_state, reward, terminated, truncated, {}
 
         # Swap the conflicting flight to the selected aircraft
         if conflicting_flight_id:
@@ -269,11 +300,14 @@ class AircraftDisruptionEnv(gym.Env):
         self.current_datetime = next_datetime
         self.state = self._get_initial_state()
 
-        reward = self._calculate_reward(self.state, action)
+        reward = self._calculate_reward(self.state, action_value)
         terminated = self._is_done()
         truncated = False
 
-        return self.state, reward, terminated, truncated, {}
+        processed_state = self.process_observation(self.state)
+        if DEBUG_MODE:
+            print(f"Processed observation shape: {processed_state.shape}")
+        return processed_state, reward, terminated, truncated, {}
 
     def schedule_flight_on_aircraft(self, aircraft_id, flight_id, dep_time, arr_time, delayed_flights=None):
         if delayed_flights is None:
@@ -350,9 +384,10 @@ class AircraftDisruptionEnv(gym.Env):
         arr_time = self.earliest_datetime + timedelta(minutes=arr_time_minutes)
 
         # Update flights_dict with new dates and times
-        print("Updating flight times for flight", flight_id)
-        print(" - previous times:", self.flights_dict[flight_id]['DepTime'], self.flights_dict[flight_id]['ArrTime'])
-        print(" - new times:", dep_time.strftime('%H:%M'), arr_time.strftime('%H:%M'))
+        if DEBUG_MODE:
+            print("Updating flight times for flight", flight_id)
+            print(" - previous times:", self.flights_dict[flight_id]['DepTime'], self.flights_dict[flight_id]['ArrTime'])
+            print(" - new times:", dep_time.strftime('%H:%M'), arr_time.strftime('%H:%M'))
         
         self.flights_dict[flight_id]['DepDate'] = dep_time.strftime('%d/%m/%y')
         self.flights_dict[flight_id]['DepTime'] = dep_time.strftime('%H:%M')
@@ -381,21 +416,25 @@ class AircraftDisruptionEnv(gym.Env):
                             conflict_identifier = (aircraft_id, flight_dep, flight_arr)
                             current_conflicts.add(conflict_identifier)
 
+
+        print("Current Conflicts: ", current_conflicts)
+
         # Apply conflict penalty if the selected action involves a conflicting aircraft
         if current_conflicts:
             # Penalize if no action is taken or if the selected aircraft has conflicts
-            if action == 0 or self.aircraft_ids[action - 1] in {aircraft_id for aircraft_id, _, _ in current_conflicts}:
+            if action == 0:
                 conflicts = len(current_conflicts)
                 reward -= 500 * conflicts  # Penalize based on the number of conflicts
             else:
                 reward += 1000  # Reward for resolving conflicts
 
-        # Identify newly resolved conflicts and apply rewards
-        for conflict in self.penalized_conflicts:
-            if conflict not in current_conflicts and conflict not in self.resolved_conflicts:
-                newly_resolved_conflicts += 1
-                self.resolved_conflicts.add(conflict)  # Mark conflict as resolved
-
+        # # Identify newly resolved conflicts and apply rewards
+        # for conflict in self.penalized_conflicts:
+        #     if conflict not in current_conflicts and conflict not in self.resolved_conflicts:
+        #         newly_resolved_conflicts += 1
+        #         self.resolved_conflicts.add(conflict)  # Mark conflict as resolved
+        # # Reward for resolving newly identified conflicts
+        # reward += 5000 * newly_resolved_conflicts
         # Update penalized conflicts to the current conflicts
         self.penalized_conflicts = current_conflicts
 
@@ -412,8 +451,7 @@ class AircraftDisruptionEnv(gym.Env):
 
         reward -= delay_penalty * 5  # Penalize for delays
 
-        # Reward for resolving newly identified conflicts
-        reward += 5000 * newly_resolved_conflicts
+        
 
         # Return the final reward value
         return reward
@@ -422,7 +460,7 @@ class AircraftDisruptionEnv(gym.Env):
         return self.current_datetime >= self.end_datetime
 
     def reset(self, seed=None, options=None):
-        super().reset(seed=seed)
+        # super().reset(seed=seed)
         self.current_datetime = self.start_datetime
 
         self.actions_taken = set()  # Reset the actions taken at the beginning of each episode
@@ -434,12 +472,19 @@ class AircraftDisruptionEnv(gym.Env):
         self.alt_aircraft_dict = copy.deepcopy(self.initial_alt_aircraft_dict)
 
         self.state = self._get_initial_state()
+
         self.swapped_flights = []  # Reset the swapped flights list
         self.environment_delayed_flights = {}  # Reset the delayed flights list
         self.penalized_delays = set()  # Reset the penalized delays
         self.penalized_conflicts = set()
         self.resolved_conflicts = set()
-        return self.state, {}
+
+        processed_state = self.process_observation(self.state)
+
+        if DEBUG_MODE:
+            print("In the end of the reset function, print self.state.shape to check if the state space is 2d:")
+            print(f"State space shape: {self.state.shape}")
+        return processed_state, {}
 
     def get_valid_actions(self):
         valid_actions = [0]  # No action is always valid

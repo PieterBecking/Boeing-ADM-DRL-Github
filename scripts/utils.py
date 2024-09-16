@@ -32,6 +32,41 @@ def read_csv_with_comments(file_path):
         print(f"Error reading file {file_path}: {e}")
         return []
     
+
+def load_scenario_data(scenario_folder):
+    file_keys = ['aircraft', 'airports', 'alt_aircraft', 'alt_airports', 'alt_flights', 'config', 'dist', 'flights', 'itineraries', 'position', 'rotations']
+    file_paths = {key: os.path.join(scenario_folder, f"{key}.csv") for key in file_keys}
+
+    data_dict = {}
+    file_parsing_functions = {
+        'config': FileParsers.parse_config,
+        'airports': FileParsers.parse_airports,
+        'dist': FileParsers.parse_dist,
+        'flights': FileParsers.parse_flights,
+        'aircraft': FileParsers.parse_aircraft,
+        'rotations': FileParsers.parse_rotations,
+        'itineraries': FileParsers.parse_itineraries,
+        'position': FileParsers.parse_position,
+        'alt_flights': FileParsers.parse_alt_flights,
+        'alt_aircraft': FileParsers.parse_alt_aircraft,
+        'alt_airports': FileParsers.parse_alt_airports
+    }
+
+    # Iterate over each file and process it using the correct parsing function
+    for file_type, file_path in file_paths.items():
+        file_lines = read_csv_with_comments(file_path)
+        if file_lines:
+            parse_function = file_parsing_functions.get(file_type)
+            if parse_function:
+                parsed_data = parse_function(file_lines)
+                data_dict[file_type] = parsed_data
+            else:
+                print(f"No parser available for file type: {file_type}")
+        else:
+            data_dict[file_type] = None
+
+    return data_dict
+
 # Clear file content
 def clear_file(file_name):
     """Clears the content of a file."""

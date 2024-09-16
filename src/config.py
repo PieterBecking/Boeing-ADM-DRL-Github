@@ -27,7 +27,7 @@ UNITS_PER_LAYER = 128  # Number of units per layer
 
 # Logging and Debug Settings
 DEBUG_MODE = False  # Turn on/off debug mode
-DEBUG_MODE_TRAINING = True  # Turn on/off debug mode for training
+DEBUG_MODE_TRAINING = False  # Turn on/off debug mode for training
 
 # Data Generation Settings
 DEPARTURE_AFTER_END_RECOVERY = 1  # how many hours after the end of the recovery period can a generated flight depart
