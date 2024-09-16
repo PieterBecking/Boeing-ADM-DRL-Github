@@ -11,12 +11,12 @@ TIMESTEP_HOURS = 1  # Length of each timestep in hours
 DUMMY_VALUE = -999  # Dummy value for padding
 
 # Reward and Penalty Values
-DELAY_PENALTY_PER_MINUTE = 5  # Penalty per minute of delay
-RESOLVED_CONFLICT_REWARD = 1000  # Reward for resolving a conflict
-DELAY_MINUTE_PENALTY = 5  # Penalty per minute of delay
-NO_ACTION_PENALTY = 500  # Penalty for no action while conflict(s) exist
-MAX_DELAY_PENALTY = RESOLVED_CONFLICT_REWARD  # Maximum penalty for delay is the negative of the resolved conflict reward
-CANCELLED_FLIGHT_PENALTY = 1000  # Penalty for cancelling a flight
+DELAY_PENALTY_PER_MINUTE = 5        # Penalty per minute of delay
+RESOLVED_CONFLICT_REWARD = 1000     # Reward for resolving a conflict
+DELAY_MINUTE_PENALTY = 50           # Penalty per minute of delay
+NO_ACTION_PENALTY = 5               # Penalty for no action while conflict(s) exist
+MAX_DELAY_PENALTY = 1000            # Maximum penalty for delay is the negative of the resolved conflict reward
+CANCELLED_FLIGHT_PENALTY = 10000    # Penalty for cancelling a flight
 
 # Environment Settings
 MIN_TURN_TIME = 0  # Minimum gap between flights for the same aircraft
@@ -28,8 +28,8 @@ UNITS_PER_LAYER = 128  # Number of units per layer
 # Logging and Debug Settings
 DEBUG_MODE = False  # Turn on/off debug mode
 DEBUG_MODE_TRAINING = False  # Turn on/off debug mode for training
-DEBUG_MODE_REWARD = True  # Turn on/off debug mode for reward calculation
-DEBUG_MODE_PRINT_STATE = True  # Turn on/off debug mode for printing state
+DEBUG_MODE_REWARD = False  # Turn on/off debug mode for reward calculation
+DEBUG_MODE_PRINT_STATE = False  # Turn on/off debug mode for printing state
 
 # Data Generation Settings
 DEPARTURE_AFTER_END_RECOVERY = 1  # how many hours after the end of the recovery period can a generated flight depart
