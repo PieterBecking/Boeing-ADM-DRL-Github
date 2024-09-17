@@ -32,9 +32,12 @@ class AircraftDisruptionEnv(gym.Env):
         self.aircraft_ids = list(aircraft_dict.keys())
         self.aircraft_id_to_idx = {aircraft_id: idx for idx, aircraft_id in enumerate(self.aircraft_ids)}
 
+        # Filter out flights with '+' in DepTime (next day flights)
+        this_day_flights = [flight_info for flight_info in flights_dict.values() if '+' not in flight_info['DepTime']]
+
         # Determine the earliest possible event in the environment
         self.earliest_datetime = min(
-            min(datetime.strptime(config_dict['RecoveryPeriod']['StartDate'] + ' ' + flight_info['DepTime'], '%d/%m/%y %H:%M') for flight_info in flights_dict.values()),
+            min(datetime.strptime(config_dict['RecoveryPeriod']['StartDate'] + ' ' + flight_info['DepTime'], '%d/%m/%y %H:%M') for flight_info in this_day_flights),
             self.start_datetime
         )
 
@@ -102,7 +105,7 @@ class AircraftDisruptionEnv(gym.Env):
             # Gather flight times for this aircraft
             flight_times = []
             for flight_id, rotation_info in self.rotations_dict.items():
-                if rotation_info['Aircraft'] == aircraft_id:
+                if flight_id in self.flights_dict and rotation_info['Aircraft'] == aircraft_id:
                     # Use updated times from flights_dict (which already include delays)
                     flight_info = self.flights_dict[flight_id]
                     dep_time_str = flight_info['DepTime']
@@ -182,6 +185,7 @@ class AircraftDisruptionEnv(gym.Env):
             print_state_nicely(self.state)
             print("")
 
+        # print("doing step now")
         # Ensure action is a scalar value if provided
         if isinstance(action, (list, np.ndarray)):
             action_value = action[0]
