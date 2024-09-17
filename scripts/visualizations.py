@@ -27,8 +27,6 @@ def run_visualization(scenario_name, data_root_folder, aircraft_rotations, airpo
         visualize_flight_airport_unavailability(data_dict)
 
 
-    
-# Visualization Functions
 def visualize_aircraft_rotations(data_dict):
     """Visualizes aircraft rotations, delays, and unavailability in a state-plotter style."""
     flights_dict = data_dict['flights']
@@ -52,7 +50,7 @@ def visualize_aircraft_rotations(data_dict):
     )
 
     # Aircraft IDs
-    all_aircraft_ids = sorted(list(set([rotation_info['Aircraft'] for rotation_info in rotations_dict.values()])))
+    all_aircraft_ids = sorted(list(set([rotation_info['Aircraft'] for rotation_info in rotations_dict.values()] + list(alt_aircraft_dict.keys()))))
     aircraft_indices = {aircraft_id: index + 1 for index, aircraft_id in enumerate(all_aircraft_ids)}
 
     # Create the figure
@@ -77,6 +75,14 @@ def visualize_aircraft_rotations(data_dict):
             flight_info = flights_dict[flight_id]
             dep_datetime = parse_time_with_day_offset(flight_info['DepTime'], start_datetime)
             arr_datetime = parse_time_with_day_offset(flight_info['ArrTime'], dep_datetime)
+
+            # Fix for flights that depart and arrive after midnight
+            if dep_datetime.time() > datetime.strptime('00:00', '%H:%M').time() and arr_datetime.time() > datetime.strptime('00:00', '%H:%M').time():
+                if arr_datetime.date() > dep_datetime.date():
+                    arr_datetime -= timedelta(days=1)
+
+            if arr_datetime < dep_datetime:
+                arr_datetime += timedelta(days=1)
 
             # Standard flight plot
             plot_color = 'blue'
@@ -125,6 +131,13 @@ def visualize_aircraft_rotations(data_dict):
             ax.plot(unavail_start_datetime, y_offset, 'rx', label='Disruption Start' if not labels['Disruption Start'] else "")
             ax.plot(unavail_end_datetime, y_offset, 'rx', label='Disruption End' if not labels['Disruption End'] else "")
 
+    # Ensure all aircraft are included, even those without flights or unavailability
+    for aircraft_id in all_aircraft_ids:
+        if aircraft_id not in rotations_dict and aircraft_id not in alt_aircraft_dict:
+            y_offset = aircraft_indices[aircraft_id]
+            # Plot an empty row for the aircraft
+            # ax.plot([], [], label=f'{aircraft_id} (No Flights/Unavailability)', color='gray')
+
     # Plot recovery period
     ax.axvline(start_datetime, color='green', linestyle='--', label='Start Recovery Period')
     ax.axvline(end_datetime, color='green', linestyle='-', label='End Recovery Period')
@@ -138,6 +151,13 @@ def visualize_aircraft_rotations(data_dict):
     ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
     ax.xaxis.set_minor_locator(mdates.MinuteLocator(interval=30))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+
+    # Determine the padding for the y-axis
+    y_min = 0.5  # Add a bit of space below the first aircraft
+    y_max = len(all_aircraft_ids) + 0.5  # Add a bit of space above the last aircraft
+
+    # Set the y-limits with padding
+    ax.set_ylim(y_min, y_max)
 
     # Set y-ticks for aircraft indices
     ytick_labels = [f"{index}: {aircraft_id}" for index, aircraft_id in enumerate(all_aircraft_ids, start=1)]
