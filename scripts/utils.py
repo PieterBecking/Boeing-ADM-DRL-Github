@@ -3,6 +3,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import re
 from src.config import *
+import csv
 
 
 # File reader with comment filtering
@@ -332,3 +333,22 @@ def print_train_hyperparams():
     for param, value in hyperparams.items():
         print(f"{param}: {value}")
     print("")
+
+
+def save_best_and_worst_to_csv(scenario_folder, model_name, worst_actions, best_actions, worst_reward, best_reward):
+    """Save the worst and best action sequences to a CSV file."""
+    csv_file = os.path.join(scenario_folder, 'action_sequences.csv')
+    
+    # Check if the file exists; if not, create and write headers
+    file_exists = os.path.isfile(csv_file)
+    
+    with open(csv_file, mode='a', newline='') as file:
+        writer = csv.writer(file)
+        
+        if not file_exists:
+            # Write headers if file doesn't exist
+            writer.writerow(['model_name', 'sequence_type', 'actions', 'reward'])
+        
+        # Append worst and best action sequences
+        writer.writerow([model_name, "worst action sequence", worst_actions, worst_reward])
+        writer.writerow([model_name, "best action sequence", best_actions, best_reward])
