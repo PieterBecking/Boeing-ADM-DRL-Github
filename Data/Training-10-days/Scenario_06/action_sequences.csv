@@ -1,3 +1,7 @@
 model_name,sequence_type,actions,reward
 ../trained_models/dqn_3000d_10u-15.zip,worst action sequence,"[array([0]), array([0]), array([0]), array([0]), array([0]), array([7]), array([0]), array([0]), array([3]), array([2]), array([7])]",-8742.0
 ../trained_models/dqn_3000d_10u-15.zip,best action sequence,"[array([7]), array([7]), array([7]), array([0])]",3000.0
+../trained_models/dqn_25000d_10u-1.zip,worst action sequence,"[array([0]), array([0]), array([0]), array([0]), array([0]), array([0]), array([0]), array([0]), array([0]), array([0]), array([0]), array([0]), array([0]), array([0]), array([0]), array([0]), array([0])]",-30075.0
+../trained_models/dqn_25000d_10u-1.zip,best action sequence,"[array([7]), array([7]), array([7]), array([7])]",3000.0
+../trained_models/dqn_2500d_10u-1.zip,worst action sequence,"[array([5]), array([0]), array([0]), array([0]), array([0]), array([0]), array([0]), array([0]), array([0]), array([0]), array([0]), array([0]), array([0]), array([0]), array([0]), array([0]), array([3])]",-19389.0
+../trained_models/dqn_2500d_10u-1.zip,best action sequence,"[array([0]), array([7]), array([7]), array([3]), array([8])]",2900.0
