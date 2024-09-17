@@ -207,7 +207,7 @@ def create_data_scenario(
     amount_aircraft_disrupted, min_delta_start_unavailability, max_delta_start_unavailability,
     min_period_unavailability, max_period_unavailability, average_flights_per_aircraft,
     std_dev_flights_per_aircraft, airports, config_dict, recovery_start_date,
-    recovery_start_time, recovery_end_date, recovery_end_time
+    recovery_start_time, recovery_end_date, recovery_end_time, clear_one_random_aircraft
 ):
     data_folder = os.path.join(data_root_folder, scenario_name)
     if os.path.exists(data_folder):
@@ -235,5 +235,36 @@ def create_data_scenario(
     # Generate rotations data
     rotations_file = os.path.join(data_folder, 'rotations.csv')
     generate_rotations_file(rotations_file, flight_rotation_data, start_datetime)
+
+    # Clear one random aircraft such that its flights are removed
+    if clear_one_random_aircraft:
+        aircraft_id = random.choice(aircraft_ids)
+        
+        # get its flights from the rotations file
+        rotations_data = []
+        with open(rotations_file, 'r') as file:
+            for line in file:
+                if line.startswith('%') or line.startswith('#'):
+                    continue
+                flight_id, dep_date, aircraft = line.strip().split(' ')
+                if aircraft == aircraft_id:
+                    rotations_data.append(flight_id)
+
+        # remove the flights from the flights file
+        flights_data = []
+        with open(flights_file, 'r') as file:
+            for line in file:
+                if line.startswith('%') or line.startswith('#'):
+                    continue
+                flight_id, orig, dest, dep_time, arr_time, prev_flight = line.strip().split(' ')
+                if flight_id not in rotations_data:
+                    flights_data.append(line)
+        with open(flights_file, 'w') as file:
+            file.write('%Flight Orig Dest DepTime ArrTime PrevFlight\n')
+            for flight in flights_data:
+                file.write(f"{flight}")
+            file.write('#')
+
+
 
     print(f"Data creation for scenario {scenario_name} completed with {len(aircraft_ids)} aircraft and {len(flights_dict)} flights.")
