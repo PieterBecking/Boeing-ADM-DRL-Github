@@ -79,8 +79,8 @@ class AircraftDisruptionEnv(gym.Env):
         time_until_end_minutes = (self.end_datetime - self.current_datetime).total_seconds() / 60
 
         # Insert the current_time_minutes and time_until_end_minutes in the first row
-        state[0, 0] = current_time_minutes
-        state[0, 1] = time_until_end_minutes
+        state[0, 2] = current_time_minutes
+        state[0, 3] = time_until_end_minutes
 
         # Populate state matrix with aircraft and flight information
         for idx, aircraft_id in enumerate(self.aircraft_ids):
@@ -130,9 +130,9 @@ class AircraftDisruptionEnv(gym.Env):
             state[idx + 1, 3:3 + len(flight_times_flat)] = flight_times_flat
 
         # Check the state space for conflicting flights (unavailability and scheduled flights)
-        # Check the state space for conflicting flights (unavailability and scheduled flights)
         earliest_conf_flight_id = None
         earliest_conf_dep_time = None
+        earliest_conf_aircraft_idx = None  # To store the index (idx) of the conflicting aircraft
 
         for idx, aircraft_id in enumerate(self.aircraft_ids):
             if idx >= self.max_aircraft:
@@ -160,12 +160,16 @@ class AircraftDisruptionEnv(gym.Env):
                                 if earliest_conf_dep_time is None or flight_dep < earliest_conf_dep_time:
                                     earliest_conf_dep_time = flight_dep
                                     earliest_conf_flight_id = flight_id
+                                    earliest_conf_aircraft_idx = idx + 1  # Store the idx (row index) of the conflicting aircraft
 
-        # Store the earliest conflicting flight in the state matrix at 0, 2, only if it's not cancelled
-        state[0, 2] = earliest_conf_flight_id
+        # Store the earliest conflicting aircraft index and flight ID in the state matrix
+        state[0, 0] = earliest_conf_aircraft_idx  # Store the index of the earliest conflicting aircraft (idx + 1 for row indexing)
+        state[0, 1] = earliest_conf_flight_id     # Store the earliest conflicting flight ID
 
         if DEBUG_MODE:
-            print(f"Earliest conflicting flight: {earliest_conf_flight_id}")
+            print(f"Earliest conflicting flight: {earliest_conf_flight_id} on aircraft idx {earliest_conf_aircraft_idx}")
+
+
 
 
         return state
