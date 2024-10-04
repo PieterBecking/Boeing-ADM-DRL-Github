@@ -509,7 +509,7 @@ class AircraftDisruptionEnv(gym.Env):
 
 
     def _is_done(self):
-        return self.current_datetime >= self.end_datetime
+        return self.current_datetime >= self.end_datetime or len(self.get_current_conflicts()) == 0
 
     def reset(self, seed=None, options=None):
         # super().reset(seed=seed)
