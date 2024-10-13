@@ -194,10 +194,10 @@ class AircraftDisruptionEnv(gym.Env):
             print_state_nicely(self.state)
             print("")
 
-        if isinstance(action, (list, np.ndarray)):
-            action_value = action[0]
+        if isinstance(action, (list, np.ndarray)) and np.ndim(action) > 0:
+            action_value = action[0]  # Extract the first element if it's a list or array
         else:
-            action_value = action
+            action_value = action  # Use the scalar action directly 
 
         valid_actions = self.get_valid_actions()
         self.action_space = spaces.Discrete(len(valid_actions))
@@ -209,6 +209,7 @@ class AircraftDisruptionEnv(gym.Env):
             print(f"Processed action: {action} of type: {type(action)}")
 
         agent_acted = False
+        info = {} 
 
         while not agent_acted:
             pre_action_conflicts = self.get_current_conflicts()
@@ -219,7 +220,7 @@ class AircraftDisruptionEnv(gym.Env):
                     terminated = True
                     truncated = False
                     processed_state = self.process_observation(self.state)
-                    return processed_state, 0, terminated, truncated, {}
+                    return np.array(processed_state, dtype=np.float32), 0, terminated, truncated, {}
 
                 self.current_datetime = next_datetime
                 self.state = self._get_initial_state()
@@ -265,7 +266,7 @@ class AircraftDisruptionEnv(gym.Env):
                 truncated = False
 
                 processed_state = self.process_observation(self.state)
-                return processed_state, reward, terminated, truncated, {}
+                return np.array(processed_state, dtype=np.float32), reward, terminated, truncated, {}
 
             conflicting_idx = self.aircraft_id_to_idx[conflicting_aircraft]
 
@@ -282,7 +283,7 @@ class AircraftDisruptionEnv(gym.Env):
                 truncated = False
 
                 processed_state = self.process_observation(self.state)
-                return processed_state, reward, terminated, truncated, {}
+                return np.array(processed_state, dtype=np.float32), reward, terminated, truncated, {}
 
             selected_aircraft_id = self.aircraft_ids[action_value - 1]
             selected_idx = self.aircraft_id_to_idx[selected_aircraft_id]
@@ -317,7 +318,7 @@ class AircraftDisruptionEnv(gym.Env):
                 truncated = False
 
                 processed_state = self.process_observation(self.state)
-                return processed_state, reward, terminated, truncated, {}
+                return np.array(processed_state, dtype=np.float32), reward, terminated, truncated, {}
 
             if conflicting_flight_id:
                 if conflicting_flight_id in self.cancelled_flights:
@@ -350,7 +351,7 @@ class AircraftDisruptionEnv(gym.Env):
             truncated = False
 
             processed_state = self.process_observation(self.state)
-            return processed_state, reward, terminated, truncated, {}
+            return np.array(processed_state, dtype=np.float32), reward, terminated, truncated, {}
 
 
 
@@ -510,9 +511,7 @@ class AircraftDisruptionEnv(gym.Env):
 
     def _is_done(self):
         return self.current_datetime >= self.end_datetime or len(self.get_current_conflicts()) == 0
-
     def reset(self, seed=None, options=None):
-        # super().reset(seed=seed)
         self.current_datetime = self.start_datetime
 
         self.actions_taken = set()  # Reset the actions taken at the beginning of each episode
@@ -537,13 +536,14 @@ class AircraftDisruptionEnv(gym.Env):
         valid_actions = self.get_valid_actions()
         self.action_space = spaces.Discrete(len(valid_actions))
         
+        # Process the state into an observation as a NumPy array
         processed_state = self.process_observation(self.state)
 
         if DEBUG_MODE:
-            print("In the end of the reset function, print self.state.shape to check if the state space is 2d:")
             print(f"State space shape: {self.state.shape}")
         
-        return processed_state, {}
+        return np.array(processed_state, dtype=np.float32), {}  # Return processed observation as a NumPy array
+
     
     def get_current_conflicts(self):
         """Returns the set of conflicts in the current state, excluding past flights (which are considered cancelled)."""

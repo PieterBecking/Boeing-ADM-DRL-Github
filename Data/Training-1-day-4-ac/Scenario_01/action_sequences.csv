@@ -1,0 +1,29 @@
+model_name,sequence_type,actions,reward
+../trained_models/dqn_5000d_1u-1.zip,worst action sequence,"[array(0), array(0), array(0), array(0), array(1)]",-9967.0
+../trained_models/dqn_5000d_1u-1.zip,best action sequence,"[array(3), array(3)]",2000
+../trained_models/dqn_5000d_1u-2.zip,worst action sequence,"[array(0), array(0), array(0), array(0), array(1)]",-9967.0
+../trained_models/dqn_5000d_1u-2.zip,best action sequence,"[array(3), array(3)]",2000
+../trained_models/dqn_5000d_1u-3.zip,worst action sequence,"[array(0), array(0), array(0), array(0), array(0), array(0), array(0)]",-20030
+../trained_models/dqn_5000d_1u-3.zip,best action sequence,"[array(3), array(3)]",2000
+../trained_models/dqn_5000d_1u-4.zip,worst action sequence,"[array(0), array(0), array(0), array(0), array(0), array(0), array(0)]",-20030
+../trained_models/dqn_5000d_1u-4.zip,best action sequence,"[array(3), array(3)]",2000
+../trained_models/dqn_5000d_1u-5.zip,worst action sequence,"[array(0), array(0), array(0), array(0), array(0), array(0), array(0)]",-20030
+../trained_models/dqn_5000d_1u-5.zip,best action sequence,"[array(3), array(3)]",2000
+../trained_models/dqn_5000d_1u-6.zip,worst action sequence,"[array(0), array(0), array(0), array(0), array(0), array(0), array(0)]",-20030
+../trained_models/dqn_5000d_1u-6.zip,best action sequence,"[array(3), array(3)]",2000
+../trained_models/dqn_5000d_1u-7.zip,worst action sequence,"[array(0), array(0), array(0), array(0), array(0), array(0), array(0)]",-20030
+../trained_models/dqn_5000d_1u-7.zip,best action sequence,"[array(3), array(3)]",2000
+../trained_models/dqn_5000d_1u-8.zip,worst action sequence,"[array(0), array(0), array(0), array(0), array(0), array(1)]",-9972.0
+../trained_models/dqn_5000d_1u-8.zip,best action sequence,"[array(3), array(3)]",2000
+../trained_models/dqn_50000d_1u-1.zip,worst action sequence,"[array(0), array(0), array(0), array(0), array(0), array(0), array(0)]",-20030
+../trained_models/dqn_50000d_1u-1.zip,best action sequence,"[array(3), array(3)]",2000
+../trained_models/dqn_50000d_1u-2.zip,worst action sequence,"[array(0), array(0), array(0), array(0), array(0), array(0), array(0)]",-20030
+../trained_models/dqn_50000d_1u-2.zip,best action sequence,"[array(3), array(3)]",2000
+../trained_models/dqn_50000d_1u-3.zip,worst action sequence,"[array(0), array(0), array(0), array(0), array(0), array(0), array(0)]",-20030
+../trained_models/dqn_50000d_1u-3.zip,best action sequence,"[array(3), array(3)]",2000
+../trained_models/dqn_50000d_1u-4.zip,worst action sequence,"[array(0), array(0), array(0), array(0), array(0), array(0), array(0)]",-20030
+../trained_models/dqn_50000d_1u-4.zip,best action sequence,"[array(3), array(3)]",2000
+../trained_models/dqn_50000d_1u-5.zip,worst action sequence,"[array(0), array(0), array(0), array(0), array(0), array(0), array(0)]",-20030
+../trained_models/dqn_50000d_1u-5.zip,best action sequence,"[array(3), array(3)]",2000
+../trained_models/dqn_50000d_1u-6.zip,worst action sequence,"[array(0), array(0), array(0), array(0), array(0), array(0), array(0)]",-20030
+../trained_models/dqn_50000d_1u-6.zip,best action sequence,"[array(3), array(3)]",2000
