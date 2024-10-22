@@ -357,9 +357,9 @@ class StatePlotter:
                 delayed = flight_id in environment_delayed_flights
                 cancelled = flight_id in cancelled_flights
                 
-                if swapped or delayed or cancelled:
-                    print(f"Flight {flight_id}: Departure: {dep_datetime}, Arrival: {arr_datetime}")
-                    print(f"  Status: {'Swapped' if swapped else 'Delayed' if delayed else 'Cancelled'}")
+                # if swapped or delayed or cancelled:
+                #     print(f"Flight {flight_id}: Departure: {dep_datetime}, Arrival: {arr_datetime}")
+                #     print(f"  Status: {'Swapped' if swapped else 'Delayed' if delayed else 'Cancelled'}")
                 
                 if cancelled:
                     plot_color = 'red'
@@ -387,9 +387,9 @@ class StatePlotter:
                 ax.plot(dep_marker, y_offset, color=plot_color, marker='>', markersize=6, markeredgewidth=0)
                 ax.plot(arr_marker, y_offset, color=plot_color, marker='<', markersize=6, markeredgewidth=0)
 
-                if swapped or delayed or cancelled:
-                    print(f"  Line start: {dep_datetime}, Line end: {arr_datetime}")
-                    print(f"  Departure marker: {dep_marker}, Arrival marker: {arr_marker}")
+                # if swapped or delayed or cancelled:
+                #     print(f"  Line start: {dep_datetime}, Line end: {arr_datetime}")
+                #     print(f"  Departure marker: {dep_marker}, Arrival marker: {arr_marker}")
 
                 if delayed:
                     ax.vlines([dep_datetime, arr_datetime], y_offset - self.offset_delayed_flight, y_offset, color='orange', linestyle='-', linewidth=2)
@@ -433,7 +433,7 @@ class StatePlotter:
         x_min = earliest_time - timedelta(hours=1)
         x_max = latest_time + timedelta(hours=1)
         ax.set_xlim(x_min, x_max)
-        print(f"Set x-axis limits: {x_min} to {x_max}")
+        # print(f"Set x-axis limits: {x_min} to {x_max}")
 
         ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
         ax.xaxis.set_minor_locator(mdates.MinuteLocator(interval=30))
@@ -460,7 +460,7 @@ class StatePlotter:
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.show()
 
-        print(f"Actual x-axis limits after plotting: {ax.get_xlim()}")
+        # print(f"Actual x-axis limits after plotting: {ax.get_xlim()}")
 
 
 

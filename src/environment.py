@@ -467,12 +467,13 @@ class AircraftDisruptionEnv(gym.Env):
 
         delay_penalty_total = delay_penalty * DELAY_MINUTE_PENALTY
 
+
         capped_delay_penalty = False
-        if delay_penalty_total > RESOLVED_CONFLICT_REWARD:
+        if delay_penalty_total > MAX_DELAY_PENALTY:
             capped_delay_penalty = True
-            delay_penalty_total = RESOLVED_CONFLICT_REWARD
+            delay_penalty_total = MAX_DELAY_PENALTY
         else:
-            delay_penalty_total = delay_penalty
+            delay_penalty_total = delay_penalty_total
 
         reward -= delay_penalty_total
 
