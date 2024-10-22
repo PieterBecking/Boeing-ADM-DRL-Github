@@ -33,6 +33,7 @@ class AircraftDisruptionEnv(gym.Env):
         self.aircraft_id_to_idx = {aircraft_id: idx for idx, aircraft_id in enumerate(self.aircraft_ids)}
 
         # Filter out flights with '+' in DepTime (next day flights)
+        # print(flights_dict)
         this_day_flights = [flight_info for flight_info in flights_dict.values() if '+' not in flight_info['DepTime']]
 
         # Determine the earliest possible event in the environment
