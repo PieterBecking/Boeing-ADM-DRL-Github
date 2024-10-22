@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 import matplotlib.dates as mdates
-from scripts.utils import *
+from scripts.utils import parse_time_with_day_offset, load_data
 from stable_baselines3.common.evaluation import evaluate_policy
 from src.config import *
 
@@ -276,19 +276,6 @@ def visualize_flight_airport_unavailability(data_dict):
     plt.show()
 
 
-# Function to parse time strings with day offset handling
-def parse_time_with_day_offset(time_str, reference_date):
-    """Parses time and handles '+1' for next day times."""
-    if '+1' in time_str:
-        time_str = time_str.replace('+1', '').strip()
-        time_obj = datetime.strptime(time_str, '%H:%M')
-        return datetime.combine(reference_date, time_obj.time()) + timedelta(days=1)
-    else:
-        return datetime.strptime(time_str, '%H:%M').replace(year=reference_date.year, month=reference_date.month, day=reference_date.day)
-
-
-
-
 
 
 
@@ -348,6 +335,9 @@ class StatePlotter:
             'Delay of Flight': False
         }
 
+        earliest_time = self.earliest_datetime
+        latest_time = self.latest_datetime
+
         for rotation_id, rotation_info in updated_rotations_dict.items():
             flight_id = rotation_id
             aircraft_id = rotation_info['Aircraft']
@@ -360,11 +350,17 @@ class StatePlotter:
                 dep_datetime = parse_time_with_day_offset(dep_datetime_str, self.start_datetime)
                 arr_datetime = parse_time_with_day_offset(arr_datetime_str, dep_datetime)
                 
+                earliest_time = min(earliest_time, dep_datetime)
+                latest_time = max(latest_time, arr_datetime)
+                
                 swapped = any(flight_id == swap[0] for swap in swapped_flights)
                 delayed = flight_id in environment_delayed_flights
                 cancelled = flight_id in cancelled_flights
                 
-                # Set color based on the flight status
+                if swapped or delayed or cancelled:
+                    print(f"Flight {flight_id}: Departure: {dep_datetime}, Arrival: {arr_datetime}")
+                    print(f"  Status: {'Swapped' if swapped else 'Delayed' if delayed else 'Cancelled'}")
+                
                 if cancelled:
                     plot_color = 'red'
                     plot_label = 'Cancelled Flight'
@@ -382,31 +378,27 @@ class StatePlotter:
                 if delayed:
                     y_offset += self.offset_delayed_flight
 
-                # Plot the line representing the flight without markers
                 ax.plot([dep_datetime, arr_datetime], [y_offset, y_offset], color=plot_color, label=plot_label if not labels[plot_label] else None)
                 
-                # Offset the markers slightly by reducing/increasing time
                 marker_offset = timedelta(minutes=self.offset_marker_minutes)
+                dep_marker = dep_datetime + marker_offset
+                arr_marker = arr_datetime - marker_offset
 
-                # Plot departure marker with slight offset
-                ax.plot(dep_datetime + marker_offset, y_offset, color=plot_color, marker='>', markersize=6, markeredgewidth=0)
+                ax.plot(dep_marker, y_offset, color=plot_color, marker='>', markersize=6, markeredgewidth=0)
+                ax.plot(arr_marker, y_offset, color=plot_color, marker='<', markersize=6, markeredgewidth=0)
 
-                # Plot arrival marker with slight offset
-                ax.plot(arr_datetime - marker_offset, y_offset, color=plot_color, marker='<', markersize=6, markeredgewidth=0)
+                if swapped or delayed or cancelled:
+                    print(f"  Line start: {dep_datetime}, Line end: {arr_datetime}")
+                    print(f"  Departure marker: {dep_marker}, Arrival marker: {arr_marker}")
 
                 if delayed:
-                    # Draw a vertical line at the departure and arrival times to indicate delay
                     ax.vlines([dep_datetime, arr_datetime], y_offset - self.offset_delayed_flight, y_offset, color='orange', linestyle='-', linewidth=2)
 
                 labels[plot_label] = True
                 
-                # Calculate the midpoint between departure and arrival for placing the flight ID
                 mid_datetime = dep_datetime + (arr_datetime - dep_datetime) / 2
-
-                # flight id above line
                 ax.text(mid_datetime, y_offset + self.offset_id_number, flight_id, 
                         ha='center', va='bottom', fontsize=10, color='black')
-
 
         if self.alt_aircraft_dict:
             for aircraft_id, unavailability_info in self.alt_aircraft_dict.items():
@@ -417,6 +409,9 @@ class StatePlotter:
                 
                 unavail_start_datetime = datetime.strptime(start_date + ' ' + start_time, '%d/%m/%y %H:%M')
                 unavail_end_datetime = datetime.strptime(end_date + ' ' + end_time, '%d/%m/%y %H:%M')
+                
+                earliest_time = min(earliest_time, unavail_start_datetime)
+                latest_time = max(latest_time, unavail_end_datetime)
                 
                 if aircraft_id in aircraft_indices:
                     if not labels['Aircraft Unavailable']:
@@ -435,7 +430,11 @@ class StatePlotter:
                     else:
                         ax.plot(unavail_end_datetime, aircraft_indices[aircraft_id], 'rx')
 
-        ax.set_xlim(self.earliest_datetime - timedelta(hours=1), self.latest_datetime + timedelta(hours=1))
+        x_min = earliest_time - timedelta(hours=1)
+        x_max = latest_time + timedelta(hours=1)
+        ax.set_xlim(x_min, x_max)
+        print(f"Set x-axis limits: {x_min} to {x_max}")
+
         ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
         ax.xaxis.set_minor_locator(mdates.MinuteLocator(interval=30))
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
@@ -443,15 +442,12 @@ class StatePlotter:
         ax.axvline(self.end_datetime, color='green', linestyle='-', label='End Recovery Period')
         ax.axvline(current_datetime, color='black', linestyle='-', label='Current Time')
 
-        ax.axvspan(self.end_datetime, self.latest_datetime + timedelta(hours=1), color='lightgrey', alpha=0.3)
-        ax.axvspan(self.earliest_datetime - timedelta(hours=1), self.start_datetime, color='lightgrey', alpha=0.3)
+        ax.axvspan(self.end_datetime, latest_time + timedelta(hours=1), color='lightgrey', alpha=0.3)
+        ax.axvspan(earliest_time - timedelta(hours=1), self.start_datetime, color='lightgrey', alpha=0.3)
         
-        # Reverse the y-axis
         ax.invert_yaxis()
 
-        # Generate y-ticks with correct aircraft string
         ytick_labels = [f"{index + 1}: {aircraft_id}" for index, aircraft_id in enumerate(aircraft_ids)]
-
         plt.yticks(range(1, len(aircraft_ids) + 1), ytick_labels)
 
         plt.xlabel('Time')
@@ -463,6 +459,8 @@ class StatePlotter:
 
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.show()
+
+        print(f"Actual x-axis limits after plotting: {ax.get_xlim()}")
 
 
 
@@ -537,3 +535,8 @@ def plot_epsilon_decay(n_episodes, epsilon_start, epsilon_min, decay_rate):
     plt.ylabel("Epsilon")
     plt.title("Epsilon Exponential Decay Curve")
     plt.show()
+
+
+
+
+
