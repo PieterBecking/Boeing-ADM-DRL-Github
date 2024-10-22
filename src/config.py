@@ -1,6 +1,6 @@
 # General Environment Settings
-MAX_AIRCRAFT = 6  # Maximum number of aircraft considered in the environment
-MAX_FLIGHTS_PER_AIRCRAFT = 10  # Maximum number of flights per aircraft
+MAX_AIRCRAFT = 3  # Maximum number of aircraft considered in the environment
+MAX_FLIGHTS_PER_AIRCRAFT = 12  # Maximum number of flights per aircraft
 ROWS_STATE_SPACE = 1 + MAX_AIRCRAFT  # Number of rows in the state space
 COLUMNS_STATE_SPACE = 1 + 2 + 3 * MAX_FLIGHTS_PER_AIRCRAFT # Number of columns in the state space: 1 for ac id, 2 for ac unavail, 3 for each flight (id, start, end)
 
@@ -11,8 +11,8 @@ TIMESTEP_HOURS = 1  # Length of each timestep in hours
 DUMMY_VALUE = -999  # Dummy value for padding
 
 # Reward and Penalty Values
-RESOLVED_CONFLICT_REWARD = 1000     # Reward for resolving a conflict
-DELAY_MINUTE_PENALTY = 1           # Penalty per minute of delay
+RESOLVED_CONFLICT_REWARD = 20000     # Reward for resolving a conflict
+DELAY_MINUTE_PENALTY = 60           # Penalty per minute of delay
 MAX_DELAY_PENALTY = 10000            # Maximum penalty for delay
 NO_ACTION_PENALTY = 5               # Penalty for no action while conflict(s) exist
 CANCELLED_FLIGHT_PENALTY = 10000    # Penalty for cancelling a flight
@@ -20,15 +20,12 @@ CANCELLED_FLIGHT_PENALTY = 10000    # Penalty for cancelling a flight
 # Environment Settings
 MIN_TURN_TIME = 0  # Minimum gap between flights for the same aircraft
 
-# Model Settings (if you have a model-based environment)
-MODEL_LAYERS = 3  # Number of layers in the model (if used)
-UNITS_PER_LAYER = 128  # Number of units per layer
 
 # Logging and Debug Settings
 DEBUG_MODE = False  # Turn on/off debug mode
 DEBUG_MODE_TRAINING = False  # Turn on/off debug mode for training
 DEBUG_MODE_REWARD = False  # Turn on/off debug mode for reward calculation
-DEBUG_MODE_PRINT_STATE = False  # Turn on/off debug mode for printing state
+DEBUG_MODE_PRINT_STATE = True  # Turn on/off debug mode for printing state
 DEBUG_MODE_CANCELLED_FLIGHT = False  # Turn on/off debug mode for cancelled flight
 
 # Data Generation Settings
