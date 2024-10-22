@@ -118,16 +118,16 @@ def generate_flights_file(file_name, aircraft_ids, average_flights_per_aircraft,
     flights_dict = {}
     flight_rotation_data = {}
 
-    total_flights = len(aircraft_ids) * average_flights_per_aircraft
+    total_flights = max(1, len(aircraft_ids) * average_flights_per_aircraft)  # Ensure at least 1 flight
     amount_flights_per_aircraft = {}
     flights_left_to_generate = total_flights
 
     for aircraft_id in aircraft_ids:
-        amount_flights_per_aircraft[aircraft_id] = min(
+        amount_flights_per_aircraft[aircraft_id] = max(1, min(
             random.randint(average_flights_per_aircraft - std_dev_flights_per_aircraft, 
                            average_flights_per_aircraft + std_dev_flights_per_aircraft),
             flights_left_to_generate
-        )
+        ))
         flights_left_to_generate -= amount_flights_per_aircraft[aircraft_id]
 
     flight_id = 0
@@ -172,6 +172,33 @@ def generate_flights_file(file_name, aircraft_ids, average_flights_per_aircraft,
             # Also, break if arrival time exceeds the end of the recovery period
             if arr_time_obj > end_datetime:
                 break
+
+    # Ensure at least one flight is generated
+    if not flights_dict:
+        flight_id = 1
+        aircraft_id = aircraft_ids[0]
+        orig, dest = random.choice(airports), random.choice(airports)
+        while orig == dest:
+            dest = random.choice(airports)
+        
+        dep_time = f"{random.randint(6, 12)}:{random.choice(['00', '15', '30', '45'])}"
+        dep_time_obj = parse_time_with_day_offset(dep_time, start_datetime)
+        arr_time_obj = dep_time_obj + timedelta(hours=random.randint(1, 4), minutes=random.randint(0, 59))
+
+        # Add day offset to arrival and departure times when necessary
+        if arr_time_obj.day > start_datetime.day:
+            arr_time = f"{arr_time_obj.strftime('%H:%M')}+1"
+        else:
+            arr_time = arr_time_obj.strftime('%H:%M')
+
+        # Check if departure time crosses into the next day (after midnight)
+        if dep_time_obj.day > start_datetime.day:
+            dep_time = f"{dep_time_obj.strftime('%H:%M')}+1"
+        else:
+            dep_time = dep_time_obj.strftime('%H:%M')
+
+        flights_dict[flight_id] = {'Orig': orig, 'Dest': dest, 'DepTime': dep_time, 'ArrTime': arr_time, 'PrevFlight': 0, 'Aircraft': aircraft_id}
+        flight_rotation_data[flight_id] = {'Aircraft': aircraft_id}
 
     with open(file_name, 'w') as file:
         file.write('%Flight Orig Dest DepTime ArrTime PrevFlight\n')
@@ -268,3 +295,5 @@ def create_data_scenario(
 
 
     print(f"Data creation for scenario {scenario_name} completed with {len(aircraft_ids)} aircraft and {len(flights_dict)} flights.")
+
+
