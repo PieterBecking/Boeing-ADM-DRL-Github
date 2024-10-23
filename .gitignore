@@ -3,11 +3,13 @@
 __pycache__/
 .DS_Store
 
-# add all the folders in the data folder that start with Training
+# add Training and Testing folders
 data/Training*/
+data/Testing*/
 
 # add the action sequences folder
 results/*/action_sequences/
 
 # add the reward plots per scenario
 results/*/plots/reward-plots-per-scenario/
+
