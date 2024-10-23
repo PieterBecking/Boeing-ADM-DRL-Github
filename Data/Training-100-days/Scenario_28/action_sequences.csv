@@ -1,3 +1,0 @@
-model_name,sequence_type,actions,reward
-../trained_models/dqn_3000d_100u-4.zip,worst action sequence,"[array([2]), array([5]), array([0])]",1090.0
-../trained_models/dqn_3000d_100u-4.zip,best action sequence,"[array([1]), array([0]), array([1]), array([4])]",1995.0
