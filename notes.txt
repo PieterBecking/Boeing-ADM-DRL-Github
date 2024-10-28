@@ -1,0 +1,252 @@
+start_time = datetime.now()
+
+
+# Initialize variables
+rewards = []
+epsilon_values = []
+total_timesteps = 0
+action_sequences = {
+    os.path.join(TRAINING_FOLDERS_PATH, folder): {
+        "best_actions": [],
+        "best_reward": float('-inf'),
+        "worst_actions": [],
+        "worst_reward": float('inf')
+    }
+    for folder in training_folders
+}
+
+def train_dqn_agent():
+    # List all the scenario folders in Data/Training
+    scenario_folders = [
+        os.path.join(TRAINING_FOLDERS_PATH, folder)
+        for folder in os.listdir(TRAINING_FOLDERS_PATH)
+        if os.path.isdir(os.path.join(TRAINING_FOLDERS_PATH, folder))
+    ]
+
+    epsilon = EPSILON_START
+    global total_timesteps
+
+    # Initialize the DQN
+    dummy_scenario_folder = scenario_folders[0]
+    data_dict = load_scenario_data(dummy_scenario_folder)
+    aircraft_dict = data_dict['aircraft']
+    flights_dict = data_dict['flights']
+    rotations_dict = data_dict['rotations']
+    alt_aircraft_dict = data_dict['alt_aircraft']
+    config_dict = data_dict['config']
+    env = AircraftDisruptionEnv(
+        aircraft_dict,
+        flights_dict,
+        rotations_dict,
+        alt_aircraft_dict,
+        config_dict
+    )
+
+    model = DQN(
+        policy='MlpPolicy',
+        env=env,
+        learning_rate=LEARNING_RATE,
+        gamma=GAMMA,
+        buffer_size=BUFFER_SIZE,
+        learning_starts=LEARNING_STARTS,
+        batch_size=BATCH_SIZE,
+        target_update_interval=TARGET_UPDATE_INTERVAL,
+        verbose=0,
+        policy_kwargs=NEURAL_NET_STRUCTURE,
+        device=device
+    )
+
+    
+    logger = configure() 
+    model._logger = logger 
+
+    # Training loop over the number of episodes
+    for episode in range(N_EPISODES):
+        # Cycle through all the scenario folders
+        for scenario_folder in scenario_folders:
+            if DEBUG_MODE_TRAINING:
+                print(f"Training on scenario {scenario_folder}")
+
+            # Load the data for the current scenario
+            data_dict = load_scenario_data(scenario_folder)
+            aircraft_dict = data_dict['aircraft']
+            flights_dict = data_dict['flights']
+            rotations_dict = data_dict['rotations']
+            alt_aircraft_dict = data_dict['alt_aircraft']
+            config_dict = data_dict['config']
+
+            # Update the environment with the new scenario (by reinitializing it)
+            env = AircraftDisruptionEnv(
+                aircraft_dict,
+                flights_dict,
+                rotations_dict,
+                alt_aircraft_dict,
+                config_dict
+            )
+            model.set_env(env)  # Update the model's environment with the new instance
+
+            # Reset the environment
+            obs, _ = env.reset()  # Extract the observation (obs) and ignore the info (_)
+
+            done_flag = False
+            total_reward = 0
+            timesteps = 0
+            action_sequence = []
+
+            while not done_flag and timesteps < MAX_TIMESTEPS:
+                model.exploration_rate = epsilon
+
+                # Call model.predict using only the observation
+                action, _ = model.predict(obs, deterministic=False)
+
+                # Take action in the environment
+                result = env.step(action)
+
+                # Unpack the result (5 values)
+                obs_next, reward, terminated, truncated, info = result
+
+                # Combine the terminated and truncated flags into a single done flag
+                done_flag = terminated or truncated
+
+                # Store the action
+                action_sequence.append(action)
+
+                # Accumulate the reward
+                total_reward += reward
+
+                # Add the transition to the replay buffer
+                model.replay_buffer.add(
+                    obs=obs,
+                    next_obs=obs_next,
+                    action=action,
+                    reward=reward,
+                    done=done_flag,
+                    infos=[info]
+                )
+
+                # Update the current observation
+                obs = obs_next
+
+                # Update epsilon (exploration rate)
+                epsilon = max(EPSILON_MIN, epsilon * (1 - EPSILON_DECAY_RATE))
+                epsilon_values.append(epsilon)
+
+                timesteps += 1
+                total_timesteps += 1
+
+                # Training
+                if total_timesteps > model.learning_starts and total_timesteps % TRAIN_FREQ == 0:
+                    # Perform a training step
+                    model.train(gradient_steps=1, batch_size=BATCH_SIZE)
+
+                # Update target network
+                if total_timesteps % model.target_update_interval == 0:
+                    polyak_update(model.q_net.parameters(), model.q_net_target.parameters(), model.tau)
+                    # Copy batch norm stats
+                    polyak_update(model.batch_norm_stats, model.batch_norm_stats_target, 1.0)
+
+                # Check if the episode is done
+                if done_flag:
+                    break
+
+            # Store the total reward for the episode with the scenario specified
+            rewards.append((episode, scenario_folder, total_reward))
+
+            # Update the worst and best action sequences
+            if total_reward < action_sequences[scenario_folder]["worst_reward"]:
+                action_sequences[scenario_folder]["worst_actions"] = action_sequence
+                action_sequences[scenario_folder]["worst_reward"] = total_reward
+
+            if total_reward > action_sequences[scenario_folder]["best_reward"]:
+                action_sequences[scenario_folder]["best_actions"] = action_sequence
+                action_sequences[scenario_folder]["best_reward"] = total_reward
+
+        print(f"({episode + 1}/{N_EPISODES})")
+        print(f"device used: {th.cuda.get_device_name()}")
+
+    # Save the model after training
+    model.save(MODEL_SAVE_PATH)
+
+
+train_dqn_agent()
+
+# Output total timesteps
+print(total_timesteps)
+
+# Output scenario action sequences and rewards
+for scenario, data in action_sequences.items():
+    print(f"Scenario: {scenario}, Worst Reward: {data['worst_reward']}, Best Reward: {data['best_reward']}")
+    print(f"Worst Action Sequence: {data['worst_actions']}")
+    print(f"Best Action Sequence: {data['best_actions']}")
+
+    # Save the action sequences to a CSV file
+    save_best_and_worst_to_csv(
+        scenario,
+        MODEL_SAVE_PATH,
+        data['worst_actions'],
+        data['best_actions'],
+        data['worst_reward'],
+        data['best_reward']
+    )
+
+
+end_time = datetime.now()
+runtime = end_time - start_time
+runtime_in_seconds = runtime.total_seconds()
+
+# create new folder within results_dir called action_sequences
+os.makedirs(os.path.join(results_dir, 'action_sequences'), exist_ok=True)
+
+# Collect hyperparameters and other details
+hyperparameters = {
+    'LEARNING_RATE': LEARNING_RATE,
+    'GAMMA': GAMMA,
+    'BUFFER_SIZE': BUFFER_SIZE,
+    'BATCH_SIZE': BATCH_SIZE,
+    'TARGET_UPDATE_INTERVAL': TARGET_UPDATE_INTERVAL,
+    'EPSILON_START': EPSILON_START,
+    'EPSILON_MIN': EPSILON_MIN,
+    'EPSILON_DECAY_RATE': EPSILON_DECAY_RATE,
+    'MAX_TIMESTEPS': MAX_TIMESTEPS,
+    'LEARNING_STARTS': LEARNING_STARTS,
+    'TRAIN_FREQ': TRAIN_FREQ,
+    'N_EPISODES': N_EPISODES,
+    'NEURAL_NET_STRUCTURE': NEURAL_NET_STRUCTURE,
+    'TRAINING_FOLDERS_PATH': TRAINING_FOLDERS_PATH,
+    'model_name': model_name,
+    'model_version': model_version,
+    'MODEL_SAVE_PATH': MODEL_SAVE_PATH,
+    'runtime_in_seconds': runtime_in_seconds,
+    'runtime_in_hh:mm:ss': str(runtime) if runtime_in_seconds > 0 else "0:00:00",
+    'total_timesteps': total_timesteps,
+
+
+    #  values from config.py
+    'MAX_AIRCRAFT': MAX_AIRCRAFT,
+    'MAX_FLIGHTS_PER_AIRCRAFT': MAX_FLIGHTS_PER_AIRCRAFT,
+    'TIMESTEP_HOURS': TIMESTEP_HOURS,
+    'DUMMY_VALUE': DUMMY_VALUE,
+    'RESOLVED_CONFLICT_REWARD': RESOLVED_CONFLICT_REWARD,
+    'DELAY_MINUTE_PENALTY': DELAY_MINUTE_PENALTY,
+    'MAX_DELAY_PENALTY': MAX_DELAY_PENALTY,
+    'NO_ACTION_PENALTY': NO_ACTION_PENALTY,
+    'CANCELLED_FLIGHT_PENALTY': CANCELLED_FLIGHT_PENALTY,
+    'MIN_TURN_TIME': MIN_TURN_TIME,
+
+    # device info
+    'device': device,
+    # 'macbook_info': get_macbook_info(),s
+    
+}
+
+# Save hyperparameters to CSV
+hyperparameters_df = pd.DataFrame(list(hyperparameters.items()), columns=['Parameter', 'Value'])
+hyperparameters_df.to_csv(os.path.join(results_dir, 'hyperparameters.csv'), index=False)
+
+# Save the action sequences to CSV files in the results directory
+for scenario, data in action_sequences.items():
+    scenario_name = os.path.basename(scenario)
+    worst_actions_df = pd.DataFrame(data['worst_actions'], columns=['Action'])
+    best_actions_df = pd.DataFrame(data['best_actions'], columns=['Action'])
+    worst_actions_df.to_csv(os.path.join(results_dir, 'action_sequences', f'{scenario_name}_worst_actions.csv'), index=False)
+    best_actions_df.to_csv(os.path.join(results_dir, 'action_sequences', f'{scenario_name}_best_actions.csv'), index=False)
