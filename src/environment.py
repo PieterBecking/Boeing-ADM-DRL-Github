@@ -6,6 +6,11 @@ from datetime import datetime, timedelta
 from src.config import *
 from scripts.utils import *
 
+# Constants for breakdown probabilities
+BREAKDOWN_PROBABILITY = 0.9  # Probability of aircraft breaking down during the day
+BREAKDOWN_DURATION = 60  # Duration of breakdown in minutes
+INDICATION_TIME_BEFORE_BREAKDOWN = 120  # Time before breakdown to provide indication to the agent in minutes
+
 MIN_TURN_TIME = 0  # Minimum turnaround time in minutes
 
 class AircraftDisruptionEnv(gym.Env):
@@ -14,7 +19,7 @@ class AircraftDisruptionEnv(gym.Env):
 
         # Constants for environment configuration
         self.max_aircraft = MAX_AIRCRAFT
-        self.columns_state_space = COLUMNS_STATE_SPACE
+        self.columns_state_space = COLUMNS_STATE_SPACE + 2  # Adjust columns to include breakdown info
         self.rows_state_space = ROWS_STATE_SPACE
 
         self.config_dict = config_dict
@@ -33,7 +38,6 @@ class AircraftDisruptionEnv(gym.Env):
         self.aircraft_id_to_idx = {aircraft_id: idx for idx, aircraft_id in enumerate(self.aircraft_ids)}
 
         # Filter out flights with '+' in DepTime (next day flights)
-        # print(flights_dict)
         this_day_flights = [flight_info for flight_info in flights_dict.values() if '+' not in flight_info['DepTime']]
 
         # Determine the earliest possible event in the environment
@@ -67,6 +71,9 @@ class AircraftDisruptionEnv(gym.Env):
 
         self.cancelled_flights = set()
 
+        # Initialize uncertain breakdowns and current breakdowns
+        self.uncertain_breakdowns = {}
+        self.current_breakdowns = {}
 
         # Initialize the environment state
         self.reset()
@@ -91,19 +98,60 @@ class AircraftDisruptionEnv(gym.Env):
             # Store aircraft index starting from 1
             state[idx + 1, 0] = idx + 1
 
-            # Add unavailability times
+            # Initialize unavailability times
+            unavailabilities = []
+
+            # Add unavailability times from alt_aircraft_dict
             if aircraft_id in self.alt_aircraft_dict:
-                unavail_info = self.alt_aircraft_dict[aircraft_id]
-                unavail_start_time = datetime.strptime(unavail_info['StartDate'] + ' ' + unavail_info['StartTime'], '%d/%m/%y %H:%M')
-                unavail_end_time = datetime.strptime(unavail_info['EndDate'] + ' ' + unavail_info['EndTime'], '%d/%m/%y %H:%M')
+                unavails = self.alt_aircraft_dict[aircraft_id]
+                if not isinstance(unavails, list):
+                    unavails = [unavails]
+                for unavail_info in unavails:
+                    unavail_start_time = datetime.strptime(unavail_info['StartDate'] + ' ' + unavail_info['StartTime'], '%d/%m/%y %H:%M')
+                    unavail_end_time = datetime.strptime(unavail_info['EndDate'] + ' ' + unavail_info['EndTime'], '%d/%m/%y %H:%M')
 
-                unavail_start_minutes = (unavail_start_time - self.earliest_datetime).total_seconds() / 60
-                unavail_end_minutes = (unavail_end_time - self.earliest_datetime).total_seconds() / 60
+                    unavail_start_minutes = (unavail_start_time - self.earliest_datetime).total_seconds() / 60
+                    unavail_end_minutes = (unavail_end_time - self.earliest_datetime).total_seconds() / 60
+                    unavailabilities.append((unavail_start_minutes, unavail_end_minutes))
 
-                state[idx + 1, 1] = unavail_start_minutes
-                state[idx + 1, 2] = unavail_end_minutes
+            # Combine unavailabilities
+            if unavailabilities:
+                # Merge overlapping intervals
+                unavailabilities.sort()
+                merged_unavails = [unavailabilities[0]]
+                for start, end in unavailabilities[1:]:
+                    last_start, last_end = merged_unavails[-1]
+                    if start <= last_end:
+                        merged_unavails[-1] = (last_start, max(last_end, end))
+                    else:
+                        merged_unavails.append((start, end))
+                # For now, store only the earliest start and latest end
+                unavail_start_minutes = merged_unavails[0][0]
+                unavail_end_minutes = merged_unavails[-1][1]
             else:
-                state[idx + 1, 1] = np.nan  # No unavailability
+                unavail_start_minutes = np.nan
+                unavail_end_minutes = np.nan
+
+            state[idx + 1, 1] = unavail_start_minutes
+            state[idx + 1, 2] = unavail_end_minutes
+
+            # Now, handle breakdown indication
+            breakdown_probability = 0.0
+            time_until_breakdown = np.nan
+            if aircraft_id in self.uncertain_breakdowns:
+                # Find the next breakdown after current time
+                future_breakdowns = [b for b in self.uncertain_breakdowns[aircraft_id] if b['StartTime'] > self.current_datetime]
+                if future_breakdowns:
+                    next_breakdown = min(future_breakdowns, key=lambda b: b['StartTime'])
+                    time_until_breakdown_minutes = (next_breakdown['StartTime'] - self.current_datetime).total_seconds() / 60
+
+                    if 0 <= time_until_breakdown_minutes <= INDICATION_TIME_BEFORE_BREAKDOWN:
+                        # Provide the indication
+                        breakdown_probability = BREAKDOWN_PROBABILITY
+                        time_until_breakdown = time_until_breakdown_minutes
+
+            state[idx + 1, 3] = breakdown_probability
+            state[idx + 1, 4] = time_until_breakdown
 
             # Gather flight times for this aircraft
             flight_times = []
@@ -128,7 +176,8 @@ class AircraftDisruptionEnv(gym.Env):
 
             # Flatten the flight times list and store in the state matrix
             flight_times_flat = [time for times in flight_times for time in times]
-            state[idx + 1, 3:3 + len(flight_times_flat)] = flight_times_flat
+            # Adjust indices to start from column 5
+            state[idx + 1, 5:5 + len(flight_times_flat)] = flight_times_flat
 
         # Check the state space for conflicting flights (unavailability and scheduled flights)
         earliest_conf_flight_id = None
@@ -144,7 +193,7 @@ class AircraftDisruptionEnv(gym.Env):
 
             if not np.isnan(unavail_start) and not np.isnan(unavail_end):
                 # Check for flight conflicts with unavailability
-                for j in range(3, self.columns_state_space, 3):
+                for j in range(5, self.columns_state_space, 3):
                     flight_id = state[idx + 1, j]
                     flight_dep = state[idx + 1, j + 1]
 
@@ -170,11 +219,7 @@ class AircraftDisruptionEnv(gym.Env):
         if DEBUG_MODE:
             print(f"Earliest conflicting flight: {earliest_conf_flight_id} on aircraft idx {earliest_conf_aircraft_idx}")
 
-
-
-
         return state
-
 
     def process_observation(self, state):
         """Processes the observation: applies mask and flattens the state and mask."""
@@ -188,7 +233,6 @@ class AircraftDisruptionEnv(gym.Env):
         # Concatenate state and mask
         obs_with_mask = np.concatenate([state_flat, mask_flat])
         return obs_with_mask
-
 
     def step(self, action=None):
         if DEBUG_MODE_PRINT_STATE:
@@ -214,6 +258,44 @@ class AircraftDisruptionEnv(gym.Env):
 
         while not agent_acted:
             pre_action_conflicts = self.get_current_conflicts()
+
+            # Check if any aircraft is due for a breakdown at the current time
+            for aircraft_id in self.aircraft_ids:
+                if aircraft_id in self.uncertain_breakdowns:
+                    for breakdown_info in self.uncertain_breakdowns[aircraft_id]:
+                        breakdown_start_time = breakdown_info['StartTime']
+                        breakdown_end_time = breakdown_info['EndTime']
+                        if self.current_datetime >= breakdown_start_time and self.current_datetime < breakdown_end_time:
+                            # The breakdown is now happening; add to current_breakdowns
+                            breakdown_key = (aircraft_id, breakdown_start_time)
+                            if breakdown_key not in self.current_breakdowns:
+                                self.current_breakdowns[breakdown_key] = breakdown_info
+                                # Add breakdown to alt_aircraft_dict (unavailabilities)
+                                self.alt_aircraft_dict.setdefault(aircraft_id, []).append({
+                                    'StartDate': breakdown_info['StartTime'].strftime('%d/%m/%y'),
+                                    'StartTime': breakdown_info['StartTime'].strftime('%H:%M'),
+                                    'EndDate': breakdown_info['EndTime'].strftime('%d/%m/%y'),
+                                    'EndTime': breakdown_info['EndTime'].strftime('%H:%M'),
+                                })
+                                if DEBUG_MODE:
+                                    print(f"Aircraft {aircraft_id} has broken down at {breakdown_start_time}")
+
+            # Remove breakdowns that have ended
+            for breakdown_key in list(self.current_breakdowns.keys()):
+                breakdown_info = self.current_breakdowns[breakdown_key]
+                breakdown_end_time = breakdown_info['EndTime']
+                if self.current_datetime >= breakdown_end_time:
+                    # Remove from current_breakdowns and alt_aircraft_dict
+                    del self.current_breakdowns[breakdown_key]
+                    aircraft_id = breakdown_key[0]
+                    breakdown_start_str = breakdown_info['StartTime'].strftime('%H:%M')
+                    # Remove the breakdown from alt_aircraft_dict
+                    if aircraft_id in self.alt_aircraft_dict:
+                        self.alt_aircraft_dict[aircraft_id] = [unavail for unavail in self.alt_aircraft_dict[aircraft_id] if unavail['StartTime'] != breakdown_start_str]
+                        if not self.alt_aircraft_dict[aircraft_id]:
+                            del self.alt_aircraft_dict[aircraft_id]
+                    if DEBUG_MODE:
+                        print(f"Aircraft {aircraft_id} breakdown has ended at {breakdown_end_time}")
 
             if len(pre_action_conflicts) == 0:
                 next_datetime = self.current_datetime + self.timestep
@@ -242,7 +324,7 @@ class AircraftDisruptionEnv(gym.Env):
                 unavail_end = self.state[idx + 1, 2]
 
                 if not np.isnan(unavail_start) and not np.isnan(unavail_end):
-                    for j in range(3, self.columns_state_space, 3):
+                    for j in range(5, self.columns_state_space, 3):
                         flight_id = self.state[idx + 1, j]
                         flight_dep = self.state[idx + 1, j + 1]
                         flight_arr = self.state[idx + 1, j + 2]
@@ -289,7 +371,7 @@ class AircraftDisruptionEnv(gym.Env):
             selected_aircraft_id = self.aircraft_ids[action_value - 1]
             selected_idx = self.aircraft_id_to_idx[selected_aircraft_id]
 
-            for j in range(3, self.columns_state_space, 3):
+            for j in range(5, self.columns_state_space, 3):
                 if self.state[conflicting_idx + 1, j] == conflicting_flight_id:
                     conf_dep_time = self.state[conflicting_idx + 1, j + 1]
                     conf_arr_time = self.state[conflicting_idx + 1, j + 2]
@@ -330,7 +412,7 @@ class AircraftDisruptionEnv(gym.Env):
 
                     self.rotations_dict[conflicting_flight_id]['Aircraft'] = selected_aircraft_id
 
-                    for j in range(3, self.columns_state_space, 3):
+                    for j in range(5, self.columns_state_space, 3):
                         if self.state[conflicting_idx + 1, j] == conflicting_flight_id:
                             self.state[conflicting_idx + 1, j] = np.nan
                             self.state[conflicting_idx + 1, j + 1] = np.nan
@@ -354,16 +436,13 @@ class AircraftDisruptionEnv(gym.Env):
             processed_state = self.process_observation(self.state)
             return np.array(processed_state, dtype=np.float32), reward, terminated, truncated, {}
 
-
-
-
     def schedule_flight_on_aircraft(self, aircraft_id, flight_id, dep_time, arr_time, delayed_flights=None):
         if delayed_flights is None:
             delayed_flights = set()
 
         aircraft_idx = self.aircraft_id_to_idx[aircraft_id] + 1  # Adjust for state indexing
         scheduled_flights = []
-        for j in range(3, self.columns_state_space, 3):
+        for j in range(5, self.columns_state_space, 3):  # Adjusted starting index to 5
             existing_flight_id = self.state[aircraft_idx, j]
             existing_dep_time = self.state[aircraft_idx, j + 1]
             existing_arr_time = self.state[aircraft_idx, j + 2]
@@ -401,7 +480,7 @@ class AircraftDisruptionEnv(gym.Env):
                         new_arr_time = existing_arr_time + delay_existing_flight
                         self.environment_delayed_flights[existing_flight_id] = self.environment_delayed_flights.get(existing_flight_id, 0) + delay_existing_flight
                         # Update state for existing flight
-                        for k in range(3, self.columns_state_space, 3):
+                        for k in range(5, self.columns_state_space, 3):  # Adjusted starting index to 5
                             if self.state[aircraft_idx, k] == existing_flight_id:
                                 self.state[aircraft_idx, k + 1] = new_dep_time
                                 self.state[aircraft_idx, k + 2] = new_arr_time
@@ -412,7 +491,7 @@ class AircraftDisruptionEnv(gym.Env):
                         self.schedule_flight_on_aircraft(aircraft_id, existing_flight_id, new_dep_time, new_arr_time, delayed_flights)
 
         # Now, update the flight's times in the state
-        for j in range(3, self.columns_state_space, 3):
+        for j in range(5, self.columns_state_space, 3):  # Adjusted starting index to 5
             if self.state[aircraft_idx, j] == flight_id:
                 self.state[aircraft_idx, j + 1] = dep_time
                 self.state[aircraft_idx, j + 2] = arr_time
@@ -442,8 +521,6 @@ class AircraftDisruptionEnv(gym.Env):
         self.flights_dict[flight_id]['ArrDate'] = arr_time.strftime('%d/%m/%y')
         self.flights_dict[flight_id]['ArrTime'] = arr_time.strftime('%H:%M')
 
-
-
     def _calculate_reward(self, resolved_conflicts, remaining_conflicts, action):
 
         reward = 0
@@ -466,7 +543,6 @@ class AircraftDisruptionEnv(gym.Env):
         # print("delay_penalty", delay_penalty)
 
         delay_penalty_total = delay_penalty * DELAY_MINUTE_PENALTY
-
 
         capped_delay_penalty = False
         if delay_penalty_total > MAX_DELAY_PENALTY:
@@ -495,7 +571,6 @@ class AircraftDisruptionEnv(gym.Env):
         if DEBUG_MODE_REWARD:
             print(f"  -{cancel_penalty} penalty for cancelled flights")
 
-
         # 4. **Penalty for taking no action when conflicts exist**
         inaction_penalty = 0
         if action == 0 and len(remaining_conflicts) > 0:
@@ -510,9 +585,9 @@ class AircraftDisruptionEnv(gym.Env):
 
         return reward
 
-
     def _is_done(self):
         return self.current_datetime >= self.end_datetime or len(self.get_current_conflicts()) == 0
+
     def reset(self, seed=None, options=None):
         self.current_datetime = self.start_datetime
 
@@ -535,6 +610,39 @@ class AircraftDisruptionEnv(gym.Env):
 
         self.cancelled_flights = set()
 
+        # Initialize uncertain breakdowns
+        self.uncertain_breakdowns = {}
+        self.current_breakdowns = {}
+
+        # Calculate total simulation minutes
+        total_simulation_minutes = (self.end_datetime - self.start_datetime).total_seconds() / 60
+
+        # Sample uncertain breakdowns for each aircraft
+        for aircraft_id in self.aircraft_ids:
+            # Decide the number of breakdowns per aircraft
+            num_breakdowns = np.random.poisson(BREAKDOWN_PROBABILITY * total_simulation_minutes / 60)
+            if num_breakdowns > 0:
+                breakdowns = []
+                for _ in range(num_breakdowns):
+                    max_breakdown_start = total_simulation_minutes - BREAKDOWN_DURATION
+                    if max_breakdown_start <= 0:
+                        continue  # Skip if there's not enough time for a breakdown
+
+                    breakdown_start_minutes = np.random.uniform(0, max_breakdown_start)
+                    breakdown_start = self.start_datetime + timedelta(minutes=breakdown_start_minutes)
+                    breakdown_end = breakdown_start + timedelta(minutes=BREAKDOWN_DURATION)
+
+                    breakdowns.append({
+                        'StartTime': breakdown_start,
+                        'EndTime': breakdown_end,
+                        'StartDate': breakdown_start.date(),
+                        'EndDate': breakdown_end.date(),
+                    })
+
+                    if DEBUG_MODE:
+                        print(f"Aircraft {aircraft_id} scheduled to break down at {breakdown_start} until {breakdown_end}")
+                self.uncertain_breakdowns[aircraft_id] = breakdowns
+
         valid_actions = self.get_valid_actions()
         self.action_space = spaces.Discrete(len(valid_actions))
         
@@ -544,9 +652,8 @@ class AircraftDisruptionEnv(gym.Env):
         if DEBUG_MODE:
             print(f"State space shape: {self.state.shape}")
         
-        return np.array(processed_state, dtype=np.float32), {}  # Return processed observation as a NumPy array
+        return np.array(processed_state, dtype=np.float32), {}
 
-    
     def get_current_conflicts(self):
         """Returns the set of conflicts in the current state, excluding past flights (which are considered cancelled)."""
         current_conflicts = set()
@@ -557,7 +664,7 @@ class AircraftDisruptionEnv(gym.Env):
                 break
             if not np.isnan(self.state[idx + 1, 1]) and not np.isnan(self.state[idx + 1, 2]):
                 # Check for conflicts between flights and unavailability periods
-                for j in range(3, self.columns_state_space, 3):
+                for j in range(5, self.columns_state_space, 3):  # Adjusted starting index to 5
                     flight_id = self.state[idx + 1, j]
                     flight_dep = self.state[idx + 1, j + 1]
                     flight_arr = self.state[idx + 1, j + 2]
@@ -581,9 +688,6 @@ class AircraftDisruptionEnv(gym.Env):
             print(f"Cancelled flights: {self.cancelled_flights}")
 
         return current_conflicts
-
-
-
 
     def get_valid_actions(self):
         valid_actions = [0]  # No action is always valid
