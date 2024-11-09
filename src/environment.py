@@ -6,12 +6,7 @@ from datetime import datetime, timedelta
 from src.config import *
 from scripts.utils import *
 
-# Constants for breakdown probabilities
-BREAKDOWN_PROBABILITY = 0.9  # Probability of aircraft breaking down during the day
-BREAKDOWN_DURATION = 60  # Duration of breakdown in minutes
-INDICATION_TIME_BEFORE_BREAKDOWN = 120  # Time before breakdown to provide indication to the agent in minutes
 
-MIN_TURN_TIME = 0  # Minimum turnaround time in minutes
 
 class AircraftDisruptionEnv(gym.Env):
     def __init__(self, aircraft_dict, flights_dict, rotations_dict, alt_aircraft_dict, config_dict):
@@ -56,6 +51,14 @@ class AircraftDisruptionEnv(gym.Env):
         self.full_action_space = spaces.Discrete(len(self.aircraft_ids) + 1)
         self.action_space = self.full_action_space
 
+        # Store the dictionaries as class attributes
+        self.alt_aircraft_dict = alt_aircraft_dict
+
+        self.rotations_dict = rotations_dict
+        self.flights_dict = flights_dict
+        self.aircraft_dict = aircraft_dict
+
+
         # Deep copies of initial data to reset the environment later
         self.initial_aircraft_dict = copy.deepcopy(aircraft_dict)
         self.initial_flights_dict = copy.deepcopy(flights_dict)
@@ -71,14 +74,23 @@ class AircraftDisruptionEnv(gym.Env):
 
         self.cancelled_flights = set()
 
-        # Initialize uncertain breakdowns and current breakdowns
+        # Initialize empty containers for breakdowns
         self.uncertain_breakdowns = {}
         self.current_breakdowns = {}
 
-        # Initialize the environment state
-        self.reset()
+        # Initialize the environment state without generating probabilities
+        self.current_datetime = self.start_datetime
+        self.state = self._get_initial_state()
 
     def _get_initial_state(self):
+        """Initializes the state matrix for the environment.
+
+        This function creates a state matrix filled with NaN values, calculates the current time and remaining recovery period,
+        and populates the state matrix with aircraft and flight information. It also tracks the earliest conflict information.
+
+        Returns:
+            np.ndarray: The initialized state matrix representing the current state of the environment.
+        """
         # Initialize state matrix with NaN values
         state = np.full((self.rows_state_space, self.columns_state_space), np.nan)
 
@@ -126,7 +138,7 @@ class AircraftDisruptionEnv(gym.Env):
             # Check for uncertain breakdowns
             elif aircraft_id in self.uncertain_breakdowns:
                 breakdown_info = self.uncertain_breakdowns[aircraft_id][0]  # Get first breakdown
-                breakdown_probability = breakdown_info['Probability']
+                breakdown_probability = breakdown_info['Probability']  # Use existing probability
                 unavail_start_minutes = (breakdown_info['StartTime'] - self.earliest_datetime).total_seconds() / 60
                 unavail_end_minutes = (breakdown_info['EndTime'] - self.earliest_datetime).total_seconds() / 60
 
@@ -192,7 +204,17 @@ class AircraftDisruptionEnv(gym.Env):
         return state
 
     def process_observation(self, state):
-        """Processes the observation: applies mask and flattens the state and mask."""
+        """Processes the observation by applying a mask and flattening the state and mask.
+
+        This function creates a mask to indicate valid values in the state, replaces NaN values with a dummy value,
+        and concatenates the flattened state and mask into a single observation.
+
+        Args:
+            state (np.ndarray): The current state of the environment.
+
+        Returns:
+            np.ndarray: The processed observation including the state and mask.
+        """
         # Create a mask where 1 indicates valid values, 0 indicates NaN
         mask = np.where(np.isnan(state), 0, 1)
         # Replace NaN with the dummy value
@@ -205,6 +227,17 @@ class AircraftDisruptionEnv(gym.Env):
         return obs_with_mask
 
     def step(self, action=None):
+        """Executes a step in the environment based on the provided action.
+
+        This function processes the action taken by the agent, checks for conflicts, updates the environment state,
+        and returns the new state, reward, and termination status.
+
+        Args:
+            action (int or list, optional): The action to be taken by the agent. Defaults to None.
+
+        Returns:
+            tuple: A tuple containing the processed state, reward, termination status, truncation status, and additional info.
+        """
         if DEBUG_MODE_PRINT_STATE:
             print_state_nicely(self.state)
             print("")
@@ -421,6 +454,18 @@ class AircraftDisruptionEnv(gym.Env):
             return np.array(processed_state, dtype=np.float32), reward, terminated, truncated, {}
 
     def schedule_flight_on_aircraft(self, aircraft_id, flight_id, dep_time, arr_time, delayed_flights=None):
+        """Schedules a flight on a specified aircraft and resolves any conflicts.
+
+        This function checks for conflicts with existing flights on the aircraft and adjusts the flight times accordingly.
+        It updates the state and the flights dictionary with the new scheduled times.
+
+        Args:
+            aircraft_id (str): The ID of the aircraft on which to schedule the flight.
+            flight_id (str): The ID of the flight to be scheduled.
+            dep_time (float): The scheduled departure time in minutes.
+            arr_time (float): The scheduled arrival time in minutes.
+            delayed_flights (set, optional): A set of flights that have been delayed. Defaults to None.
+        """
         if delayed_flights is None:
             delayed_flights = set()
 
@@ -490,6 +535,16 @@ class AircraftDisruptionEnv(gym.Env):
         self.update_flight_times(flight_id, dep_time, arr_time)
 
     def update_flight_times(self, flight_id, dep_time_minutes, arr_time_minutes):
+        """Updates the flight times in the flights dictionary.
+
+        This function converts the departure and arrival times from minutes to datetime format and updates the
+        corresponding entries in the flights dictionary.
+
+        Args:
+            flight_id (str): The ID of the flight to update.
+            dep_time_minutes (float): The new departure time in minutes.
+            arr_time_minutes (float): The new arrival time in minutes.
+        """
         # Convert minutes to datetime
         dep_time = self.earliest_datetime + timedelta(minutes=dep_time_minutes)
         arr_time = self.earliest_datetime + timedelta(minutes=arr_time_minutes)
@@ -506,7 +561,19 @@ class AircraftDisruptionEnv(gym.Env):
         self.flights_dict[flight_id]['ArrTime'] = arr_time.strftime('%H:%M')
 
     def _calculate_reward(self, resolved_conflicts, remaining_conflicts, action):
+        """Calculates the reward based on the current state of the environment.
 
+        This function evaluates the reward based on conflict resolutions, delays, cancelled flights, and inaction penalties.
+        It returns the total reward for the action taken.
+
+        Args:
+            resolved_conflicts (set): The set of conflicts that were resolved during the action.
+            remaining_conflicts (set): The set of conflicts that remain after the action.
+            action (int): The action taken by the agent.
+
+        Returns:
+            float: The calculated reward for the action.
+        """
         reward = 0
 
         if DEBUG_MODE_REWARD:
@@ -570,49 +637,52 @@ class AircraftDisruptionEnv(gym.Env):
         return reward
 
     def _is_done(self):
+        """Checks if the episode is finished.
+
+        This function determines if the current time has reached or exceeded the end time of the simulation
+        or if there are no remaining conflicts.
+
+        Returns:
+            bool: True if the episode is done, False otherwise.
+        """
         return self.current_datetime >= self.end_datetime or len(self.get_current_conflicts()) == 0
 
     def reset(self, seed=None, options=None):
+        """Resets the environment to its initial state.
+
+        This function reinitializes the environment, including resetting the current time, clearing previous states,
+        and generating new breakdowns for the aircraft. It also processes the state into an observation.
+
+        Args:
+            seed (int, optional): Random seed for reproducibility. Defaults to None.
+            options (dict, optional): Additional options for resetting the environment. Defaults to None.
+
+        Returns:
+            tuple: A tuple containing the processed initial state and an empty dictionary.
+        """
         self.current_datetime = self.start_datetime
+        self.actions_taken = set()
 
-        self.actions_taken = set()  # Reset the actions taken at the beginning of each episode
-
-        # Deep copy the initial dictionaries to reset them
+        # Deep copy the initial dictionaries
         self.aircraft_dict = copy.deepcopy(self.initial_aircraft_dict)
         self.flights_dict = copy.deepcopy(self.initial_flights_dict)
         self.rotations_dict = copy.deepcopy(self.initial_rotations_dict)
         self.alt_aircraft_dict = copy.deepcopy(self.initial_alt_aircraft_dict)
 
-        self.state = self._get_initial_state()
-
-        self.swapped_flights = []  # Reset the swapped flights list
-        self.environment_delayed_flights = {}  # Reset the delayed flights list
-        self.penalized_delays = set()  # Reset the penalized delays
-        self.penalized_conflicts = set()
-        self.resolved_conflicts = set()
-        self.penalized_cancelled_flights = set()  # Reset penalized cancelled flights
-
-        self.cancelled_flights = set()
-
-        # Initialize uncertain breakdowns
+        # Clear and regenerate breakdowns
         self.uncertain_breakdowns = {}
         self.current_breakdowns = {}
 
         # Calculate total simulation minutes
         total_simulation_minutes = (self.end_datetime - self.start_datetime).total_seconds() / 60
 
-        # Handle breakdowns for each aircraft
+        # Generate breakdowns for each aircraft
         for aircraft_id in self.aircraft_ids:
-            # If aircraft already has a scheduled unavailability in alt_aircraft_dict,
-            # it has a probability of 1 (certain breakdown)
             if aircraft_id in self.alt_aircraft_dict:
-                continue  # Skip as it's already handled as a certain breakdown
+                continue
 
-            # For aircraft without scheduled unavailability, generate random probability
-            breakdown_probability = np.random.random()  # Generate random probability between 0 and 1
-            
-            if breakdown_probability > 0:  # If there's any chance of breakdown
-                # Generate one random breakdown time
+            breakdown_probability = np.random.random()
+            if breakdown_probability > 0:
                 max_breakdown_start = total_simulation_minutes - BREAKDOWN_DURATION
                 if max_breakdown_start > 0:
                     breakdown_start_minutes = np.random.uniform(0, max_breakdown_start)
@@ -630,6 +700,17 @@ class AircraftDisruptionEnv(gym.Env):
                     if DEBUG_MODE:
                         print(f"Aircraft {aircraft_id} has {breakdown_probability:.2f} probability of breaking down at {breakdown_start} until {breakdown_end}")
 
+        self.state = self._get_initial_state()
+
+        self.swapped_flights = []  # Reset the swapped flights list
+        self.environment_delayed_flights = {}  # Reset the delayed flights list
+        self.penalized_delays = set()  # Reset the penalized delays
+        self.penalized_conflicts = set()
+        self.resolved_conflicts = set()
+        self.penalized_cancelled_flights = set()  # Reset penalized cancelled flights
+
+        self.cancelled_flights = set()
+
         valid_actions = self.get_valid_actions()
         self.action_space = spaces.Discrete(len(valid_actions))
         
@@ -642,7 +723,14 @@ class AircraftDisruptionEnv(gym.Env):
         return np.array(processed_state, dtype=np.float32), {}
 
     def get_current_conflicts(self):
-        """Returns the set of conflicts in the current state, excluding past flights (which are considered cancelled)."""
+        """Retrieves the current conflicts in the environment.
+
+        This function checks for conflicts between flights and unavailability periods, excluding past flights
+        which are considered cancelled. It returns a set of current conflicts.
+
+        Returns:
+            set: A set of conflicts currently present in the environment.
+        """
         current_conflicts = set()
         self.cancelled_flights = set()  # Track cancelled flights
 
@@ -677,6 +765,13 @@ class AircraftDisruptionEnv(gym.Env):
         return current_conflicts
 
     def get_valid_actions(self):
+        """Generates a list of valid actions for the agent.
+
+        This function returns a list of valid actions, including the option to take no action and actions for each aircraft.
+
+        Returns:
+            list: A list of valid actions that the agent can take.
+        """
         valid_actions = [0]  # No action is always valid
         # Add all aircraft actions
         for idx, aircraft_id in enumerate(self.aircraft_ids):
