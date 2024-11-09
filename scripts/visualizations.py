@@ -402,23 +402,36 @@ class StatePlotter:
 
         # Handle alt_aircraft_dict unavailabilities
         if self.alt_aircraft_dict:
-            for aircraft_id, unavailability_list in self.alt_aircraft_dict.items():
-                if not isinstance(unavailability_list, list):
-                    unavailability_list = [unavailability_list]
-                for unavailability_info in unavailability_list:
-                    start_date = unavailability_info['StartDate']
-                    start_time = unavailability_info['StartTime']
-                    end_date = unavailability_info['EndDate']
-                    end_time = unavailability_info['EndTime']
+            for aircraft_id, unavailability_info in self.alt_aircraft_dict.items():
+                if not isinstance(unavailability_info, list):
+                    unavailability_info = [unavailability_info]
+                
+                for unavail in unavailability_info:
+                    start_date = unavail['StartDate']
+                    start_time = unavail['StartTime']
+                    end_date = unavail['EndDate']
+                    end_time = unavail['EndTime']
 
-                    # Convert to datetime objects using the correct format string
+                    # Convert to datetime objects
                     unavail_start = datetime.strptime(f"{start_date} {start_time}", '%d/%m/%y %H:%M')
                     unavail_end = datetime.strptime(f"{end_date} {end_time}", '%d/%m/%y %H:%M')
 
-                    # Plot the unavailability period for the aircraft
-                    plt.barh(aircraft_id, (unavail_end - unavail_start).total_seconds() / 3600,
-                             left=(unavail_start - self.start_datetime).total_seconds() / 3600,
-                             color='red', alpha=0.5)
+                    y_offset = aircraft_indices[aircraft_id]
+                    
+                    # Plot the unavailability period
+                    ax.plot([unavail_start, unavail_end], [y_offset, y_offset], 
+                           color='red', linestyle='--', 
+                           label='Aircraft Unavailable' if not labels['Aircraft Unavailable'] else None)
+                    
+                    # Plot the start and end markers
+                    ax.plot(unavail_start, y_offset, 'rx', 
+                           label='Disruption Start' if not labels['Disruption Start'] else None)
+                    ax.plot(unavail_end, y_offset, 'rx', 
+                           label='Disruption End' if not labels['Disruption End'] else None)
+                    
+                    labels['Aircraft Unavailable'] = True
+                    labels['Disruption Start'] = True
+                    labels['Disruption End'] = True
 
         x_min = earliest_time - timedelta(hours=1)
         x_max = latest_time + timedelta(hours=1)
