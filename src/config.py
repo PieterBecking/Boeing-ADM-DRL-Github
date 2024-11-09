@@ -34,3 +34,9 @@ DEPARTURE_AFTER_END_RECOVERY = 1  # how many hours after the end of the recovery
 
 
 
+# Constants for breakdown probabilities
+BREAKDOWN_PROBABILITY = 0.9  # Probability of aircraft breaking down during the day
+BREAKDOWN_DURATION = 60  # Duration of breakdown in minutes
+INDICATION_TIME_BEFORE_BREAKDOWN = 120  # Time before breakdown to provide indication to the agent in minutes
+
+MIN_TURN_TIME = 0  # Minimum turnaround time in minutes
