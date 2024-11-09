@@ -269,11 +269,25 @@ class AircraftDisruptionEnv(gym.Env):
                             # The breakdown is now happening; add to current_breakdowns
                             breakdown_key = (aircraft_id, breakdown_start_time)
                             if breakdown_key not in self.current_breakdowns:
+                                breakdown_info = {
+                                    'StartTime': breakdown_start_time,
+                                    'EndTime': breakdown_end_time,
+                                    'StartDate': breakdown_start_time.date(),
+                                    'EndDate': breakdown_end_time.date(),
+                                }
                                 self.current_breakdowns[breakdown_key] = breakdown_info
-                                # Add breakdown to alt_aircraft_dict (unavailabilities)
-                                self.alt_aircraft_dict.setdefault(aircraft_id, []).append({
+                                
+                                # Convert single dict to list if needed
+                                if aircraft_id in self.alt_aircraft_dict:
+                                    if not isinstance(self.alt_aircraft_dict[aircraft_id], list):
+                                        self.alt_aircraft_dict[aircraft_id] = [self.alt_aircraft_dict[aircraft_id]]
+                                else:
+                                    self.alt_aircraft_dict[aircraft_id] = []
+                                
+                                # Now we can safely append
+                                self.alt_aircraft_dict[aircraft_id].append({
                                     'StartDate': breakdown_info['StartTime'].strftime('%d/%m/%y'),
-                                    'StartTime': breakdown_info['StartTime'].strftime('%H:%M'),
+                                    'StartTime': breakdown_info['StartTime'].strftime('%H:%M'), 
                                     'EndDate': breakdown_info['EndTime'].strftime('%d/%m/%y'),
                                     'EndTime': breakdown_info['EndTime'].strftime('%H:%M'),
                                 })
@@ -617,31 +631,34 @@ class AircraftDisruptionEnv(gym.Env):
         # Calculate total simulation minutes
         total_simulation_minutes = (self.end_datetime - self.start_datetime).total_seconds() / 60
 
-        # Sample uncertain breakdowns for each aircraft
+        # Handle breakdowns for each aircraft
         for aircraft_id in self.aircraft_ids:
-            # Decide the number of breakdowns per aircraft
-            num_breakdowns = np.random.poisson(BREAKDOWN_PROBABILITY * total_simulation_minutes / 60)
-            if num_breakdowns > 0:
-                breakdowns = []
-                for _ in range(num_breakdowns):
-                    max_breakdown_start = total_simulation_minutes - BREAKDOWN_DURATION
-                    if max_breakdown_start <= 0:
-                        continue  # Skip if there's not enough time for a breakdown
+            # If aircraft already has a scheduled unavailability in alt_aircraft_dict,
+            # it has a probability of 1 (certain breakdown)
+            if aircraft_id in self.alt_aircraft_dict:
+                continue  # Skip as it's already handled as a certain breakdown
 
+            # For aircraft without scheduled unavailability, generate random probability
+            breakdown_probability = np.random.random()  # Generate random probability between 0 and 1
+            
+            if breakdown_probability > 0:  # If there's any chance of breakdown
+                # Generate one random breakdown time
+                max_breakdown_start = total_simulation_minutes - BREAKDOWN_DURATION
+                if max_breakdown_start > 0:
                     breakdown_start_minutes = np.random.uniform(0, max_breakdown_start)
                     breakdown_start = self.start_datetime + timedelta(minutes=breakdown_start_minutes)
                     breakdown_end = breakdown_start + timedelta(minutes=BREAKDOWN_DURATION)
 
-                    breakdowns.append({
+                    self.uncertain_breakdowns[aircraft_id] = [{
                         'StartTime': breakdown_start,
                         'EndTime': breakdown_end,
                         'StartDate': breakdown_start.date(),
                         'EndDate': breakdown_end.date(),
-                    })
+                        'Probability': breakdown_probability
+                    }]
 
                     if DEBUG_MODE:
-                        print(f"Aircraft {aircraft_id} scheduled to break down at {breakdown_start} until {breakdown_end}")
-                self.uncertain_breakdowns[aircraft_id] = breakdowns
+                        print(f"Aircraft {aircraft_id} has {breakdown_probability:.2f} probability of breaking down at {breakdown_start} until {breakdown_end}")
 
         valid_actions = self.get_valid_actions()
         self.action_space = spaces.Discrete(len(valid_actions))
