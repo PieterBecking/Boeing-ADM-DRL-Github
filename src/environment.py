@@ -8,6 +8,8 @@ from scripts.utils import *
 
 
 
+MIN_BREAKDOWN_PROBABILITY = 0
+
 class AircraftDisruptionEnv(gym.Env):
     def __init__(self, aircraft_dict, flights_dict, rotations_dict, alt_aircraft_dict, config_dict):
         super(AircraftDisruptionEnv, self).__init__()
@@ -26,7 +28,7 @@ class AircraftDisruptionEnv(gym.Env):
         end_time = config_dict['RecoveryPeriod']['EndTime']
         self.start_datetime = datetime.strptime(f"{start_date} {start_time}", '%d/%m/%y %H:%M')
         self.end_datetime = datetime.strptime(f"{end_date} {end_time}", '%d/%m/%y %H:%M')
-        self.timestep = timedelta(hours=1)
+        self.timestep = timedelta(hours=TIMESTEP_HOURS)
 
         # Aircraft information and indexing
         self.aircraft_ids = list(aircraft_dict.keys())
@@ -170,14 +172,18 @@ class AircraftDisruptionEnv(gym.Env):
                     state[idx + 1, col_start + 1] = dep_time
                     state[idx + 1, col_start + 2] = arr_time
 
-        # Store earliest conflict information in first row (unchanged)
+        # Store earliest conflict information in first row
         earliest_conf_aircraft_idx = None
         earliest_conf_flight_id = None
         earliest_conf_dep_time = None
 
         for idx, aircraft_id in enumerate(self.aircraft_ids):
             if idx >= self.max_aircraft:
-                break
+                break  # Only process up to the maximum number of aircraft
+
+            breakdown_probability = state[idx + 1, 1]
+            if breakdown_probability != 1.0:
+                continue  # Only consider unavailabilities with probability 1
 
             unavail_start = state[idx + 1, 2]
             unavail_end = state[idx + 1, 3]
@@ -191,18 +197,20 @@ class AircraftDisruptionEnv(gym.Env):
                         if flight_dep < current_time_minutes:
                             self.cancelled_flights.add(flight_id)
                             continue
-                        if unavail_start <= flight_dep and unavail_end >= flight_dep:
-                            if flight_id not in self.cancelled_flights:
-                                if earliest_conf_dep_time is None or flight_dep < earliest_conf_dep_time:
-                                    earliest_conf_dep_time = flight_dep
-                                    earliest_conf_flight_id = flight_id
-                                    earliest_conf_aircraft_idx = idx + 1
+                        if flight_id in self.cancelled_flights:
+                            continue
+
+                        # Check for conflicts between flight and unavailability periods
+                        if flight_dep < unavail_end and flight_dep >= unavail_start:
+                            if earliest_conf_dep_time is None or flight_dep < earliest_conf_dep_time:
+                                earliest_conf_dep_time = flight_dep
+                                earliest_conf_flight_id = flight_id
+                                earliest_conf_aircraft_idx = idx + 1
 
         state[0, 0] = earliest_conf_aircraft_idx
         state[0, 1] = earliest_conf_flight_id
 
         return state
-
     def process_observation(self, state):
         """Processes the observation by applying a mask and flattening the state and mask.
 
@@ -262,40 +270,50 @@ class AircraftDisruptionEnv(gym.Env):
         while not agent_acted:
             pre_action_conflicts = self.get_current_conflicts()
 
-            # Check if any aircraft is due for a breakdown at the current time
-            for aircraft_id in self.aircraft_ids:
-                if aircraft_id in self.uncertain_breakdowns:
-                    for breakdown_info in self.uncertain_breakdowns[aircraft_id]:
-                        breakdown_start_time = breakdown_info['StartTime']
-                        breakdown_end_time = breakdown_info['EndTime']
-                        if self.current_datetime >= breakdown_start_time and self.current_datetime < breakdown_end_time:
-                            # The breakdown is now happening; add to current_breakdowns
+            # Process uncertainties
+            for aircraft_id in list(self.uncertain_breakdowns.keys()):  # Use list to avoid runtime modification
+                breakdowns = self.uncertain_breakdowns[aircraft_id]
+                updated_breakdowns = []
+                for breakdown_info in breakdowns:
+                    breakdown_start_time = breakdown_info['StartTime']
+                    breakdown_end_time = breakdown_info['EndTime']
+                    if self.current_datetime >= breakdown_start_time and not breakdown_info.get('Resolved', False):
+                        # Time to resolve this uncertainty
+                        if np.random.random() <= breakdown_info['Probability']:
+                            # The breakdown occurs
                             breakdown_key = (aircraft_id, breakdown_start_time)
-                            if breakdown_key not in self.current_breakdowns:
-                                breakdown_info = {
-                                    'StartTime': breakdown_start_time,
-                                    'EndTime': breakdown_end_time,
-                                    'StartDate': breakdown_start_time.date(),
-                                    'EndDate': breakdown_end_time.date(),
-                                }
-                                self.current_breakdowns[breakdown_key] = breakdown_info
-                                
-                                # Convert single dict to list if needed
-                                if aircraft_id in self.alt_aircraft_dict:
-                                    if not isinstance(self.alt_aircraft_dict[aircraft_id], list):
-                                        self.alt_aircraft_dict[aircraft_id] = [self.alt_aircraft_dict[aircraft_id]]
+                            self.current_breakdowns[breakdown_key] = breakdown_info
+                            breakdown_info['Resolved'] = True  # Mark as resolved
+
+                            # Add to alt_aircraft_dict
+                            if aircraft_id in self.alt_aircraft_dict:
+                                if not isinstance(self.alt_aircraft_dict[aircraft_id], list):
+                                    self.alt_aircraft_dict[aircraft_id] = [self.alt_aircraft_dict[aircraft_id]]
                                 else:
                                     self.alt_aircraft_dict[aircraft_id] = []
-                                
-                                # Now we can safely append
                                 self.alt_aircraft_dict[aircraft_id].append({
                                     'StartDate': breakdown_info['StartTime'].strftime('%d/%m/%y'),
-                                    'StartTime': breakdown_info['StartTime'].strftime('%H:%M'), 
+                                    'StartTime': breakdown_info['StartTime'].strftime('%H:%M'),
                                     'EndDate': breakdown_info['EndTime'].strftime('%d/%m/%y'),
                                     'EndTime': breakdown_info['EndTime'].strftime('%H:%M'),
                                 })
                                 if DEBUG_MODE:
                                     print(f"Aircraft {aircraft_id} has broken down at {breakdown_start_time}")
+                        else:
+                            # The breakdown does not occur
+                            breakdown_info['Resolved'] = True  # Mark as resolved
+                            if DEBUG_MODE:
+                                print(f"Aircraft {aircraft_id} did not break down at {breakdown_start_time}")
+
+                    if breakdown_info.get('Resolved', False):
+                        # Remove resolved breakdown from uncertainties
+                        continue  # Do not add to updated_breakdowns
+                    else:
+                        updated_breakdowns.append(breakdown_info)
+                if updated_breakdowns:
+                    self.uncertain_breakdowns[aircraft_id] = updated_breakdowns
+                else:
+                    del self.uncertain_breakdowns[aircraft_id]
 
             # Remove breakdowns that have ended
             for breakdown_key in list(self.current_breakdowns.keys()):
@@ -317,10 +335,12 @@ class AircraftDisruptionEnv(gym.Env):
             if len(pre_action_conflicts) == 0:
                 next_datetime = self.current_datetime + self.timestep
                 if next_datetime >= self.end_datetime:
-                    terminated = True
-                    truncated = False
-                    processed_state = self.process_observation(self.state)
-                    return np.array(processed_state, dtype=np.float32), 0, terminated, truncated, {}
+                    terminated, reason = self._is_done()
+                    if terminated:
+                        print(f"Episode ended: {reason}")
+                        processed_state = self.process_observation(self.state)
+                        truncated = False
+                        return np.array(processed_state, dtype=np.float32), 0, terminated, truncated, {}
 
                 self.current_datetime = next_datetime
                 self.state = self._get_initial_state()
@@ -337,8 +357,12 @@ class AircraftDisruptionEnv(gym.Env):
                 if idx >= self.max_aircraft:
                     continue
 
-                unavail_start = self.state[idx + 1, 1]
-                unavail_end = self.state[idx + 1, 2]
+                breakdown_probability = self.state[idx + 1, 1]
+                if breakdown_probability != 1.0:
+                    continue  # Only consider unavailabilities with probability 1
+
+                unavail_start = self.state[idx + 1, 2]
+                unavail_end = self.state[idx + 1, 3]
 
                 if not np.isnan(unavail_start) and not np.isnan(unavail_end):
                     for j in range(4, self.columns_state_space - 2, 3):
@@ -347,8 +371,15 @@ class AircraftDisruptionEnv(gym.Env):
                         flight_arr = self.state[idx + 1, j + 2]
 
                         if not np.isnan(flight_dep) and not np.isnan(flight_arr):
-                            if unavail_start <= flight_arr and unavail_end >= flight_dep:
-                                if (earliest_conflict_time is None or flight_dep < earliest_conflict_time) and flight_id not in self.cancelled_flights:
+                            if flight_dep < (self.current_datetime - self.earliest_datetime).total_seconds() / 60:
+                                self.cancelled_flights.add(flight_id)
+                                continue  # Skip this flight as it's already cancelled
+
+                            if flight_id in self.cancelled_flights:
+                                continue  # Skip cancelled flights
+
+                            if flight_dep < unavail_end and flight_arr > unavail_start:
+                                if (earliest_conflict_time is None or flight_dep < earliest_conflict_time):
                                     earliest_conflict_time = flight_dep
                                     conflicting_aircraft = aircraft_id
                                     conflicting_flight_id = flight_id
@@ -362,8 +393,11 @@ class AircraftDisruptionEnv(gym.Env):
                 resolved_conflicts = pre_action_conflicts - post_action_conflicts
                 reward = self._calculate_reward(resolved_conflicts, post_action_conflicts, action_value)
 
-                terminated = self._is_done()
+                terminated, reason = self._is_done()
                 truncated = False
+
+                if terminated:
+                    print(f"Episode ended: {reason}")
 
                 processed_state = self.process_observation(self.state)
                 return np.array(processed_state, dtype=np.float32), reward, terminated, truncated, {}
@@ -379,8 +413,11 @@ class AircraftDisruptionEnv(gym.Env):
                 resolved_conflicts = []
                 reward = self._calculate_reward(resolved_conflicts, post_action_conflicts, action_value)
 
-                terminated = self._is_done()
+                terminated, reason = self._is_done()
                 truncated = False
+
+                if terminated:
+                    print(f"Episode ended: {reason}")
 
                 processed_state = self.process_observation(self.state)
                 return np.array(processed_state, dtype=np.float32), reward, terminated, truncated, {}
@@ -395,7 +432,7 @@ class AircraftDisruptionEnv(gym.Env):
                     break
 
             if selected_aircraft_id == conflicting_aircraft:
-                unavail_end = self.state[conflicting_idx + 1, 2]
+                unavail_end = self.state[conflicting_idx + 1, 3]
                 new_dep_time = unavail_end + MIN_TURN_TIME
                 delay = new_dep_time - conf_dep_time
                 conf_dep_time = new_dep_time
@@ -414,8 +451,11 @@ class AircraftDisruptionEnv(gym.Env):
                 self.current_datetime = next_datetime
                 self.state = self._get_initial_state()
 
-                terminated = self._is_done()
+                terminated, reason = self._is_done()
                 truncated = False
+
+                if terminated:
+                    print(f"Episode ended: {reason}")
 
                 processed_state = self.process_observation(self.state)
                 return np.array(processed_state, dtype=np.float32), reward, terminated, truncated, {}
@@ -447,11 +487,15 @@ class AircraftDisruptionEnv(gym.Env):
 
             reward = self._calculate_reward(resolved_conflicts, post_action_conflicts, action_value)
 
-            terminated = self._is_done()
+            terminated, reason = self._is_done()
             truncated = False
+
+            if terminated:
+                print(f"Episode ended: {reason}")
 
             processed_state = self.process_observation(self.state)
             return np.array(processed_state, dtype=np.float32), reward, terminated, truncated, {}
+
 
     def schedule_flight_on_aircraft(self, aircraft_id, flight_id, dep_time, arr_time, delayed_flights=None):
         """Schedules a flight on a specified aircraft and resolves any conflicts.
@@ -636,16 +680,7 @@ class AircraftDisruptionEnv(gym.Env):
 
         return reward
 
-    def _is_done(self):
-        """Checks if the episode is finished.
 
-        This function determines if the current time has reached or exceeded the end time of the simulation
-        or if there are no remaining conflicts.
-
-        Returns:
-            bool: True if the episode is done, False otherwise.
-        """
-        return self.current_datetime >= self.end_datetime or len(self.get_current_conflicts()) == 0
 
     def reset(self, seed=None, options=None):
         """Resets the environment to its initial state.
@@ -681,8 +716,8 @@ class AircraftDisruptionEnv(gym.Env):
             if aircraft_id in self.alt_aircraft_dict:
                 continue
 
-            breakdown_probability = np.random.random()
-            if breakdown_probability > 0:
+            breakdown_probability = np.random.uniform(0, 1)  # Set realistic probability
+            if breakdown_probability > MIN_BREAKDOWN_PROBABILITY:  # Set a minimum threshold if desired
                 max_breakdown_start = total_simulation_minutes - BREAKDOWN_DURATION
                 if max_breakdown_start > 0:
                     breakdown_start_minutes = np.random.uniform(0, max_breakdown_start)
@@ -694,11 +729,12 @@ class AircraftDisruptionEnv(gym.Env):
                         'EndTime': breakdown_end,
                         'StartDate': breakdown_start.date(),
                         'EndDate': breakdown_end.date(),
-                        'Probability': breakdown_probability
+                        'Probability': breakdown_probability,
+                        'Resolved': False  # Initially unresolved
                     }]
 
                     if DEBUG_MODE:
-                        print(f"Aircraft {aircraft_id} has {breakdown_probability:.2f} probability of breaking down at {breakdown_start} until {breakdown_end}")
+                        print(f"Aircraft {aircraft_id} has an uncertain breakdown scheduled at {breakdown_start} with probability {breakdown_probability:.2f}")
 
         self.state = self._get_initial_state()
 
@@ -722,11 +758,12 @@ class AircraftDisruptionEnv(gym.Env):
         
         return np.array(processed_state, dtype=np.float32), {}
 
+
     def get_current_conflicts(self):
         """Retrieves the current conflicts in the environment.
 
-        This function checks for conflicts between flights and unavailability periods, excluding past flights
-        which are considered cancelled. It returns a set of current conflicts.
+        This function checks for conflicts between flights and unavailability periods, considering only unavailabilities with probability 1.
+        It excludes cancelled flights which are not considered conflicts.
 
         Returns:
             set: A set of conflicts currently present in the environment.
@@ -737,7 +774,15 @@ class AircraftDisruptionEnv(gym.Env):
         for idx, aircraft_id in enumerate(self.aircraft_ids):
             if idx >= self.max_aircraft:
                 break
-            if not np.isnan(self.state[idx + 1, 1]) and not np.isnan(self.state[idx + 1, 2]):
+
+            breakdown_probability = self.state[idx + 1, 1]
+            if breakdown_probability != 1.0:
+                continue  # Only consider unavailabilities with probability 1
+
+            unavail_start = self.state[idx + 1, 2]
+            unavail_end = self.state[idx + 1, 3]
+
+            if not np.isnan(unavail_start) and not np.isnan(unavail_end):
                 # Check for conflicts between flights and unavailability periods
                 for j in range(4, self.columns_state_space - 2, 3):  # Added -2 to prevent out of bounds
                     flight_id = self.state[idx + 1, j]
@@ -753,9 +798,12 @@ class AircraftDisruptionEnv(gym.Env):
                             self.cancelled_flights.add(flight_id)
                             continue  # Skip this flight as it's already cancelled
 
+                        if flight_id in self.cancelled_flights:
+                            continue  # Skip cancelled flights
+
                         # Check for conflicts between flight and unavailability periods
-                        if flight_dep < self.state[idx + 1, 2] and flight_arr > self.state[idx + 1, 1]:
-                            conflict_identifier = (aircraft_id, flight_dep, flight_arr)
+                        if flight_dep < unavail_end and flight_arr > unavail_start:
+                            conflict_identifier = (aircraft_id, flight_id, flight_dep, flight_arr)
                             current_conflicts.add(conflict_identifier)
 
         if DEBUG_MODE:
@@ -763,6 +811,48 @@ class AircraftDisruptionEnv(gym.Env):
             print(f"Cancelled flights: {self.cancelled_flights}")
 
         return current_conflicts
+
+    def _is_done(self):
+        """Checks if the episode is finished.
+
+        This function determines if the current time has reached or exceeded the end time of the simulation
+        or if there are no remaining conflicts and all uncertainties have been resolved.
+
+        Returns:
+            tuple: (bool, str) indicating if the episode is done and the reason.
+        """
+        current_conflicts = self.get_current_conflicts()  # Get current conflicts
+        print(f"Current conflicts before checking done: {current_conflicts}")  # Debugging statement
+
+        # Check for unresolved uncertainties
+        unresolved_uncertainties = self.get_unresolved_uncertainties()
+        print(f"Unresolved uncertainties: {unresolved_uncertainties}")  # Debugging statement
+
+        if self.current_datetime >= self.end_datetime:
+            return True, "Reached the end of the simulation time."
+        elif len(current_conflicts) == 0 and len(unresolved_uncertainties) == 0:
+            print("No remaining conflicts or uncertainties detected.")  # Debugging statement
+            return True, "No remaining conflicts or uncertainties."
+        
+        return False, ""
+
+    
+
+    def get_unresolved_uncertainties(self):
+        """Retrieves the uncertainties that have not yet been resolved.
+
+        Returns:
+            list: A list of unresolved uncertainties currently present in the environment.
+        """
+        unresolved_uncertainties = []
+        for aircraft_id, breakdowns in self.uncertain_breakdowns.items():
+            for breakdown_info in breakdowns:
+                if not breakdown_info.get('Resolved', False):
+                    unresolved_uncertainties.append((aircraft_id, breakdown_info))
+        return unresolved_uncertainties
+
+
+
 
     def get_valid_actions(self):
         """Generates a list of valid actions for the agent.

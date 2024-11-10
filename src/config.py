@@ -5,7 +5,7 @@ ROWS_STATE_SPACE = 1 + MAX_AIRCRAFT  # Number of rows in the state space
 COLUMNS_STATE_SPACE = 1 + 2 + 3 * MAX_FLIGHTS_PER_AIRCRAFT # Number of columns in the state space: 1 for ac id, 2 for ac unavail, 3 for each flight (id, start, end)
 
 # Time Settings for intervals
-TIMESTEP_HOURS = 1  # Length of each timestep in hours
+TIMESTEP_HOURS = 0.1  # Length of each timestep in hours
 
 
 DUMMY_VALUE = -999  # Dummy value for padding
@@ -22,12 +22,12 @@ MIN_TURN_TIME = 0  # Minimum gap between flights for the same aircraft
 
 
 # Logging and Debug Settings
-DEBUG_MODE = True  # Turn on/off debug mode
-DEBUG_MODE_TRAINING = True  # Turn on/off debug mode for training
-DEBUG_MODE_REWARD = False  # Turn on/off debug mode for reward calculation
+DEBUG_MODE = False# Turn on/off debug mode
+DEBUG_MODE_TRAINING = False  # Turn on/off debug mode for training
+DEBUG_MODE_REWARD = True  # Turn on/off debug mode for reward calculation
 DEBUG_MODE_PRINT_STATE = True  # Turn on/off debug mode for printing state
 DEBUG_MODE_CANCELLED_FLIGHT = False  # Turn on/off debug mode for cancelled flight
-DEBUG_MODE_VISUALIZATION = True
+DEBUG_MODE_VISUALIZATION = False
 
 # Data Generation Settings
 DEPARTURE_AFTER_END_RECOVERY = 1  # how many hours after the end of the recovery period can a generated flight depart

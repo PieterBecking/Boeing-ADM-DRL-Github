@@ -7,6 +7,230 @@ import matplotlib.dates as mdates
 from scripts.utils import parse_time_with_day_offset, load_data
 from stable_baselines3.common.evaluation import evaluate_policy
 from src.config import *
+import matplotlib.patches as patches
+
+
+
+
+
+class StatePlotter:
+    def __init__(self, aircraft_dict, flights_dict, rotations_dict, alt_aircraft_dict, start_datetime, end_datetime, 
+                 uncertain_breakdowns=None, offset_baseline=0, offset_id_number=-0.05, offset_delayed_flight=0, offset_marker_minutes=4):
+        self.aircraft_dict = aircraft_dict
+        self.initial_flights_dict = flights_dict
+        self.rotations_dict = rotations_dict
+        self.alt_aircraft_dict = alt_aircraft_dict
+        self.start_datetime = start_datetime
+        self.end_datetime = end_datetime
+        
+        # Initialize uncertain_breakdowns
+        self.uncertain_breakdowns = uncertain_breakdowns if uncertain_breakdowns is not None else {}
+        
+        # Offsets as inputs
+        self.offset_baseline = offset_baseline
+        self.offset_id_number = offset_id_number
+        self.offset_delayed_flight = offset_delayed_flight
+        self.offset_marker_minutes = offset_marker_minutes
+
+        aircraft_id_to_idx = {aircraft_id: idx + 1 for idx, aircraft_id in enumerate(aircraft_dict.keys())}
+        self.aircraft_id_to_idx = aircraft_id_to_idx
+        
+        # Calculate the earliest and latest datetimes
+        self.earliest_datetime = min(
+            min(parse_time_with_day_offset(flight_info['DepTime'], start_datetime) for flight_info in flights_dict.values()),
+            start_datetime
+        )
+        self.latest_datetime = max(
+            max(parse_time_with_day_offset(flight_info['ArrTime'], start_datetime) for flight_info in flights_dict.values()),
+            end_datetime
+        )
+
+    def plot_state(self, flights_dict, swapped_flights, environment_delayed_flights, cancelled_flights, current_datetime):
+        if DEBUG_MODE:
+            print(f"Plotting state with following flights: {flights_dict}")
+
+        updated_rotations_dict = self.rotations_dict.copy()
+        for swap in swapped_flights:
+            flight_id, new_aircraft_id = swap
+            updated_rotations_dict[flight_id]['Aircraft'] = new_aircraft_id
+
+        all_aircraft_ids = set([rotation_info['Aircraft'] for rotation_info in updated_rotations_dict.values()]).union(set(self.aircraft_dict.keys()))
+        aircraft_ids = sorted(list(all_aircraft_ids), reverse=False)
+        aircraft_indices = {aircraft_id: index + 1 for index, aircraft_id in enumerate(aircraft_ids)}
+
+        fig, ax = plt.subplots(figsize=(14, 8))
+
+        labels = {
+            'Scheduled Flight': False,
+            'Swapped Flight': False,
+            'Environment Delayed Flight': False,
+            'Cancelled Flight': False,
+            'Aircraft Unavailable': False,
+            'Disruption Start': False,
+            'Disruption End': False,
+            'Delay of Flight': False,
+            'Uncertain Breakdown': False
+        }
+
+        earliest_time = self.earliest_datetime
+        latest_time = self.latest_datetime
+
+        for rotation_id, rotation_info in updated_rotations_dict.items():
+            flight_id = rotation_id
+            aircraft_id = rotation_info['Aircraft']
+            
+            if flight_id in flights_dict:
+                flight_info = flights_dict[flight_id]
+                dep_datetime_str = flight_info['DepTime']
+                arr_datetime_str = flight_info['ArrTime']
+                
+                dep_datetime = parse_time_with_day_offset(dep_datetime_str, self.start_datetime)
+                arr_datetime = parse_time_with_day_offset(arr_datetime_str, dep_datetime)
+                
+                earliest_time = min(earliest_time, dep_datetime)
+                latest_time = max(latest_time, arr_datetime)
+                
+                swapped = any(flight_id == swap[0] for swap in swapped_flights)
+                delayed = flight_id in environment_delayed_flights
+                cancelled = flight_id in cancelled_flights
+                
+                if cancelled:
+                    plot_color = 'red'
+                    plot_label = 'Cancelled Flight'
+                elif swapped:
+                    plot_color = 'green'
+                    plot_label = 'Swapped Flight'
+                elif delayed:
+                    plot_color = 'orange'
+                    plot_label = 'Environment Delayed Flight'
+                else:
+                    plot_color = 'blue'
+                    plot_label = 'Scheduled Flight'
+                
+                y_offset = aircraft_indices[aircraft_id] + self.offset_baseline
+                if delayed:
+                    y_offset += self.offset_delayed_flight
+
+                ax.plot([dep_datetime, arr_datetime], [y_offset, y_offset], color=plot_color, label=plot_label if not labels[plot_label] else None)
+                
+                marker_offset = timedelta(minutes=self.offset_marker_minutes)
+                dep_marker = dep_datetime + marker_offset
+                arr_marker = arr_datetime - marker_offset
+
+                ax.plot(dep_marker, y_offset, color=plot_color, marker='>', markersize=6, markeredgewidth=0)
+                ax.plot(arr_marker, y_offset, color=plot_color, marker='<', markersize=6, markeredgewidth=0)
+
+                if delayed:
+                    ax.vlines([dep_datetime, arr_datetime], y_offset - self.offset_delayed_flight, y_offset, color='orange', linestyle='-', linewidth=2)
+
+                labels[plot_label] = True
+                
+                mid_datetime = dep_datetime + (arr_datetime - dep_datetime) / 2
+                ax.text(mid_datetime, y_offset + self.offset_id_number, flight_id, 
+                        ha='center', va='bottom', fontsize=10, color='black')
+
+        # Function to compute the data height that corresponds to a given number of pixels
+        def get_height_in_data_units(ax, pixels):
+            # Transform data coordinates (0, y) to display coordinates (pixels)
+            y0_display = ax.transData.transform((0, 0))[1]
+            y1_display = ax.transData.transform((0, 1))[1]
+            pixels_per_data_unit = abs(y1_display - y0_display)
+            data_units_per_pixel = 1 / pixels_per_data_unit
+            return data_units_per_pixel * pixels
+
+        # Compute rectangle height in data units corresponding to 10 pixels
+        rect_height = get_height_in_data_units(ax, 30)
+
+        # Handle alt_aircraft_dict unavailabilities (certain unavailabilities with probability 1.0)
+        if self.alt_aircraft_dict:
+            for aircraft_id, unavailability_info in self.alt_aircraft_dict.items():
+                if not isinstance(unavailability_info, list):
+                    unavailability_info = [unavailability_info]
+                
+                for unavail in unavailability_info:
+                    start_date = unavail['StartDate']
+                    start_time = unavail['StartTime']
+                    end_date = unavail['EndDate']
+                    end_time = unavail['EndTime']
+
+                    # Convert to datetime objects
+                    unavail_start = datetime.strptime(f"{start_date} {start_time}", '%d/%m/%y %H:%M')
+                    unavail_end = datetime.strptime(f"{end_date} {end_time}", '%d/%m/%y %H:%M')
+
+                    y_offset = aircraft_indices[aircraft_id]
+                    
+                    # Plot the unavailability period as a rectangle
+                    rect = patches.Rectangle((unavail_start, y_offset - rect_height / 2),
+                                             unavail_end - unavail_start,
+                                             rect_height,
+                                             linewidth=0,
+                                             color='red',
+                                             alpha=0.3,
+                                             zorder=0,
+                                             label='Aircraft Unavailable' if not labels['Aircraft Unavailable'] else None)
+                    ax.add_patch(rect)
+                    labels['Aircraft Unavailable'] = True
+
+                    # Plot the probability below the rectangle
+                    probability = 1.0  # Since these are certain unavailabilities
+                    x_position = unavail_start + (unavail_end - unavail_start) / 2
+                    y_position = y_offset - rect_height / 2 - get_height_in_data_units(ax, 10)  # Adjust offset as needed
+                    ax.text(x_position, y_position+0.1, f"{probability:.2f}", ha='center', va='top', fontsize=9)
+
+        # Handle uncertain breakdowns
+        if self.uncertain_breakdowns:
+            for aircraft_id, breakdowns in self.uncertain_breakdowns.items():
+                for breakdown in breakdowns:
+                    unavail_start = breakdown['StartTime']
+                    unavail_end = breakdown['EndTime']
+                    probability = breakdown.get('Probability', 0.0)
+                    y_offset = aircraft_indices[aircraft_id]
+
+                    # Plot the uncertain breakdown period
+                    rect = patches.Rectangle((unavail_start, y_offset - rect_height / 2),
+                                             unavail_end - unavail_start,
+                                             rect_height,
+                                             linewidth=0,
+                                             color='orange',
+                                             alpha=0.3,
+                                             zorder=0,
+                                             label='Uncertain Breakdown' if not labels['Uncertain Breakdown'] else None)
+                    ax.add_patch(rect)
+                    labels['Uncertain Breakdown'] = True
+
+                    # Plot the probability below the rectangle
+                    x_position = unavail_start + (unavail_end - unavail_start) / 2
+                    y_position = y_offset - rect_height / 2 - get_height_in_data_units(ax, 10)  # Adjust offset as needed
+                    ax.text(x_position, y_position+0.1, f"{probability:.2f}", ha='center', va='top', fontsize=9)
+
+        x_min = earliest_time - timedelta(hours=1)
+        x_max = latest_time + timedelta(hours=1)
+        ax.set_xlim(x_min, x_max)
+
+        ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
+        ax.xaxis.set_minor_locator(mdates.MinuteLocator(interval=30))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        ax.axvline(self.start_datetime, color='green', linestyle='--', label='Start Recovery Period')
+        ax.axvline(self.end_datetime, color='green', linestyle='-', label='End Recovery Period')
+        ax.axvline(current_datetime, color='black', linestyle='-', label='Current Time')
+
+        ax.axvspan(self.end_datetime, latest_time + timedelta(hours=1), color='lightgrey', alpha=0.3)
+        ax.axvspan(earliest_time - timedelta(hours=1), self.start_datetime, color='lightgrey', alpha=0.3)
+        
+        ax.invert_yaxis()
+
+        ytick_labels = [f"{index + 1}: {aircraft_id}" for index, aircraft_id in enumerate(aircraft_ids)]
+        plt.yticks(range(1, len(aircraft_ids) + 1), ytick_labels)
+
+        plt.xlabel('Time')
+        plt.ylabel('Aircraft')
+        plt.title('Aircraft Rotations and Unavailability')
+        plt.grid(True)
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.show()
 
 
 # Callable entry point for visualization process
@@ -275,195 +499,6 @@ def visualize_flight_airport_unavailability(data_dict):
 
     plt.show()
 
-
-
-
-
-# StatePlotter class for visualizing the state of the environment
-class StatePlotter:
-    def __init__(self, aircraft_dict, flights_dict, rotations_dict, alt_aircraft_dict, start_datetime, end_datetime, 
-                 offset_baseline=0, offset_id_number=-0.05, offset_delayed_flight=0, offset_marker_minutes=4):
-        self.aircraft_dict = aircraft_dict
-        self.initial_flights_dict = flights_dict
-        self.rotations_dict = rotations_dict
-        self.alt_aircraft_dict = alt_aircraft_dict
-        self.start_datetime = start_datetime
-        self.end_datetime = end_datetime
-        
-        # Offsets as inputs
-        self.offset_baseline = offset_baseline
-        self.offset_id_number = offset_id_number
-        self.offset_delayed_flight = offset_delayed_flight
-        self.offset_marker_minutes = offset_marker_minutes
-
-        aircraft_id_to_idx = {aircraft_id: idx + 1 for idx, aircraft_id in enumerate(aircraft_dict.keys())}
-        self.aircraft_id_to_idx = aircraft_id_to_idx
-        
-        # Calculate the earliest and latest datetimes
-        self.earliest_datetime = min(
-            min(parse_time_with_day_offset(flight_info['DepTime'], start_datetime) for flight_info in flights_dict.values()),
-            start_datetime
-        )
-        self.latest_datetime = max(
-            max(parse_time_with_day_offset(flight_info['ArrTime'], start_datetime) for flight_info in flights_dict.values()),
-            end_datetime
-        )
-
-    def plot_state(self, flights_dict, swapped_flights, environment_delayed_flights, cancelled_flights, current_datetime):
-        if DEBUG_MODE:
-            print(f"Plotting state with following flights: {flights_dict}")
-
-        updated_rotations_dict = self.rotations_dict.copy()
-        for swap in swapped_flights:
-            flight_id, new_aircraft_id = swap
-            updated_rotations_dict[flight_id]['Aircraft'] = new_aircraft_id
-
-        all_aircraft_ids = set([rotation_info['Aircraft'] for rotation_info in updated_rotations_dict.values()]).union(set(self.aircraft_dict.keys()))
-        aircraft_ids = sorted(list(all_aircraft_ids), reverse=False)
-        aircraft_indices = {aircraft_id: index + 1 for index, aircraft_id in enumerate(aircraft_ids)}
-
-        fig, ax = plt.subplots(figsize=(14, 8))
-
-        labels = {
-            'Scheduled Flight': False,
-            'Swapped Flight': False,
-            'Environment Delayed Flight': False,
-            'Cancelled Flight': False,
-            'Aircraft Unavailable': False,
-            'Disruption Start': False,
-            'Disruption End': False,
-            'Delay of Flight': False
-        }
-
-        earliest_time = self.earliest_datetime
-        latest_time = self.latest_datetime
-
-        for rotation_id, rotation_info in updated_rotations_dict.items():
-            flight_id = rotation_id
-            aircraft_id = rotation_info['Aircraft']
-            
-            if flight_id in flights_dict:
-                flight_info = flights_dict[flight_id]
-                dep_datetime_str = flight_info['DepTime']
-                arr_datetime_str = flight_info['ArrTime']
-                
-                dep_datetime = parse_time_with_day_offset(dep_datetime_str, self.start_datetime)
-                arr_datetime = parse_time_with_day_offset(arr_datetime_str, dep_datetime)
-                
-                earliest_time = min(earliest_time, dep_datetime)
-                latest_time = max(latest_time, arr_datetime)
-                
-                swapped = any(flight_id == swap[0] for swap in swapped_flights)
-                delayed = flight_id in environment_delayed_flights
-                cancelled = flight_id in cancelled_flights
-                
-                # if swapped or delayed or cancelled:
-                #     print(f"Flight {flight_id}: Departure: {dep_datetime}, Arrival: {arr_datetime}")
-                #     print(f"  Status: {'Swapped' if swapped else 'Delayed' if delayed else 'Cancelled'}")
-                
-                if cancelled:
-                    plot_color = 'red'
-                    plot_label = 'Cancelled Flight'
-                elif swapped:
-                    plot_color = 'green'
-                    plot_label = 'Swapped Flight'
-                elif delayed:
-                    plot_color = 'orange'
-                    plot_label = 'Environment Delayed Flight'
-                else:
-                    plot_color = 'blue'
-                    plot_label = 'Scheduled Flight'
-                
-                y_offset = aircraft_indices[aircraft_id] + self.offset_baseline
-                if delayed:
-                    y_offset += self.offset_delayed_flight
-
-                ax.plot([dep_datetime, arr_datetime], [y_offset, y_offset], color=plot_color, label=plot_label if not labels[plot_label] else None)
-                
-                marker_offset = timedelta(minutes=self.offset_marker_minutes)
-                dep_marker = dep_datetime + marker_offset
-                arr_marker = arr_datetime - marker_offset
-
-                ax.plot(dep_marker, y_offset, color=plot_color, marker='>', markersize=6, markeredgewidth=0)
-                ax.plot(arr_marker, y_offset, color=plot_color, marker='<', markersize=6, markeredgewidth=0)
-
-                # if swapped or delayed or cancelled:
-                #     print(f"  Line start: {dep_datetime}, Line end: {arr_datetime}")
-                #     print(f"  Departure marker: {dep_marker}, Arrival marker: {arr_marker}")
-
-                if delayed:
-                    ax.vlines([dep_datetime, arr_datetime], y_offset - self.offset_delayed_flight, y_offset, color='orange', linestyle='-', linewidth=2)
-
-                labels[plot_label] = True
-                
-                mid_datetime = dep_datetime + (arr_datetime - dep_datetime) / 2
-                ax.text(mid_datetime, y_offset + self.offset_id_number, flight_id, 
-                        ha='center', va='bottom', fontsize=10, color='black')
-
-        # Handle alt_aircraft_dict unavailabilities
-        if self.alt_aircraft_dict:
-            for aircraft_id, unavailability_info in self.alt_aircraft_dict.items():
-                if not isinstance(unavailability_info, list):
-                    unavailability_info = [unavailability_info]
-                
-                for unavail in unavailability_info:
-                    start_date = unavail['StartDate']
-                    start_time = unavail['StartTime']
-                    end_date = unavail['EndDate']
-                    end_time = unavail['EndTime']
-
-                    # Convert to datetime objects
-                    unavail_start = datetime.strptime(f"{start_date} {start_time}", '%d/%m/%y %H:%M')
-                    unavail_end = datetime.strptime(f"{end_date} {end_time}", '%d/%m/%y %H:%M')
-
-                    y_offset = aircraft_indices[aircraft_id]
-                    
-                    # Plot the unavailability period
-                    ax.plot([unavail_start, unavail_end], [y_offset, y_offset], 
-                           color='red', linestyle='--', 
-                           label='Aircraft Unavailable' if not labels['Aircraft Unavailable'] else None)
-                    
-                    # Plot the start and end markers
-                    ax.plot(unavail_start, y_offset, 'rx', 
-                           label='Disruption Start' if not labels['Disruption Start'] else None)
-                    ax.plot(unavail_end, y_offset, 'rx', 
-                           label='Disruption End' if not labels['Disruption End'] else None)
-                    
-                    labels['Aircraft Unavailable'] = True
-                    labels['Disruption Start'] = True
-                    labels['Disruption End'] = True
-
-        x_min = earliest_time - timedelta(hours=1)
-        x_max = latest_time + timedelta(hours=1)
-        ax.set_xlim(x_min, x_max)
-        # print(f"Set x-axis limits: {x_min} to {x_max}")
-
-        ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
-        ax.xaxis.set_minor_locator(mdates.MinuteLocator(interval=30))
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-        ax.axvline(self.start_datetime, color='green', linestyle='--', label='Start Recovery Period')
-        ax.axvline(self.end_datetime, color='green', linestyle='-', label='End Recovery Period')
-        ax.axvline(current_datetime, color='black', linestyle='-', label='Current Time')
-
-        ax.axvspan(self.end_datetime, latest_time + timedelta(hours=1), color='lightgrey', alpha=0.3)
-        ax.axvspan(earliest_time - timedelta(hours=1), self.start_datetime, color='lightgrey', alpha=0.3)
-        
-        ax.invert_yaxis()
-
-        ytick_labels = [f"{index + 1}: {aircraft_id}" for index, aircraft_id in enumerate(aircraft_ids)]
-        plt.yticks(range(1, len(aircraft_ids) + 1), ytick_labels)
-
-        plt.xlabel('Time')
-        plt.ylabel('Aircraft')
-        plt.title('Aircraft Rotations and Unavailability')
-        plt.grid(True)
-        plt.xticks(rotation=45)
-        plt.tight_layout()
-
-        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        plt.show()
-
-        # print(f"Actual x-axis limits after plotting: {ax.get_xlim()}")
 
 
 
