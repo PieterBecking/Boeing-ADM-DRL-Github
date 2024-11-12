@@ -27,7 +27,7 @@ MIN_TURN_TIME = 0  # Minimum gap between flights for the same aircraft
 DEBUG_MODE = False# Turn on/off debug mode
 DEBUG_MODE_TRAINING = False  # Turn on/off debug mode for training
 DEBUG_MODE_REWARD = True  # Turn on/off debug mode for reward calculation
-DEBUG_MODE_PRINT_STATE = True  # Turn on/off debug mode for printing state
+DEBUG_MODE_PRINT_STATE = False  # Turn on/off debug mode for printing state
 DEBUG_MODE_CANCELLED_FLIGHT = False  # Turn on/off debug mode for cancelled flight
 DEBUG_MODE_VISUALIZATION = False
 
