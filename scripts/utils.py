@@ -297,7 +297,8 @@ class FileParsers:
                 'StartDate': parts[1],
                 'StartTime': parts[2],
                 'EndDate': parts[3],
-                'EndTime': parts[4]
+                'EndTime': parts[4],
+                'Probability': float(parts[5])
             }
         return alt_aircraft_dict
 

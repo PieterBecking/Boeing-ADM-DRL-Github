@@ -140,8 +140,7 @@ class StatePlotter:
 
         # Compute rectangle height in data units corresponding to 10 pixels
         rect_height = get_height_in_data_units(ax, 30)
-
-        # Handle alt_aircraft_dict unavailabilities (certain unavailabilities with probability 1.0)
+        # Handle alt_aircraft_dict unavailabilities, including uncertain ones with probability < 1.0
         if self.alt_aircraft_dict:
             for aircraft_id, unavailability_info in self.alt_aircraft_dict.items():
                 if not isinstance(unavailability_info, list):
@@ -152,56 +151,38 @@ class StatePlotter:
                     start_time = unavail['StartTime']
                     end_date = unavail['EndDate']
                     end_time = unavail['EndTime']
-
+                    probability = unavail.get('Probability', 1.0)  # Default to 1.0 if Probability is not given
+                    
                     # Convert to datetime objects
                     unavail_start = datetime.strptime(f"{start_date} {start_time}", '%d/%m/%y %H:%M')
                     unavail_end = datetime.strptime(f"{end_date} {end_time}", '%d/%m/%y %H:%M')
-
                     y_offset = aircraft_indices[aircraft_id]
+                    
+                    # Set color based on probability
+                    if probability < 1.0:
+                        rect_color = 'orange'  # Uncertain breakdown
+                        plot_label = 'Uncertain Breakdown'
+                    else:
+                        rect_color = 'red'  # Certain unavailability
+                        plot_label = 'Aircraft Unavailable'
                     
                     # Plot the unavailability period as a rectangle
                     rect = patches.Rectangle((unavail_start, y_offset - rect_height / 2),
-                                             unavail_end - unavail_start,
-                                             rect_height,
-                                             linewidth=0,
-                                             color='red',
-                                             alpha=0.3,
-                                             zorder=0,
-                                             label='Aircraft Unavailable' if not labels['Aircraft Unavailable'] else None)
+                                            unavail_end - unavail_start,
+                                            rect_height,
+                                            linewidth=0,
+                                            color=rect_color,
+                                            alpha=0.3,
+                                            zorder=0,
+                                            label=plot_label if not labels[plot_label] else None)
                     ax.add_patch(rect)
-                    labels['Aircraft Unavailable'] = True
-
-                    # Plot the probability below the rectangle
-                    probability = 1.0  # Since these are certain unavailabilities
-                    x_position = unavail_start + (unavail_end - unavail_start) / 2
-                    y_position = y_offset - rect_height / 2 - get_height_in_data_units(ax, 10)  # Adjust offset as needed
-                    ax.text(x_position, y_position+0.1, f"{probability:.2f}", ha='center', va='top', fontsize=9)
-
-        # Handle uncertain breakdowns
-        if self.uncertain_breakdowns:
-            for aircraft_id, breakdowns in self.uncertain_breakdowns.items():
-                for breakdown in breakdowns:
-                    unavail_start = breakdown['StartTime']
-                    unavail_end = breakdown['EndTime']
-                    probability = breakdown.get('Probability', 0.0)
-                    y_offset = aircraft_indices[aircraft_id]
-
-                    # Plot the uncertain breakdown period
-                    rect = patches.Rectangle((unavail_start, y_offset - rect_height / 2),
-                                             unavail_end - unavail_start,
-                                             rect_height,
-                                             linewidth=0,
-                                             color='orange',
-                                             alpha=0.3,
-                                             zorder=0,
-                                             label='Uncertain Breakdown' if not labels['Uncertain Breakdown'] else None)
-                    ax.add_patch(rect)
-                    labels['Uncertain Breakdown'] = True
+                    labels[plot_label] = True
 
                     # Plot the probability below the rectangle
                     x_position = unavail_start + (unavail_end - unavail_start) / 2
                     y_position = y_offset - rect_height / 2 - get_height_in_data_units(ax, 10)  # Adjust offset as needed
-                    ax.text(x_position, y_position+0.1, f"{probability:.2f}", ha='center', va='top', fontsize=9)
+                    ax.text(x_position, y_position + 0.1, f"{probability:.2f}", ha='center', va='top', fontsize=9)
+
 
         x_min = earliest_time - timedelta(hours=1)
         x_max = latest_time + timedelta(hours=1)

@@ -115,17 +115,14 @@ class AircraftDisruptionEnv(gym.Env):
             # Store aircraft index instead of ID
             state[idx + 1, 0] = idx + 1  # Use numerical index instead of string ID
 
-            # Initialize breakdown probability and unavailability times
-            breakdown_probability = 0.0
-            unavail_start_minutes = np.nan
-            unavail_end_minutes = np.nan
 
-            # Check for predefined unavailabilities (probability = 1.0)
+            # Check for predefined unavailabilities and assign actual probability
             if aircraft_id in self.alt_aircraft_dict:
-                breakdown_probability = 1.0
                 unavails = self.alt_aircraft_dict[aircraft_id]
                 if not isinstance(unavails, list):
                     unavails = [unavails]
+                breakdown_probability = unavails[0].get('Probability', 1.0)
+
 
                 # Get earliest start and latest end time
                 start_times = []
@@ -245,7 +242,7 @@ class AircraftDisruptionEnv(gym.Env):
             action (tuple or list): The action to be taken by the agent.
 
         Returns:
-            tuple: A tuple containing the processed state, reward, termination status, truncation status, and additional info.
+            tuple: A tuple containing the processed state, reward, terminated flag, truncated flag, and additional info.
         """
         # Print the current state if in debug mode
         if DEBUG_MODE_PRINT_STATE:
@@ -330,86 +327,54 @@ class AircraftDisruptionEnv(gym.Env):
         selected_flight_id = self.flight_ids[flight_action - 1]
         selected_aircraft_id = self.aircraft_ids[aircraft_action - 1]
 
-
     def process_uncertainties(self):
-        """Processes the uncertainties (potential breakdowns) in the environment.
-
-        This function iterates over the uncertain breakdowns, and for each one that is due,
-        it rolls a random number to determine if the breakdown occurs. If it does, it updates
-        the state accordingly.
-
-        It also resolves uncertainties by removing them from the list if they have been resolved.
+        """Processes breakdown uncertainties directly from the state space.
+        For any probability that isn't 0.00 or 1.00, if the current datetime + timestep
+        has reached or passed the breakdown start time, resolve the uncertainty by rolling a dice.
         """
-        # Print current datetime
         print(f"Current datetime: {self.current_datetime}")
 
-        # Print the set of cancelled flights
-        print(f"Cancelled flights: {self.cancelled_flights}")
-
-        # Process uncertainties
-        for aircraft_id in list(self.uncertain_breakdowns.keys()):  # Use list to avoid runtime modification
-            breakdowns = self.uncertain_breakdowns[aircraft_id]
-            updated_breakdowns = []
-            for breakdown_info in breakdowns:
-                breakdown_start_time = breakdown_info['StartTime']
-                breakdown_end_time = breakdown_info['EndTime']
-                if self.current_datetime >= breakdown_start_time and not breakdown_info.get('Resolved', False):
-                    # Time to resolve this uncertainty
-                    print(f"Now we are rolling the dice on uncertainty {breakdown_info['Probability']}...")
-                    if np.random.random() <= breakdown_info['Probability']:
-                        # The breakdown occurs
-                        print(f"Uncertainty {breakdown_info['Probability']} becomes an actual unavailability")
-
-                        # Set probability to 1.00 to mark it as confirmed
-                        breakdown_info['Probability'] = 1.00  # Explicitly set to 1
-
-                        # Update self.state with new start and end times and probability
-                        aircraft_index = self.aircraft_id_to_idx[aircraft_id] + 1  # Adjust for state indexing
-                        self.state[aircraft_index, 1] = 1.00  # Probability column
-                        self.state[aircraft_index, 2] = (breakdown_start_time - self.earliest_datetime).total_seconds() / 60
-                        self.state[aircraft_index, 3] = (breakdown_end_time - self.earliest_datetime).total_seconds() / 60
-
-                        breakdown_key = (aircraft_id, breakdown_start_time)
-                        self.current_breakdowns[breakdown_key] = breakdown_info
-                        breakdown_info['Resolved'] = True  # Mark as resolved
-
-                        # Add to alt_aircraft_dict
-                        if aircraft_id in self.alt_aircraft_dict:
-                            if not isinstance(self.alt_aircraft_dict[aircraft_id], list):
-                                self.alt_aircraft_dict[aircraft_id] = [self.alt_aircraft_dict[aircraft_id]]
-                            # Append the breakdown without resetting the list
-                            self.alt_aircraft_dict[aircraft_id].append({
-                                'StartDate': breakdown_info['StartTime'].strftime('%d/%m/%y'),
-                                'StartTime': breakdown_info['StartTime'].strftime('%H:%M'),
-                                'EndDate': breakdown_info['EndTime'].strftime('%d/%m/%y'),
-                                'EndTime': breakdown_info['EndTime'].strftime('%H:%M'),
-                            })
-                        else:
-                            # Initialize new entry in alt_aircraft_dict
-                            self.alt_aircraft_dict[aircraft_id] = [{
-                                'StartDate': breakdown_info['StartTime'].strftime('%d/%m/%y'),
-                                'StartTime': breakdown_info['StartTime'].strftime('%H:%M'),
-                                'EndDate': breakdown_info['EndTime'].strftime('%d/%m/%y'),
-                                'EndTime': breakdown_info['EndTime'].strftime('%H:%M'),
-                            }]
-                        if DEBUG_MODE:
-                            print(f"Aircraft {aircraft_id} has broken down at {breakdown_start_time} with probability {self.state[aircraft_index, 1]}")
+        # Iterate over each aircraft's row in the state space to check for unresolved breakdowns
+        for idx, aircraft_id in enumerate(self.aircraft_ids):
+            # Get probability, start, and end time from the state space
+            prob = self.state[idx + 1, 1]
+            start_minutes = self.state[idx + 1, 2]
+            end_minutes = self.state[idx + 1, 3]
+            
+            # Only process unresolved breakdowns
+            if prob != 0.00 and prob != 1.00:
+                breakdown_start_time = self.earliest_datetime + timedelta(minutes=start_minutes)
+                
+                # If within the current time step, resolve the breakdown
+                if self.current_datetime + self.timestep >= breakdown_start_time:
+                    print(f"Rolling the dice for breakdown with initial probability {prob} starting at {breakdown_start_time}")
+                    
+                    # Roll the dice
+                    if np.random.random() <= prob:
+                        print(f"Breakdown confirmed for aircraft {aircraft_id} with probability {prob}")
+                        self.state[idx + 1, 1] = 1.00  # Confirm the breakdown
                     else:
-                        # The breakdown does not occur
-                        print(f"Uncertainty {breakdown_info['Probability']} does NOT become an actual unavailability")
-                        breakdown_info['Resolved'] = True  # Mark as resolved
-                        if DEBUG_MODE:
-                            print(f"Aircraft {aircraft_id} did not break down at {breakdown_start_time}")
+                        print(f"Breakdown not occurring for aircraft {aircraft_id}")
+                        self.state[idx + 1, 1] = 0.00  # Resolve as no breakdown
 
-                if breakdown_info.get('Resolved', False):
-                    # Remove resolved breakdown from uncertainties
-                    continue  # Do not add to updated_breakdowns
-                else:
-                    updated_breakdowns.append(breakdown_info)
-            if updated_breakdowns:
-                self.uncertain_breakdowns[aircraft_id] = updated_breakdowns
-            else:
-                del self.uncertain_breakdowns[aircraft_id]
+                    # Ensure `self.alt_aircraft_dict[aircraft_id]` is a list of dictionaries
+                    if aircraft_id in self.alt_aircraft_dict:
+                        if isinstance(self.alt_aircraft_dict[aircraft_id], dict):
+                            self.alt_aircraft_dict[aircraft_id] = [self.alt_aircraft_dict[aircraft_id]]
+                        elif isinstance(self.alt_aircraft_dict[aircraft_id], str):
+                            # Handle case where entry is a string by converting it to a structured dictionary
+                            self.alt_aircraft_dict[aircraft_id] = [{
+                                'StartDate': breakdown_start_time.strftime('%d/%m/%y'),
+                                'StartTime': breakdown_start_time.strftime('%H:%M'),
+                                'EndDate': (breakdown_start_time + timedelta(minutes=end_minutes - start_minutes)).strftime('%d/%m/%y'),
+                                'EndTime': (breakdown_start_time + timedelta(minutes=end_minutes - start_minutes)).strftime('%H:%M'),
+                                'Probability': self.state[idx + 1, 1]  # Updated probability
+                            }]
+                        
+                        # Update the probability in `self.alt_aircraft_dict`
+                        for breakdown_info in self.alt_aircraft_dict[aircraft_id]:
+                            breakdown_info['Probability'] = self.state[idx + 1, 1]
+
 
     def handle_no_conflicts(self):
         """Handles the case when there are no conflicts in the current state.
@@ -538,6 +503,7 @@ class AircraftDisruptionEnv(gym.Env):
             self.state = self._get_initial_state()
 
             post_action_conflicts = self.get_current_conflicts()
+            
             resolved_conflicts = pre_action_conflicts - post_action_conflicts
 
             reward = self._calculate_reward(resolved_conflicts, post_action_conflicts, flight_action, aircraft_action)
@@ -829,33 +795,33 @@ class AircraftDisruptionEnv(gym.Env):
         # Calculate total simulation minutes
         total_simulation_minutes = (self.end_datetime - self.start_datetime).total_seconds() / 60
 
-        # Generate breakdowns for each aircraft
-        for aircraft_id in self.aircraft_ids:
-            if aircraft_id in self.alt_aircraft_dict:
-                continue
+        # # Generate breakdowns for each aircraft
+        # for aircraft_id in self.aircraft_ids:
+        #     if aircraft_id in self.alt_aircraft_dict:
+        #         continue
 
-            breakdown_probability = np.random.uniform(0, 1)  # Set realistic probability
-            if breakdown_probability > MIN_BREAKDOWN_PROBABILITY:  # Set a minimum threshold if desired
-                max_breakdown_start = total_simulation_minutes - BREAKDOWN_DURATION
-                if max_breakdown_start > 0:
-                    breakdown_start_minutes = np.random.uniform(0, max_breakdown_start)
-                    breakdown_start = self.start_datetime + timedelta(minutes=breakdown_start_minutes)
+        #     breakdown_probability = np.random.uniform(0, 1)  # Set realistic probability
+        #     if breakdown_probability > MIN_BREAKDOWN_PROBABILITY:  # Set a minimum threshold if desired
+        #         max_breakdown_start = total_simulation_minutes - BREAKDOWN_DURATION
+        #         if max_breakdown_start > 0:
+        #             breakdown_start_minutes = np.random.uniform(0, max_breakdown_start)
+        #             breakdown_start = self.start_datetime + timedelta(minutes=breakdown_start_minutes)
                     
-                    # Generate a random breakdown duration for this specific breakdown
-                    breakdown_duration = np.random.uniform(60, 600)  # Random duration between 60 and 600 minutes
-                    breakdown_end = breakdown_start + timedelta(minutes=breakdown_duration)
+        #             # Generate a random breakdown duration for this specific breakdown
+        #             breakdown_duration = np.random.uniform(60, 600)  # Random duration between 60 and 600 minutes
+        #             breakdown_end = breakdown_start + timedelta(minutes=breakdown_duration)
 
-                    self.uncertain_breakdowns[aircraft_id] = [{
-                        'StartTime': breakdown_start,
-                        'EndTime': breakdown_end,
-                        'StartDate': breakdown_start.date(),
-                        'EndDate': breakdown_end.date(),
-                        'Probability': breakdown_probability,
-                        'Resolved': False  # Initially unresolved
-                    }]
+        #             self.uncertain_breakdowns[aircraft_id] = [{
+        #                 'StartTime': breakdown_start,
+        #                 'EndTime': breakdown_end,
+        #                 'StartDate': breakdown_start.date(),
+        #                 'EndDate': breakdown_end.date(),
+        #                 'Probability': breakdown_probability,
+        #                 'Resolved': False  # Initially unresolved
+        #             }]
 
-                    if DEBUG_MODE:
-                        print(f"Aircraft {aircraft_id} has an uncertain breakdown scheduled at {breakdown_start} with probability {breakdown_probability:.2f}")
+        #             if DEBUG_MODE:
+        #                 print(f"Aircraft {aircraft_id} has an uncertain breakdown scheduled at {breakdown_start} with probability {breakdown_probability:.2f}")
 
         self.state = self._get_initial_state()
 
