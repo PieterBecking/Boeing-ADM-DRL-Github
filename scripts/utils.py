@@ -112,12 +112,10 @@ def print_state_nicely(state):
     info_row = state[0]
     # print("\nSimulation Info:")
     # print("┌────────────────────┬────────────────────┬────────────────────┬────────────────────┐")
-    print("│ Target Aircraft    │ Target Flight      │ Current Time       │ Time Until End     │")
+    print("│ Current Time       │ Time Until End     │   ")
     # print("├────────────────────┼────────────────────┼────────────────────┼────────────────────┤")
     print(f"│ {int(info_row[0]) if not np.isnan(info_row[0]) else '-':^19}│ "
-          f"{int(info_row[1]) if not np.isnan(info_row[1]) else '-':^19}│ "
-          f"{int(info_row[2]) if not np.isnan(info_row[2]) else '-':^19}│ "
-          f"{int(info_row[3]) if not np.isnan(info_row[3]) else '-':^19}│")
+          f"{int(info_row[1]) if not np.isnan(info_row[1]) else '-':^19}│")
     # print("└────────────────────┴────────────────────┴────────────────────┴────────────────────┘")
     print("")  # Empty line for separation
     
