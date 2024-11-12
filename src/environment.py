@@ -233,7 +233,10 @@ class AircraftDisruptionEnv(gym.Env):
         # Concatenate state and mask
         obs_with_mask = np.concatenate([state_flat, mask_flat])
         return obs_with_mask
+    
 
+
+        
     def step(self, action=None):
         """Executes a step in the environment based on the provided action.
 
@@ -246,6 +249,7 @@ class AircraftDisruptionEnv(gym.Env):
         Returns:
             tuple: A tuple containing the processed state, reward, termination status, truncation status, and additional info.
         """
+
         if DEBUG_MODE_PRINT_STATE:
             print_state_nicely(self.state)
             print("")
@@ -263,11 +267,20 @@ class AircraftDisruptionEnv(gym.Env):
 
         if DEBUG_MODE:
             print(f"Processed action: {action} of type: {type(action)}")
+        
+        # Print the chosen action
+        print(f"Chosen action: {action_value}")  # Added print statement for chosen action
 
         agent_acted = False
         info = {} 
 
         while not agent_acted:
+            # Print current datetime
+            print(f"Current datetime: {self.current_datetime}")
+
+            # Print the set of cancelled flights
+            print(f"Cancelled flights: {self.cancelled_flights}")  # Added print statement for cancelled flights
+
             pre_action_conflicts = self.get_current_conflicts()
 
             # Process uncertainties
@@ -279,8 +292,20 @@ class AircraftDisruptionEnv(gym.Env):
                     breakdown_end_time = breakdown_info['EndTime']
                     if self.current_datetime >= breakdown_start_time and not breakdown_info.get('Resolved', False):
                         # Time to resolve this uncertainty
+                        print(f"Now we are rolling the dice on uncertainty {breakdown_info['Probability']}...")
                         if np.random.random() <= breakdown_info['Probability']:
                             # The breakdown occurs
+                            print(f"Uncertainty {breakdown_info['Probability']} becomes an actual unavailability")
+
+                            # Set probability to 1.00 to mark it as confirmed
+                            breakdown_info['Probability'] = 1.00  # Explicitly set to 1
+
+                            # Update self.state with new start and end times and probability
+                            aircraft_index = self.aircraft_id_to_idx[aircraft_id] + 1  # Adjust for state indexing
+                            self.state[aircraft_index, 1] = 1.00  # Probability column
+                            self.state[aircraft_index, 2] = (breakdown_start_time - self.earliest_datetime).total_seconds() / 60
+                            self.state[aircraft_index, 3] = (breakdown_end_time - self.earliest_datetime).total_seconds() / 60
+
                             breakdown_key = (aircraft_id, breakdown_start_time)
                             self.current_breakdowns[breakdown_key] = breakdown_info
                             breakdown_info['Resolved'] = True  # Mark as resolved
@@ -289,18 +314,26 @@ class AircraftDisruptionEnv(gym.Env):
                             if aircraft_id in self.alt_aircraft_dict:
                                 if not isinstance(self.alt_aircraft_dict[aircraft_id], list):
                                     self.alt_aircraft_dict[aircraft_id] = [self.alt_aircraft_dict[aircraft_id]]
-                                else:
-                                    self.alt_aircraft_dict[aircraft_id] = []
+                                # Append the breakdown without resetting the list
                                 self.alt_aircraft_dict[aircraft_id].append({
                                     'StartDate': breakdown_info['StartTime'].strftime('%d/%m/%y'),
                                     'StartTime': breakdown_info['StartTime'].strftime('%H:%M'),
                                     'EndDate': breakdown_info['EndTime'].strftime('%d/%m/%y'),
                                     'EndTime': breakdown_info['EndTime'].strftime('%H:%M'),
                                 })
-                                if DEBUG_MODE:
-                                    print(f"Aircraft {aircraft_id} has broken down at {breakdown_start_time}")
+                            else:
+                                # Initialize new entry in alt_aircraft_dict
+                                self.alt_aircraft_dict[aircraft_id] = [{
+                                    'StartDate': breakdown_info['StartTime'].strftime('%d/%m/%y'),
+                                    'StartTime': breakdown_info['StartTime'].strftime('%H:%M'),
+                                    'EndDate': breakdown_info['EndTime'].strftime('%d/%m/%y'),
+                                    'EndTime': breakdown_info['EndTime'].strftime('%H:%M'),
+                                }]
+                            if DEBUG_MODE:
+                                print(f"Aircraft {aircraft_id} has broken down at {breakdown_start_time} with probability {self.state[aircraft_index, 1]}")
                         else:
                             # The breakdown does not occur
+                            print(f"Uncertainty {breakdown_info['Probability']} does NOT become an actual unavailability")
                             breakdown_info['Resolved'] = True  # Mark as resolved
                             if DEBUG_MODE:
                                 print(f"Aircraft {aircraft_id} did not break down at {breakdown_start_time}")
@@ -315,22 +348,8 @@ class AircraftDisruptionEnv(gym.Env):
                 else:
                     del self.uncertain_breakdowns[aircraft_id]
 
-            # Remove breakdowns that have ended
-            for breakdown_key in list(self.current_breakdowns.keys()):
-                breakdown_info = self.current_breakdowns[breakdown_key]
-                breakdown_end_time = breakdown_info['EndTime']
-                if self.current_datetime >= breakdown_end_time:
-                    # Remove from current_breakdowns and alt_aircraft_dict
-                    del self.current_breakdowns[breakdown_key]
-                    aircraft_id = breakdown_key[0]
-                    breakdown_start_str = breakdown_info['StartTime'].strftime('%H:%M')
-                    # Remove the breakdown from alt_aircraft_dict
-                    if aircraft_id in self.alt_aircraft_dict:
-                        self.alt_aircraft_dict[aircraft_id] = [unavail for unavail in self.alt_aircraft_dict[aircraft_id] if unavail['StartTime'] != breakdown_start_str]
-                        if not self.alt_aircraft_dict[aircraft_id]:
-                            del self.alt_aircraft_dict[aircraft_id]
-                    if DEBUG_MODE:
-                        print(f"Aircraft {aircraft_id} breakdown has ended at {breakdown_end_time}")
+            # Print the state after processing all uncertainties
+            print_state_nicely(self.state)
 
             if len(pre_action_conflicts) == 0:
                 next_datetime = self.current_datetime + self.timestep
@@ -347,6 +366,7 @@ class AircraftDisruptionEnv(gym.Env):
 
                 post_action_conflicts = self.get_current_conflicts()
                 continue
+
 
             action_explain = "No action taken" if action_value == 0 else f"Action: Aircraft {self.aircraft_ids[action_value - 1]}"
             conflicting_aircraft = None
@@ -791,12 +811,17 @@ class AircraftDisruptionEnv(gym.Env):
 
                     if not np.isnan(flight_dep) and not np.isnan(flight_arr):
                         # Check if the flight's departure is in the past (relative to current time)
-                        if flight_dep < (self.current_datetime - self.earliest_datetime).total_seconds() / 60:
-                            # This flight is in the past, mark as cancelled
-                            if DEBUG_MODE:
-                                print(f"Flight {flight_id} is cancelled (dep time: {flight_dep}, current time: {self.current_datetime})")
-                            self.cancelled_flights.add(flight_id)
-                            continue  # Skip this flight as it's already cancelled
+                        current_time_minutes = (self.current_datetime - self.earliest_datetime).total_seconds() / 60
+                        if flight_dep < current_time_minutes:
+                            # Check for conflicts before marking as cancelled
+                            if flight_dep < unavail_end and flight_arr > unavail_start:
+                                # This flight is in the past and in conflict, mark as cancelled
+                                print(f"Flight {flight_id} of aircraft {aircraft_id} with time {flight_dep} to {flight_arr} is cancelled due to departure time in past while having a conflict with unavailability {unavail_start} to {unavail_end}.")
+                                self.cancelled_flights.add(flight_id)
+                            # If there is no conflict, do not cancel the flight
+                            else:
+                                print(f"Flight {flight_id} of aircraft {aircraft_id} with time {flight_dep} to {flight_arr} is in the past but has no conflict with unavailability {unavail_start} to {unavail_end}. Not cancelled.")
+                            continue  # Skip this flight as it's already processed
 
                         if flight_id in self.cancelled_flights:
                             continue  # Skip cancelled flights
