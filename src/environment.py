@@ -742,7 +742,10 @@ class AircraftDisruptionEnv(gym.Env):
                 if max_breakdown_start > 0:
                     breakdown_start_minutes = np.random.uniform(0, max_breakdown_start)
                     breakdown_start = self.start_datetime + timedelta(minutes=breakdown_start_minutes)
-                    breakdown_end = breakdown_start + timedelta(minutes=BREAKDOWN_DURATION)
+                    
+                    # Generate a random breakdown duration for this specific breakdown
+                    breakdown_duration = np.random.uniform(60, 600)  # Random duration between 60 and 600 minutes
+                    breakdown_end = breakdown_start + timedelta(minutes=breakdown_duration)
 
                     self.uncertain_breakdowns[aircraft_id] = [{
                         'StartTime': breakdown_start,
