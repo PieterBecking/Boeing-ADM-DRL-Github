@@ -69,7 +69,8 @@ class StatePlotter:
             'Disruption Start': False,
             'Disruption End': False,
             'Delay of Flight': False,
-            'Uncertain Breakdown': False
+            'Uncertain Breakdown': False,
+            'Zero Probability': False
         }
 
         earliest_time = self.earliest_datetime
@@ -159,7 +160,10 @@ class StatePlotter:
                     y_offset = aircraft_indices[aircraft_id]
                     
                     # Set color based on probability
-                    if probability < 1.0:
+                    if probability == 0.0:
+                        rect_color = 'lightgrey'  # Very light grey for zero probability
+                        plot_label = 'Zero Probability'
+                    elif probability < 1.0:
                         rect_color = 'orange'  # Uncertain breakdown
                         plot_label = 'Uncertain Breakdown'
                     else:
@@ -182,7 +186,6 @@ class StatePlotter:
                     x_position = unavail_start + (unavail_end - unavail_start) / 2
                     y_position = y_offset - rect_height / 2 - get_height_in_data_units(ax, 10)  # Adjust offset as needed
                     ax.text(x_position, y_position + 0.1, f"{probability:.2f}", ha='center', va='top', fontsize=9)
-
 
         x_min = earliest_time - timedelta(hours=1)
         x_max = latest_time + timedelta(hours=1)
