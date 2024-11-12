@@ -1,3 +1,5 @@
+import numpy as np
+
 # General Environment Settings
 MAX_AIRCRAFT = 3  # Maximum number of aircraft considered in the environment
 MAX_FLIGHTS_PER_AIRCRAFT = 12  # Maximum number of flights per aircraft
@@ -36,7 +38,7 @@ DEPARTURE_AFTER_END_RECOVERY = 1  # how many hours after the end of the recovery
 
 # Constants for breakdown probabilities
 BREAKDOWN_PROBABILITY = 0.9  # Probability of aircraft breaking down during the day
-BREAKDOWN_DURATION = 60  # Duration of breakdown in minutes
+BREAKDOWN_DURATION = np.random.uniform(60, 600)  # Duration of breakdown in minutes, uniformly sampled between 60 and 600
 INDICATION_TIME_BEFORE_BREAKDOWN = 120  # Time before breakdown to provide indication to the agent in minutes
 
 MIN_TURN_TIME = 0  # Minimum turnaround time in minutes
