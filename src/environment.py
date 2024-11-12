@@ -517,7 +517,6 @@ class AircraftDisruptionEnv(gym.Env):
             processed_state = self.process_observation(self.state)
             return np.array(processed_state, dtype=np.float32), reward, terminated, truncated, {}
 
-
     def schedule_flight_on_aircraft(self, aircraft_id, flight_id, dep_time, arr_time=None, delayed_flights=None):
         if delayed_flights is None:
             delayed_flights = set()
@@ -547,22 +546,27 @@ class AircraftDisruptionEnv(gym.Env):
         # Check for unavailability conflicts
         unavail_start = self.state[aircraft_idx, 2]
         unavail_end = self.state[aircraft_idx, 3]
+        unavail_prob = self.state[aircraft_idx, 1]  # Assuming unavailability probability is stored in this position
 
         if not np.isnan(unavail_start) and not np.isnan(unavail_end):
             # Check if desired dep_time overlaps with unavailability
             if dep_time < unavail_end and arr_time > unavail_start:
-                # Adjust dep_time to after unavailability end plus MIN_TURN_TIME
-                dep_time = max(dep_time, unavail_end + MIN_TURN_TIME)
-                dep_time = max(dep_time, original_dep_minutes)  # Ensure not earlier than original dep time
-                arr_time = dep_time + flight_duration
+                # If unavailability probability is below 1.00, do not adjust dep_time
+                if unavail_prob < 1.00:
+                    pass  # No adjustment needed
+                else:
+                    # Adjust dep_time to after unavailability end plus MIN_TURN_TIME
+                    dep_time = max(dep_time, unavail_end + MIN_TURN_TIME)
+                    dep_time = max(dep_time, original_dep_minutes)  # Ensure not earlier than original dep time
+                    arr_time = dep_time + flight_duration
 
-                # Track the delay
-                delay = dep_time - original_dep_minutes
-                self.environment_delayed_flights[flight_id] = self.environment_delayed_flights.get(flight_id, 0) + delay
+                    # Track the delay
+                    delay = dep_time - original_dep_minutes
+                    self.environment_delayed_flights[flight_id] = self.environment_delayed_flights.get(flight_id, 0) + delay
 
-                # Debugging: Print the adjusted departure and arrival times
-                print(f"Adjusted departure time for flight {flight_id} to {dep_time} minutes after unavailability.")
-                print(f"Adjusted arrival time for flight {flight_id} to {arr_time} minutes.")
+                    # Debugging: Print the adjusted departure and arrival times
+                    print(f"Adjusted departure time for flight {flight_id} to {dep_time} minutes after unavailability.")
+                    print(f"Adjusted arrival time for flight {flight_id} to {arr_time} minutes.")
 
         # Proceed with existing scheduled_flights check and conflict resolution
 
