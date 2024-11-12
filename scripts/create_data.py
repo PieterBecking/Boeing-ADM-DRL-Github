@@ -82,30 +82,43 @@ def generate_aircraft_file(file_name, aircraft_types, total_aircraft_range):
 
     return aircraft_ids
 
+# generate_alt_aircraft_file(alt_aircraft_file, aircraft_ids, amount_aircraft_disrupted, config_dict, min_delta_start_unavailability, max_delta_start_unavailability, min_period_unavailability, max_period_unavailability, probability_range, probability_distribution)
 
 # Function to generate alt_aircraft.csv
-def generate_alt_aircraft_file(file_name, aircraft_ids, amount_aircraft_disrupted, config_dict, min_delta_start_unavailability, max_delta_start_unavailability, min_period_unavailability, max_period_unavailability):
-    """Generates the alt_aircraft.csv file."""
+def generate_alt_aircraft_file(file_name, aircraft_ids, amount_aircraft_disrupted, config_dict, min_delta_start_unavailability, max_delta_start_unavailability, min_period_unavailability, max_period_unavailability, probability_range, probability_distribution):
+    """Generates the alt_aircraft.csv file with additional probability information."""
     clear_file(file_name)
 
     disrupted_aircraft_ids = random.sample(aircraft_ids, amount_aircraft_disrupted)
-    disrupted_aircraft_data = []
+    all_aircraft_data = []
 
-    for aircraft_id in disrupted_aircraft_ids:
-        start_date = config_dict['RecoveryPeriod']['StartDate']
-        start_time_recovery = config_dict['RecoveryPeriod']['StartTime']
-        start_unavail = (datetime.strptime(start_time_recovery, '%H:%M') +
-                         timedelta(minutes=random.randint(min_delta_start_unavailability, max_delta_start_unavailability))).strftime('%H:%M')
-        
-        end_date = config_dict['RecoveryPeriod']['EndDate']
-        start_unavail_obj = datetime.strptime(start_unavail, '%H:%M')
-        end_unavail = (start_unavail_obj + timedelta(minutes=random.randint(min_period_unavailability, max_period_unavailability))).strftime('%H:%M')
+    for aircraft_id in aircraft_ids:
+        if aircraft_id in disrupted_aircraft_ids:
+            start_date = config_dict['RecoveryPeriod']['StartDate']
+            start_time_recovery = config_dict['RecoveryPeriod']['StartTime']
+            start_unavail = (datetime.strptime(start_time_recovery, '%H:%M') +
+                             timedelta(minutes=random.randint(min_delta_start_unavailability, max_delta_start_unavailability))).strftime('%H:%M')
+            
+            end_date = config_dict['RecoveryPeriod']['EndDate']
+            start_unavail_obj = datetime.strptime(start_unavail, '%H:%M')
+            end_unavail = (start_unavail_obj + timedelta(minutes=random.randint(min_period_unavailability, max_period_unavailability))).strftime('%H:%M')
 
-        disrupted_aircraft_data.append(f"{aircraft_id} {start_date} {start_unavail} {end_date} {end_unavail}")
+            all_aircraft_data.append(f"{aircraft_id} {start_date} {start_unavail} {end_date} {end_unavail} 1.00")
+        else:
+            start_date = config_dict['RecoveryPeriod']['StartDate']
+            start_time_recovery = config_dict['RecoveryPeriod']['StartTime']
+            start_unavail = (datetime.strptime(start_time_recovery, '%H:%M') +
+                             timedelta(minutes=random.randint(min_delta_start_unavailability, max_delta_start_unavailability))).strftime('%H:%M')
+            
+            end_date = config_dict['RecoveryPeriod']['EndDate']
+            start_unavail_obj = datetime.strptime(start_unavail, '%H:%M')
+            end_unavail = (start_unavail_obj + timedelta(minutes=random.randint(min_period_unavailability, max_period_unavailability))).strftime('%H:%M')
+            probability = random.uniform(probability_range[0], probability_range[1])
+            all_aircraft_data.append(f"{aircraft_id} {start_date} {start_unavail} {end_date} {end_unavail} {probability:.2f}")
 
     with open(file_name, 'w') as file:
-        file.write('%Aircraft StartDate StartTime EndDate EndTime\n')
-        for aircraft in disrupted_aircraft_data:
+        file.write('%Aircraft StartDate StartTime EndDate EndTime Probability\n')
+        for aircraft in all_aircraft_data:
             file.write(f"{aircraft}\n")
         file.write('#')
 
@@ -226,7 +239,35 @@ def generate_rotations_file(file_name, flight_rotation_data, start_datetime):
             file.write(f"{rotation}\n")
         file.write('#')
 
+"""
 
+
+    # Call the function for each scenario
+    create_data_scenario(
+        scenario_name=scenario_name,
+        template_folder=template_folder,
+        data_root_folder=data_root_folder,
+        aircraft_types=aircraft_types,
+        total_aircraft_range=aircraft_range,  # Use the defined aircraft range
+        amount_aircraft_disrupted=amount_aircraft_disrupted,  # Use the defined disrupted amount
+        min_delta_start_unavailability=0,
+        max_delta_start_unavailability=120,
+        min_period_unavailability=120,
+        max_period_unavailability=1020,
+        average_flights_per_aircraft=average_flights_per_aircraft,  # Use the defined average flights per aircraft
+        std_dev_flights_per_aircraft=1,  # Set a constant standard deviation
+        airports=airports,
+        config_dict=config_dict,
+        recovery_start_date=recovery_start_date,
+        recovery_start_time=recovery_start_time,
+        recovery_end_date=recovery_end_date,
+        recovery_end_time=recovery_end_time,
+        clear_one_random_aircraft=False,
+        probability_range=probability_range,
+        probability_distribution=probability_distribution
+    )
+
+"""
 # Main function to run the whole process (but you can call this whatever you like)
 
 def create_data_scenario(
@@ -234,7 +275,7 @@ def create_data_scenario(
     amount_aircraft_disrupted, min_delta_start_unavailability, max_delta_start_unavailability,
     min_period_unavailability, max_period_unavailability, average_flights_per_aircraft,
     std_dev_flights_per_aircraft, airports, config_dict, recovery_start_date,
-    recovery_start_time, recovery_end_date, recovery_end_time, clear_one_random_aircraft
+    recovery_start_time, recovery_end_date, recovery_end_time, clear_one_random_aircraft, probability_range, probability_distribution
 ):
     data_folder = os.path.join(data_root_folder, scenario_name)
     if os.path.exists(data_folder):
@@ -251,7 +292,7 @@ def create_data_scenario(
 
     # Generate alt aircraft (disrupted aircraft)
     alt_aircraft_file = os.path.join(data_folder, 'alt_aircraft.csv')
-    generate_alt_aircraft_file(alt_aircraft_file, aircraft_ids, amount_aircraft_disrupted, config_dict, min_delta_start_unavailability, max_delta_start_unavailability, min_period_unavailability, max_period_unavailability)
+    generate_alt_aircraft_file(alt_aircraft_file, aircraft_ids, amount_aircraft_disrupted, config_dict, min_delta_start_unavailability, max_delta_start_unavailability, min_period_unavailability, max_period_unavailability, probability_range, probability_distribution)
 
     # Generate flights data
     flights_file = os.path.join(data_folder, 'flights.csv')
