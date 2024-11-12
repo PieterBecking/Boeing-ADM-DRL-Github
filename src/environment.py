@@ -6,7 +6,8 @@ from datetime import datetime, timedelta
 from src.config import *
 from scripts.utils import *
 
-
+# import the state plotter
+from scripts.visualizations import StatePlotter
 
 MIN_BREAKDOWN_PROBABILITY = 0
 
@@ -799,15 +800,15 @@ class AircraftDisruptionEnv(gym.Env):
                 break
 
             breakdown_probability = self.state[idx + 1, 1]
-            if breakdown_probability != 1.0:
-                continue  # Only consider unavailabilities with probability 1
+            if breakdown_probability == 0.0 or np.isnan(breakdown_probability):
+                continue  # Skip if probability is zero or NaN
 
             unavail_start = self.state[idx + 1, 2]
             unavail_end = self.state[idx + 1, 3]
 
             if not np.isnan(unavail_start) and not np.isnan(unavail_end):
                 # Check for conflicts between flights and unavailability periods
-                for j in range(4, self.columns_state_space - 2, 3):  # Added -2 to prevent out of bounds
+                for j in range(4, self.columns_state_space - 2, 3):
                     flight_id = self.state[idx + 1, j]
                     flight_dep = self.state[idx + 1, j + 1]
                     flight_arr = self.state[idx + 1, j + 2]
@@ -816,27 +817,15 @@ class AircraftDisruptionEnv(gym.Env):
                         # Check if the flight's departure is in the past (relative to current time)
                         current_time_minutes = (self.current_datetime - self.earliest_datetime).total_seconds() / 60
                         if flight_dep < current_time_minutes:
-                            # Check for conflicts before marking as cancelled
-                            if flight_dep < unavail_end and flight_arr > unavail_start:
-                                # This flight is in the past and in conflict, mark as cancelled
-                                print(f"Flight {flight_id} of aircraft {aircraft_id} with time {flight_dep} to {flight_arr} is cancelled due to departure time in past while having a conflict with unavailability {unavail_start} to {unavail_end}.")
-                                self.cancelled_flights.add(flight_id)
-                            # If there is no conflict, do not cancel the flight
-                            else:
-                                print(f"Flight {flight_id} of aircraft {aircraft_id} with time {flight_dep} to {flight_arr} is in the past but has no conflict with unavailability {unavail_start} to {unavail_end}. Not cancelled.")
-                            continue  # Skip this flight as it's already processed
+                            continue  # Skip past flights
 
                         if flight_id in self.cancelled_flights:
                             continue  # Skip cancelled flights
 
-                        # Check for conflicts between flight and unavailability periods
+                        # Check for overlaps with unavailability periods with prob > 0
                         if flight_dep < unavail_end and flight_arr > unavail_start:
                             conflict_identifier = (aircraft_id, flight_id, flight_dep, flight_arr)
                             current_conflicts.add(conflict_identifier)
-
-        if DEBUG_MODE:
-            print(f"Current conflicts: {current_conflicts}")
-            print(f"Cancelled flights: {self.cancelled_flights}")
 
         return current_conflicts
 
