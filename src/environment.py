@@ -231,6 +231,17 @@ class AircraftDisruptionEnv(gym.Env):
         # Concatenate state and mask
         obs_with_mask = np.concatenate([state_flat, mask_flat])
         return obs_with_mask
+    
+    def fix_state(self, state):
+        # Go over all starttimes and endtimes (columns 2 and 3 for unavailabilities and then for flights: 5, 6, 8, 9, 11, 12, ...)
+        # If endtime is smaller than starttime, add 1440 minutes to endtime
+        for i in range(1, self.rows_state_space):
+            if not np.isnan(state[i, 2]) and not np.isnan(state[i, 3]) and state[i, 2] > state[i, 3]:
+                state[i, 3] += 1440
+            for j in range(4, self.columns_state_space - 2, 3):
+                if not np.isnan(state[i, j + 1]) and not np.isnan(state[i, j + 2]) and state[i, j + 1] > state[i, j + 2]:
+                    state[i, j + 2] += 1440
+
 
     def step(self, action=None):
         """Executes a step in the environment based on the provided action.
@@ -244,6 +255,10 @@ class AircraftDisruptionEnv(gym.Env):
         Returns:
             tuple: A tuple containing the processed state, reward, terminated flag, truncated flag, and additional info.
         """
+
+        # Fix the state before processing the action
+        self.fix_state(self.state)
+
         # Print the current state if in debug mode
         if DEBUG_MODE_PRINT_STATE:
             print_state_nicely(self.state)
