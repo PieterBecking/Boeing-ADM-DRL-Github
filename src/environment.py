@@ -347,7 +347,8 @@ class AircraftDisruptionEnv(gym.Env):
         For any probability that isn't 0.00 or 1.00, if the current datetime + timestep
         has reached or passed the breakdown start time, resolve the uncertainty by rolling a dice.
         """
-        print(f"Current datetime: {self.current_datetime}")
+        if DEBUG_MODE:
+            print(f"Current datetime: {self.current_datetime}")
 
         # Iterate over each aircraft's row in the state space to check for unresolved breakdowns
         for idx, aircraft_id in enumerate(self.aircraft_ids):
@@ -580,8 +581,9 @@ class AircraftDisruptionEnv(gym.Env):
                     self.environment_delayed_flights[flight_id] = self.environment_delayed_flights.get(flight_id, 0) + delay
 
                     # Debugging: Print the adjusted departure and arrival times
-                    print(f"Adjusted departure time for flight {flight_id} to {dep_time} minutes after unavailability.")
-                    print(f"Adjusted arrival time for flight {flight_id} to {arr_time} minutes.")
+                    if DEBUG_MODE:
+                        print(f"Adjusted departure time for flight {flight_id} to {dep_time} minutes after unavailability.")
+                        print(f"Adjusted arrival time for flight {flight_id} to {arr_time} minutes.")
 
         # Proceed with existing scheduled_flights check and conflict resolution
 
@@ -619,8 +621,9 @@ class AircraftDisruptionEnv(gym.Env):
                     self.environment_delayed_flights[flight_id] = self.environment_delayed_flights.get(flight_id, 0) + total_delay
 
                     # Debugging: Print the delayed departure and arrival times
-                    print(f"Delayed departure time for flight {flight_id} to {dep_time} minutes due to conflict.")
-                    print(f"Delayed arrival time for flight {flight_id} to {arr_time} minutes.")
+                    if DEBUG_MODE:
+                        print(f"Delayed departure time for flight {flight_id} to {dep_time} minutes due to conflict.")
+                        print(f"Delayed arrival time for flight {flight_id} to {arr_time} minutes.")
                 else:
                     # Delay existing flight
                     if existing_flight_id in delayed_flights:
@@ -634,8 +637,9 @@ class AircraftDisruptionEnv(gym.Env):
                         self.environment_delayed_flights[flight_id] = self.environment_delayed_flights.get(flight_id, 0) + total_delay
 
                         # Debugging: Print the delayed departure and arrival times
-                        print(f"Delayed departure time for flight {flight_id} to {dep_time} minutes due to conflict with existing flight.")
-                        print(f"Delayed arrival time for flight {flight_id} to {arr_time} minutes.")
+                        if DEBUG_MODE:
+                            print(f"Delayed departure time for flight {flight_id} to {dep_time} minutes due to conflict with existing flight.")
+                            print(f"Delayed arrival time for flight {flight_id} to {arr_time} minutes.")
                     else:
                         delayed_flights.add(existing_flight_id)
                         new_dep_time = existing_dep_time + delay_existing_flight
@@ -678,8 +682,9 @@ class AircraftDisruptionEnv(gym.Env):
         self.update_flight_times(flight_id, dep_time, arr_time)
 
         # Debugging: Print the final departure and arrival times
-        print(f"Final departure time for flight {flight_id}: {dep_time} minutes.")
-        print(f"Final arrival time for flight {flight_id}: {arr_time} minutes.")
+        if DEBUG_MODE:
+            print(f"Final departure time for flight {flight_id}: {dep_time} minutes.")
+            print(f"Final arrival time for flight {flight_id}: {arr_time} minutes.")
 
     def update_flight_times(self, flight_id, dep_time_minutes, arr_time_minutes):
         """Updates the flight times in the flights dictionary.
@@ -917,16 +922,19 @@ class AircraftDisruptionEnv(gym.Env):
             tuple: (bool, str) indicating if the episode is done and the reason.
         """
         current_conflicts = self.get_current_conflicts()  # Get current conflicts
-        print(f"Current conflicts before checking done: {current_conflicts}")  # Debugging statement
+        if DEBUG_MODE:
+            print(f"Current conflicts before checking done: {current_conflicts}")  # Debugging statement
 
         # Check for unresolved uncertainties
         unresolved_uncertainties = self.get_unresolved_uncertainties()
-        print(f"Unresolved uncertainties: {unresolved_uncertainties}")  # Debugging statement
+        if DEBUG_MODE:       
+            print(f"Unresolved uncertainties: {unresolved_uncertainties}")  # Debugging statement
 
         if self.current_datetime >= self.end_datetime:
             return True, "Reached the end of the simulation time."
         elif len(current_conflicts) == 0 and len(unresolved_uncertainties) == 0:
-            print("No remaining conflicts or uncertainties detected.")  # Debugging statement
+            if DEBUG_MODE:
+                print("No remaining conflicts or uncertainties detected.")  # Debugging statement
             return True, "No remaining conflicts or uncertainties."
         
         return False, ""
