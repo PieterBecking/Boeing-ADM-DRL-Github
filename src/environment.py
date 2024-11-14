@@ -72,7 +72,8 @@ class AircraftDisruptionEnv(gym.Env):
 
         # Track environment state related to delays and conflicts
         self.environment_delayed_flights = {}   # Tracks delays for flights {flight_id: delay_minutes}
-        self.penalized_delays = set()           # Set of penalized delays
+        self.penalized_delays = {}           # Set of penalized delays
+        
         self.penalized_conflicts = set()        # Set of penalized conflicts
         self.resolved_conflicts = set()         # Set of resolved conflicts
         self.penalized_cancelled_flights = set()  # To keep track of penalized cancelled flights
@@ -748,10 +749,19 @@ class AircraftDisruptionEnv(gym.Env):
 
         # 2. **Penalty for delays**
         delay_penalty = 0
-        for flight_id, delay in self.environment_delayed_flights.items():
-            if flight_id not in self.penalized_delays:
-                delay_penalty += delay
-                self.penalized_delays.add(flight_id)  # Ensure we don't penalize the same delay multiple times
+        for flight_id, new_start_time in self.environment_delayed_flights.items():
+            # Check if the flight_id is already in penalized_delays
+            if flight_id in self.penalized_delays:
+                # Compare the new start time with the previously recorded one
+                if new_start_time != self.penalized_delays[flight_id]:
+                    # Apply the delay penalty for the new delay
+                    delay = new_start_time - self.penalized_delays[flight_id]
+                    delay_penalty += delay
+                    self.penalized_delays[flight_id] = new_start_time  # Update to the new start time
+            else:
+                # If not penalized yet, add the delay
+                delay_penalty += new_start_time
+                self.penalized_delays[flight_id] = new_start_time  # Record the new start time
 
         delay_penalty_total = delay_penalty * DELAY_MINUTE_PENALTY
 
@@ -857,7 +867,7 @@ class AircraftDisruptionEnv(gym.Env):
 
         self.swapped_flights = []  # Reset the swapped flights list
         self.environment_delayed_flights = {}  # Reset the delayed flights list
-        self.penalized_delays = set()  # Reset the penalized delays
+        self.penalized_delays = {}  # Reset the penalized delays
         self.penalized_conflicts = set()
         self.resolved_conflicts = set()
         self.penalized_cancelled_flights = set()  # Reset penalized cancelled flights
