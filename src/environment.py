@@ -50,9 +50,18 @@ class AircraftDisruptionEnv(gym.Env):
 
         # Define observation and action spaces
         self.state_space_size = (self.rows_state_space, self.columns_state_space)
-        self.observation_space = spaces.Box(
-            low=-np.inf, high=np.inf, shape=(self.rows_state_space * self.columns_state_space * 2,), dtype=np.float32
-        )
+        self.observation_space = spaces.Dict({
+            'state': spaces.Box(
+                low=-np.inf, high=np.inf, 
+                shape=(self.rows_state_space * self.columns_state_space * 2,), 
+                dtype=np.float32
+            ),
+            'action_mask': spaces.Box(
+                low=0, high=1, 
+                shape=(2, max(len(self.flight_ids) + 1, len(self.aircraft_ids) + 1)), 
+                dtype=np.uint8
+            )
+        })
 
         # Action space: select a flight and an aircraft
         self.action_space = spaces.MultiDiscrete([len(self.flight_ids) + 1, len(self.aircraft_ids) + 1])
@@ -196,7 +205,7 @@ class AircraftDisruptionEnv(gym.Env):
 
                     if not np.isnan(flight_dep):
                         if flight_dep < current_time_minutes:
-                            self.cancelled_flights.add(flight_id)
+                            self.cancel_flight(flight_id) # Cancel the flight
                             continue
                         if flight_id in self.cancelled_flights:
                             continue
@@ -220,7 +229,7 @@ class AircraftDisruptionEnv(gym.Env):
             state (np.ndarray): The current state of the environment.
 
         Returns:
-            np.ndarray: The processed observation including the state and mask.
+            dict: A dictionary containing the processed state and action mask.
         """
         # Create a mask where 1 indicates valid values, 0 indicates NaN
         mask = np.where(np.isnan(state), 0, 1)
@@ -229,8 +238,21 @@ class AircraftDisruptionEnv(gym.Env):
         # Flatten both state and mask
         state_flat = state.flatten()
         mask_flat = mask.flatten()
+        
+        # Create action mask
+        action_mask = np.zeros((2, max(len(self.flight_ids) + 1, len(self.aircraft_ids) + 1)), dtype=np.uint8)
+        valid_flight_actions = self.get_valid_flight_actions()
+        valid_aircraft_actions = self.get_valid_aircraft_actions()
+
+        # Set valid actions in the action mask
+        action_mask[0, valid_flight_actions] = 1
+        action_mask[1, valid_aircraft_actions] = 1
+
         # Concatenate state and mask
-        obs_with_mask = np.concatenate([state_flat, mask_flat])
+        obs_with_mask = {
+            'state': state_flat,
+            'action_mask': action_mask
+        }
         return obs_with_mask
     
     def fix_state(self, state):
@@ -336,14 +358,15 @@ class AircraftDisruptionEnv(gym.Env):
             raise ValueError(f"Invalid aircraft action: {aircraft_action}")
 
         # No action case
-        if flight_action == 0 or aircraft_action == 0:
+        if flight_action == 0:
             # Treat as 'no action'
             return
 
-        # No longer check if the selected flight is conflicting
-        # Since we allow swapping any flight regardless of conflicts
+        # No need to skip when aircraft_action == 0 (since it represents cancellation)
         selected_flight_id = self.flight_ids[flight_action - 1]
-        selected_aircraft_id = self.aircraft_ids[aircraft_action - 1]
+        if aircraft_action > 0:
+            selected_aircraft_id = self.aircraft_ids[aircraft_action - 1]
+
 
     def process_uncertainties(self):
         """Processes breakdown uncertainties directly from the state space.
@@ -415,7 +438,7 @@ class AircraftDisruptionEnv(gym.Env):
                 processed_state = self.process_observation(self.state)
                 truncated = False
                 reward = 0  # Assuming zero reward when episode ends without conflicts
-                return np.array(processed_state, dtype=np.float32), reward, terminated, truncated, {}
+                return processed_state, reward, terminated, truncated, {}
 
         self.current_datetime = next_datetime
         self.state = self._get_initial_state()
@@ -429,13 +452,13 @@ class AircraftDisruptionEnv(gym.Env):
         if terminated:
             print(f"Episode ended: {reason}")
 
-        return np.array(processed_state, dtype=np.float32), reward, terminated, truncated, {}
+        return processed_state, reward, terminated, truncated, {}
 
 
     def resolve_conflict(self, flight_action, aircraft_action, pre_action_conflicts):
         """Resolves the conflicts in the current state based on the provided action.
 
-        This function handles swapping or delaying any flight as specified by the agent.
+        This function handles cancelling a flight or rescheduling it to a specified aircraft.
 
         Args:
             flight_action (int): The flight action value provided by the agent.
@@ -445,8 +468,8 @@ class AircraftDisruptionEnv(gym.Env):
         Returns:
             tuple: A tuple containing the processed state, reward, terminated flag, truncated flag, and info dictionary.
         """
-        if flight_action == 0 or aircraft_action == 0:
-            # Treat as no action taken
+        if flight_action == 0:
+            # No action taken
             # Proceed to next timestep
             next_datetime = self.current_datetime + self.timestep
             self.current_datetime = next_datetime
@@ -463,13 +486,46 @@ class AircraftDisruptionEnv(gym.Env):
                 print(f"Episode ended: {reason}")
 
             processed_state = self.process_observation(self.state)
-            return np.array(processed_state, dtype=np.float32), reward, terminated, truncated, {}
+            return processed_state, reward, terminated, truncated, {}
+        elif aircraft_action == 0:
+            # Cancel the flight
+            selected_flight_id = self.flight_ids[flight_action - 1]
+            self.cancel_flight(selected_flight_id)
+            print(f"Cancelled flight {selected_flight_id}")
 
+            # Proceed to next timestep
+            next_datetime = self.current_datetime + self.timestep
+            self.current_datetime = next_datetime
+            self.state = self._get_initial_state()
+
+            post_action_conflicts = self.get_current_conflicts()
+            resolved_conflicts = pre_action_conflicts - post_action_conflicts
+            reward = self._calculate_reward(resolved_conflicts, post_action_conflicts, flight_action, aircraft_action)
+
+            terminated, reason = self._is_done()
+            truncated = False
+
+            if terminated:
+                print(f"Episode ended: {reason}")
+
+            processed_state = self.process_observation(self.state)
+            return processed_state, reward, terminated, truncated, {}
         else:
+            # Reschedule the flight to the selected aircraft
             selected_flight_id = self.flight_ids[flight_action - 1]
             selected_aircraft_id = self.aircraft_ids[aircraft_action - 1]
 
-            # Get the current aircraft assigned to the flight
+            # Check if the flight is in rotations_dict
+            if selected_flight_id not in self.rotations_dict:
+                # Flight has been canceled or does not exist
+                print(f"Flight {selected_flight_id} has been canceled or does not exist.")
+                # Handle this case appropriately
+                reward = self._calculate_reward(pre_action_conflicts, pre_action_conflicts, flight_action, aircraft_action)
+                terminated, reason = self._is_done()
+                truncated = False
+                processed_state = self.process_observation(self.state)
+                return processed_state, reward, terminated, truncated, {}
+
             current_aircraft_id = self.rotations_dict[selected_flight_id]['Aircraft']
 
             if selected_aircraft_id == current_aircraft_id:
@@ -537,7 +593,7 @@ class AircraftDisruptionEnv(gym.Env):
                 print(f"Episode ended: {reason}")
 
             processed_state = self.process_observation(self.state)
-            return np.array(processed_state, dtype=np.float32), reward, terminated, truncated, {}
+            return processed_state, reward, terminated, truncated, {}
 
     def schedule_flight_on_aircraft(self, aircraft_id, flight_id, dep_time, arr_time=None, delayed_flights=None):
         if delayed_flights is None:
@@ -692,6 +748,29 @@ class AircraftDisruptionEnv(gym.Env):
             print(f"Final departure time for flight {flight_id}: {dep_time} minutes.")
             print(f"Final arrival time for flight {flight_id}: {arr_time} minutes.")
 
+
+
+        
+    def cancel_flight(self, flight_id):
+        """Cancels the specified flight."""
+        # Remove the flight from rotations_dict
+        if flight_id in self.rotations_dict:
+            del self.rotations_dict[flight_id]
+
+        # Mark the flight as cancelled
+        self.cancelled_flights.add(flight_id)
+
+        # Remove the flight from the state
+        for idx in range(1, self.rows_state_space):
+            for j in range(4, self.columns_state_space - 2, 3):
+                existing_flight_id = self.state[idx, j]
+                if existing_flight_id == flight_id:
+                    # Remove flight from state
+                    self.state[idx, j] = np.nan
+                    self.state[idx, j + 1] = np.nan
+                    self.state[idx, j + 2] = np.nan
+
+
     def update_flight_times(self, flight_id, dep_time_minutes, arr_time_minutes):
         """Updates the flight times in the flights dictionary.
 
@@ -794,9 +873,13 @@ class AircraftDisruptionEnv(gym.Env):
 
         # 4. **Penalty for taking no action when conflicts exist**
         inaction_penalty = 0
-        if (flight_action == 0 or aircraft_action == 0) and len(remaining_conflicts) > 0:
+        if flight_action == 0 and len(remaining_conflicts) > 0:
             inaction_penalty = NO_ACTION_PENALTY
             reward -= inaction_penalty
+        # Updated condition to check for aircraft_action as well
+        if aircraft_action == 0 and len(remaining_conflicts) > 0:
+            inaction_penalty += NO_ACTION_PENALTY  # Accumulate penalty for no aircraft action
+            reward -= NO_ACTION_PENALTY  # Deduct penalty for no aircraft action
         if DEBUG_MODE_REWARD:
             print(f"  -{inaction_penalty} for inaction with conflicts")
 
@@ -880,7 +963,8 @@ class AircraftDisruptionEnv(gym.Env):
         if DEBUG_MODE:
             print(f"State space shape: {self.state.shape}")
         
-        return np.array(processed_state, dtype=np.float32), {}
+        return processed_state, {}
+
 
     def get_current_conflicts(self):
         """Retrieves the current conflicts in the environment.
@@ -892,7 +976,6 @@ class AircraftDisruptionEnv(gym.Env):
             set: A set of conflicts currently present in the environment.
         """
         current_conflicts = set()
-        self.cancelled_flights = set()  # Track cancelled flights
 
         for idx, aircraft_id in enumerate(self.aircraft_ids):
             if idx >= self.max_aircraft:
@@ -943,8 +1026,11 @@ class AircraftDisruptionEnv(gym.Env):
 
         # Check for unresolved uncertainties
         unresolved_uncertainties = self.get_unresolved_uncertainties()
-        if DEBUG_MODE:       
-            print(f"Unresolved uncertainties: {unresolved_uncertainties}")  # Debugging statement
+
+        # Debugging output
+        print(f"Current time: {self.current_datetime}")
+        print(f"Current conflicts: {current_conflicts}")
+        print(f"Unresolved uncertainties: {unresolved_uncertainties}")
 
         if self.current_datetime >= self.end_datetime:
             return True, "Reached the end of the simulation time."
@@ -962,11 +1048,16 @@ class AircraftDisruptionEnv(gym.Env):
             list: A list of unresolved uncertainties currently present in the environment.
         """
         unresolved_uncertainties = []
-        for aircraft_id, breakdowns in self.uncertain_breakdowns.items():
-            for breakdown_info in breakdowns:
-                if not breakdown_info.get('Resolved', False):
-                    unresolved_uncertainties.append((aircraft_id, breakdown_info))
+        for idx, aircraft_id in enumerate(self.aircraft_ids):
+            prob = self.state[idx + 1, 1]
+            if prob != 0.00 and prob != 1.00:
+                # Uncertainty not yet resolved
+                start_minutes = self.state[idx + 1, 2]
+                breakdown_start_time = self.earliest_datetime + timedelta(minutes=start_minutes)
+                if self.current_datetime < breakdown_start_time:
+                    unresolved_uncertainties.append((aircraft_id, prob))
         return unresolved_uncertainties
+
 
     # Note: get_valid_actions is no longer needed due to action_space change
 
@@ -993,3 +1084,26 @@ class AircraftDisruptionEnv(gym.Env):
             list: A list of valid aircraft actions that the agent can take.
         """
         return list(range(len(self.aircraft_ids) + 1))  # 0 to len(aircraft_ids)
+
+    def get_action_mask(self):
+        # Initialize action masks with ones (all actions are initially valid)
+        flight_action_mask = np.ones(len(self.flight_ids) + 1, dtype=np.uint8)  # +1 for 'no action'
+        aircraft_action_mask = np.ones(len(self.aircraft_ids) + 1, dtype=np.uint8)  # +1 for 'cancel flight'
+
+        # Mask out canceled flights
+        for idx, flight_id in enumerate(self.flight_ids, start=1):
+            if flight_id in self.cancelled_flights:
+                flight_action_mask[idx] = 0  # Mask out this flight action
+
+        # Optionally, mask out aircraft that are unavailable, etc.
+        # Here you can add additional logic to mask invalid aircraft actions if needed
+        # For example, if an aircraft is currently unavailable, you can set its action to 0
+        for idx, aircraft_id in enumerate(self.aircraft_ids, start=1):
+            # Example condition: if the aircraft is currently unavailable, mask it out
+            if self.state[idx, 1] != 1.0:  # Assuming column 1 indicates availability
+                aircraft_action_mask[idx] = 0  # Mask out this aircraft action
+
+        # Combine the masks into a single action mask
+        action_mask = np.array([flight_action_mask, aircraft_action_mask])
+
+        return action_mask
