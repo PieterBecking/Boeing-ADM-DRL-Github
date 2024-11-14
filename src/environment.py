@@ -98,14 +98,8 @@ class AircraftDisruptionEnv(gym.Env):
         self.state = self._get_initial_state()
 
     def _get_initial_state(self):
-        """Initializes the state matrix for the environment.
+        """Initializes the state matrix for the environment."""
 
-        This function creates a state matrix filled with NaN values, calculates the current time and remaining recovery period,
-        and populates the state matrix with aircraft and flight information. It also tracks the earliest conflict information.
-
-        Returns:
-            np.ndarray: The initialized state matrix representing the current state of the environment.
-        """
         # Initialize state matrix with NaN values
         state = np.full((self.rows_state_space, self.columns_state_space), np.nan)
 
@@ -117,6 +111,9 @@ class AircraftDisruptionEnv(gym.Env):
         state[0, 0] = current_time_minutes  # Current time
         state[0, 1] = time_until_end_minutes  # Time until end of recovery period
 
+        # List to keep track of flights to remove from dictionaries
+        flights_to_remove = set()
+
         # Populate state matrix with aircraft and flight information
         for idx, aircraft_id in enumerate(self.aircraft_ids):
             if idx >= self.max_aircraft:
@@ -125,14 +122,12 @@ class AircraftDisruptionEnv(gym.Env):
             # Store aircraft index instead of ID
             state[idx + 1, 0] = idx + 1  # Use numerical index instead of string ID
 
-
             # Check for predefined unavailabilities and assign actual probability
             if aircraft_id in self.alt_aircraft_dict:
                 unavails = self.alt_aircraft_dict[aircraft_id]
                 if not isinstance(unavails, list):
                     unavails = [unavails]
                 breakdown_probability = unavails[0].get('Probability', 1.0)
-
 
                 # Get earliest start and latest end time
                 start_times = []
@@ -154,6 +149,12 @@ class AircraftDisruptionEnv(gym.Env):
                 unavail_start_minutes = (breakdown_info['StartTime'] - self.earliest_datetime).total_seconds() / 60
                 unavail_end_minutes = (breakdown_info['EndTime'] - self.earliest_datetime).total_seconds() / 60
 
+            else:
+                # No unavailability, set default values
+                breakdown_probability = 0.0
+                unavail_start_minutes = np.nan
+                unavail_end_minutes = np.nan
+
             # Store probability and unavailability times
             state[idx + 1, 1] = breakdown_probability
             state[idx + 1, 2] = unavail_start_minutes
@@ -169,6 +170,12 @@ class AircraftDisruptionEnv(gym.Env):
 
                     dep_time_minutes = (dep_time - self.earliest_datetime).total_seconds() / 60
                     arr_time_minutes = (arr_time - self.earliest_datetime).total_seconds() / 60
+
+                    # Exclude flights that have already departed
+                    if dep_time_minutes < current_time_minutes:
+                        flights_to_remove.add(flight_id)
+                        continue
+
                     flight_times.append((flight_id, dep_time_minutes, arr_time_minutes))
 
             # Sort flights by departure time
@@ -182,48 +189,14 @@ class AircraftDisruptionEnv(gym.Env):
                     state[idx + 1, col_start + 1] = dep_time
                     state[idx + 1, col_start + 2] = arr_time
 
-        # Store earliest conflict information in first row
-        earliest_conf_aircraft_idx = None
-        earliest_conf_flight_id = None
-        earliest_conf_dep_time = None
-
-        for idx, aircraft_id in enumerate(self.aircraft_ids):
-            if idx >= self.max_aircraft:
-                break  # Only process up to the maximum number of aircraft
-
-            breakdown_probability = state[idx + 1, 1]
-            if breakdown_probability != 1.0:
-                continue  # Only consider unavailabilities with probability 1
-
-            unavail_start = state[idx + 1, 2]
-            unavail_end = state[idx + 1, 3]
-
-            if not np.isnan(unavail_start) and not np.isnan(unavail_end):
-                for j in range(4, self.columns_state_space - 2, 3):
-                    flight_id = state[idx + 1, j]
-                    flight_dep = state[idx + 1, j + 1]
-
-                    if not np.isnan(flight_dep):
-                        if flight_dep < current_time_minutes:
-                            self.cancel_flight(flight_id) # Cancel the flight
-                            continue
-                        if flight_id in self.cancelled_flights:
-                            continue
-
-                        # Check for conflicts between flight and unavailability periods
-                        if flight_dep < unavail_end and flight_dep >= unavail_start:
-                            if earliest_conf_dep_time is None or flight_dep < earliest_conf_dep_time:
-                                earliest_conf_dep_time = flight_dep
-                                earliest_conf_flight_id = flight_id
-                                earliest_conf_aircraft_idx = idx + 1
+        # Remove past flights from dictionaries
+        for flight_id in flights_to_remove:
+            self.remove_flight(flight_id)
 
         return state
 
     def process_observation(self, state):
         """Processes the observation by applying a mask and flattening the state and mask.
-
-        This function creates a mask to indicate valid values in the state, replaces NaN values with a dummy value,
-        and concatenates the flattened state and mask into a single observation.
 
         Args:
             state (np.ndarray): The current state of the environment.
@@ -239,21 +212,17 @@ class AircraftDisruptionEnv(gym.Env):
         state_flat = state.flatten()
         mask_flat = mask.flatten()
         
-        # Create action mask
-        action_mask = np.zeros((2, max(len(self.flight_ids) + 1, len(self.aircraft_ids) + 1)), dtype=np.uint8)
-        valid_flight_actions = self.get_valid_flight_actions()
-        valid_aircraft_actions = self.get_valid_aircraft_actions()
+        # Use get_action_mask to generate the action mask
+        action_mask = self.get_action_mask()
 
-        # Set valid actions in the action mask
-        action_mask[0, valid_flight_actions] = 1
-        action_mask[1, valid_aircraft_actions] = 1
-
-        # Concatenate state and mask
+        # Create the observation dictionary
         obs_with_mask = {
             'state': state_flat,
             'action_mask': action_mask
         }
         return obs_with_mask
+
+
     
     def fix_state(self, state):
         # Go over all starttimes and endtimes (columns 2 and 3 for unavailabilities and then for flights: 5, 6, 8, 9, 11, 12, ...)
@@ -264,6 +233,19 @@ class AircraftDisruptionEnv(gym.Env):
             for j in range(4, self.columns_state_space - 2, 3):
                 if not np.isnan(state[i, j + 1]) and not np.isnan(state[i, j + 2]) and state[i, j + 1] > state[i, j + 2]:
                     state[i, j + 2] += 1440
+
+    def remove_flight(self, flight_id):
+        """Removes the specified flight from the dictionaries."""
+        # Remove from flights_dict
+        if flight_id in self.flights_dict:
+            del self.flights_dict[flight_id]
+
+        # Remove from rotations_dict
+        if flight_id in self.rotations_dict:
+            del self.rotations_dict[flight_id]
+
+        # Mark the flight as canceled
+        self.cancelled_flights.add(flight_id)
 
 
     def step(self, action=None):
@@ -314,7 +296,7 @@ class AircraftDisruptionEnv(gym.Env):
 
         if len(pre_action_conflicts) == 0:
             # Handle the case when there are no conflicts
-            return self.handle_no_conflicts()
+            return self.handle_no_conflicts(flight_action, aircraft_action)
 
         else:
             # Resolve the conflict based on the action
@@ -357,15 +339,22 @@ class AircraftDisruptionEnv(gym.Env):
         if not (0 <= aircraft_action <= len(self.aircraft_ids)):
             raise ValueError(f"Invalid aircraft action: {aircraft_action}")
 
+        # Get valid actions from the action mask
+        valid_flight_actions = self.get_valid_flight_actions()
+        valid_aircraft_actions = self.get_valid_aircraft_actions()
+
+        # Check if flight_action is valid
+        if flight_action not in valid_flight_actions:
+            raise ValueError(f"Invalid flight action: {flight_action} is not in valid actions {valid_flight_actions}")
+
+        # Check if aircraft_action is valid
+        if aircraft_action not in valid_aircraft_actions:
+            raise ValueError(f"Invalid aircraft action: {aircraft_action} is not in valid actions {valid_aircraft_actions}")
+
         # No action case
         if flight_action == 0:
             # Treat as 'no action'
             return
-
-        # No need to skip when aircraft_action == 0 (since it represents cancellation)
-        selected_flight_id = self.flight_ids[flight_action - 1]
-        if aircraft_action > 0:
-            selected_aircraft_id = self.aircraft_ids[aircraft_action - 1]
 
 
     def process_uncertainties(self):
@@ -421,14 +410,11 @@ class AircraftDisruptionEnv(gym.Env):
                             breakdown_info['Probability'] = self.state[idx + 1, 1]
 
 
-    def handle_no_conflicts(self):
+    def handle_no_conflicts(self, flight_action, aircraft_action):
         """Handles the case when there are no conflicts in the current state.
 
         This function updates the current datetime, checks if the episode is terminated,
         updates the state, and returns the appropriate outputs.
-
-        Returns:
-            tuple: A tuple containing the processed state, reward, terminated flag, truncated flag, and info dictionary.
         """
         next_datetime = self.current_datetime + self.timestep
         if next_datetime >= self.end_datetime:
@@ -442,6 +428,9 @@ class AircraftDisruptionEnv(gym.Env):
 
         self.current_datetime = next_datetime
         self.state = self._get_initial_state()
+
+        # Call _calculate_reward even when there are no conflicts
+        reward = self._calculate_reward(set(), set(), flight_action, aircraft_action)
 
         # Since there are no conflicts, return the new state with zero reward
         terminated, reason = self._is_done()
@@ -757,6 +746,10 @@ class AircraftDisruptionEnv(gym.Env):
         if flight_id in self.rotations_dict:
             del self.rotations_dict[flight_id]
 
+        # Remove the flight from flights_dict
+        if flight_id in self.flights_dict:
+            del self.flights_dict[flight_id]
+
         # Mark the flight as cancelled
         self.cancelled_flights.add(flight_id)
 
@@ -820,11 +813,19 @@ class AircraftDisruptionEnv(gym.Env):
             print("")
             print(f"Reward for action: flight {flight_action}, aircraft {aircraft_action}")
 
+        # Exclude conflicts resolved via cancellation
+        resolved_conflicts_non_cancellation = set()
+        for conflict in resolved_conflicts:
+            flight_id = conflict[1]
+            if flight_id not in self.cancelled_flights:
+                resolved_conflicts_non_cancellation.add(conflict)
+
         # 1. **Reward for resolving conflicts**
-        conflict_resolution_reward = RESOLVED_CONFLICT_REWARD * len(resolved_conflicts)
+        conflict_resolution_reward = RESOLVED_CONFLICT_REWARD * len(resolved_conflicts_non_cancellation)
         reward += conflict_resolution_reward
         if DEBUG_MODE_REWARD:
-            print(f"  +{conflict_resolution_reward} for resolving {len(resolved_conflicts)} conflicts")
+            num_resolved_conflicts = len(resolved_conflicts_non_cancellation)
+            print(f"  +{conflict_resolution_reward} for resolving {num_resolved_conflicts} conflicts (excluding cancellations): {resolved_conflicts_non_cancellation}")
 
         # 2. **Penalty for delays**
         delay_penalty = 0
@@ -1067,15 +1068,14 @@ class AircraftDisruptionEnv(gym.Env):
         Returns:
             list: A list of valid flight actions that the agent can take.
         """
-        conflicting_flight_indices = []
-        conflicting_flight_ids = set()
-        for conflict in self.get_current_conflicts():
-            flight_id = conflict[1]
-            if flight_id not in conflicting_flight_ids:
-                conflicting_flight_ids.add(flight_id)
-                flight_idx = self.flight_id_to_idx[flight_id] + 1  # +1 for action 0 being 'no action'
-                conflicting_flight_indices.append(flight_idx)
-        return [0] + conflicting_flight_indices
+        # Get all non-cancelled flight IDs
+        valid_flight_ids = [flight_id for flight_id in self.flight_ids if flight_id not in self.cancelled_flights]
+        # Convert flight IDs to their corresponding indices
+        valid_flight_indices = [self.flight_id_to_idx[flight_id] + 1 for flight_id in valid_flight_ids]  # +1 for action 0 being 'no action'
+        
+        return [0] + valid_flight_indices  # Include 'no action' option
+
+
 
     def get_valid_aircraft_actions(self):
         """Generates a list of valid aircraft actions for the agent.
@@ -1086,24 +1086,27 @@ class AircraftDisruptionEnv(gym.Env):
         return list(range(len(self.aircraft_ids) + 1))  # 0 to len(aircraft_ids)
 
     def get_action_mask(self):
-        # Initialize action masks with ones (all actions are initially valid)
-        flight_action_mask = np.ones(len(self.flight_ids) + 1, dtype=np.uint8)  # +1 for 'no action'
-        aircraft_action_mask = np.ones(len(self.aircraft_ids) + 1, dtype=np.uint8)  # +1 for 'cancel flight'
+        max_len = max(len(self.flight_ids) + 1, len(self.aircraft_ids) + 1)
 
-        # Mask out canceled flights
-        for idx, flight_id in enumerate(self.flight_ids, start=1):
-            if flight_id in self.cancelled_flights:
-                flight_action_mask[idx] = 0  # Mask out this flight action
+        # Initialize action masks with zeros (actions are invalid by default)
+        flight_action_mask = np.zeros(max_len, dtype=np.uint8)  # +1 for 'no action'
+        aircraft_action_mask = np.zeros(max_len, dtype=np.uint8)  # +1 for 'cancel flight'
 
-        # Optionally, mask out aircraft that are unavailable, etc.
-        # Here you can add additional logic to mask invalid aircraft actions if needed
-        # For example, if an aircraft is currently unavailable, you can set its action to 0
-        for idx, aircraft_id in enumerate(self.aircraft_ids, start=1):
-            # Example condition: if the aircraft is currently unavailable, mask it out
-            if self.state[idx, 1] != 1.0:  # Assuming column 1 indicates availability
-                aircraft_action_mask[idx] = 0  # Mask out this aircraft action
+        # Get valid flight and aircraft actions
+        valid_flight_actions = self.get_valid_flight_actions()
+        valid_aircraft_actions = self.get_valid_aircraft_actions()
+
+        # Set valid actions to 1
+        flight_action_mask[valid_flight_actions] = 1
+        aircraft_action_mask[valid_aircraft_actions] = 1
 
         # Combine the masks into a single action mask
         action_mask = np.array([flight_action_mask, aircraft_action_mask])
 
+        # Debugging: Print all possible actions
+        print("Possible flight actions:", valid_flight_actions)
+        print("Possible aircraft actions:", valid_aircraft_actions)
+
         return action_mask
+
+
