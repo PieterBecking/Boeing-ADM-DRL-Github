@@ -273,7 +273,9 @@ class AircraftDisruptionEnv(gym.Env):
         # Print the processed action and chosen action
         if DEBUG_MODE:
             print(f"Processed action: {action} of type: {type(action)}")
-        print(f"Chosen action: flight {flight_action}, aircraft {aircraft_action}")
+
+        if DEBUG_MODE_ACTION:
+            print(f"Chosen action: flight {flight_action}, aircraft {aircraft_action}")
 
         # Initialize info dictionary
         info = {}
@@ -363,14 +365,17 @@ class AircraftDisruptionEnv(gym.Env):
                 
                 # If within the current time step, resolve the breakdown
                 if self.current_datetime + self.timestep >= breakdown_start_time:
-                    print(f"Rolling the dice for breakdown with initial probability {prob} starting at {breakdown_start_time}")
+                    if DEBUG_MODE_BREAKDOWN:
+                        print(f"Rolling the dice for breakdown with initial probability {prob} starting at {breakdown_start_time}")
                     
                     # Roll the dice
                     if np.random.random() <= prob:
-                        print(f"Breakdown confirmed for aircraft {aircraft_id} with probability {prob}")
+                        if DEBUG_MODE_BREAKDOWN:
+                            print(f"Breakdown confirmed for aircraft {aircraft_id} with probability {prob}")
                         self.state[idx + 1, 1] = 1.00  # Confirm the breakdown
                     else:
-                        print(f"Breakdown not occurring for aircraft {aircraft_id}")
+                        if DEBUG_MODE_BREAKDOWN:
+                            print(f"Breakdown not occurring for aircraft {aircraft_id}")
                         self.state[idx + 1, 1] = 0.00  # Resolve as no breakdown
 
                     # Ensure `self.alt_aircraft_dict[aircraft_id]` is a list of dictionaries
@@ -732,7 +737,8 @@ class AircraftDisruptionEnv(gym.Env):
         reward = 0
 
         if DEBUG_MODE_REWARD:
-            print(f"Chosen action: flight {flight_action}, aircraft {aircraft_action}")
+            print("")
+            print(f"Reward for action: flight {flight_action}, aircraft {aircraft_action}")
 
         # 1. **Reward for resolving conflicts**
         conflict_resolution_reward = RESOLVED_CONFLICT_REWARD * len(resolved_conflicts)
@@ -883,8 +889,8 @@ class AircraftDisruptionEnv(gym.Env):
                 break
 
             breakdown_probability = self.state[idx + 1, 1]
-            if breakdown_probability == 0.0 or np.isnan(breakdown_probability):
-                continue  # Skip if probability is zero or NaN
+            if breakdown_probability != 1.0:  # Only consider unavailability with probability 1.00
+                continue  # Skip if probability is not 1.00
 
             unavail_start = self.state[idx + 1, 2]
             unavail_end = self.state[idx + 1, 3]
@@ -905,7 +911,7 @@ class AircraftDisruptionEnv(gym.Env):
                         if flight_id in self.cancelled_flights:
                             continue  # Skip cancelled flights
 
-                        # Check for overlaps with unavailability periods with prob > 0
+                        # Check for overlaps with unavailability periods with prob = 1.00
                         if flight_dep < unavail_end and flight_arr > unavail_start:
                             conflict_identifier = (aircraft_id, flight_id, flight_dep, flight_arr)
                             current_conflicts.add(conflict_identifier)
