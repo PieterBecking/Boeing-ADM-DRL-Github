@@ -175,11 +175,17 @@ class AircraftDisruptionEnv(gym.Env):
                     dep_time_minutes = (dep_time - self.earliest_datetime).total_seconds() / 60
                     arr_time_minutes = (arr_time - self.earliest_datetime).total_seconds() / 60
 
-
-                    # Exclude flights that have already departed and are currently in conflict
-                    # if dep_time_minutes < current_time_minutes or self.is_flight_in_conflict(flight_id):
-                    #     flights_to_remove.add(flight_id)
-                    #     continue
+                    # Exclude flights that have already departed and are in conflict
+                    if dep_time_minutes < current_time_minutes:
+                        # Flight has already departed
+                        if breakdown_probability == 1.00 and not np.isnan(unavail_start_minutes) and not np.isnan(unavail_end_minutes):
+                            # There is an unavailability with prob == 1.00
+                            # Check if the flight overlaps with the unavailability
+                            if dep_time_minutes < unavail_end_minutes and arr_time_minutes > unavail_start_minutes:
+                                print(f"REMOVING FLIGHT {flight_id} DUE TO UNAVAILABILITY AND PAST DEPARTURE")
+                                # Flight is in conflict with unavailability
+                                flights_to_remove.add(flight_id)
+                                continue
 
                     flight_times.append((flight_id, dep_time_minutes, arr_time_minutes))
 
