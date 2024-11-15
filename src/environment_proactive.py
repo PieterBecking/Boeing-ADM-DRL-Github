@@ -7,7 +7,7 @@ from src.config import *
 from scripts.utils import *
 
 # import the state plotter
-from scripts.visualizations import StatePlotter
+from scripts.visualizations import StatePlotter_Proactive
 
 MIN_BREAKDOWN_PROBABILITY = 0
 
@@ -100,6 +100,7 @@ class AircraftDisruptionEnv(gym.Env):
     def _get_initial_state(self):
         """Initializes the state matrix for the environment."""
 
+
         # Initialize state matrix with NaN values
         state = np.full((self.rows_state_space, self.columns_state_space), np.nan)
 
@@ -171,10 +172,10 @@ class AircraftDisruptionEnv(gym.Env):
                     dep_time_minutes = (dep_time - self.earliest_datetime).total_seconds() / 60
                     arr_time_minutes = (arr_time - self.earliest_datetime).total_seconds() / 60
 
-                    # Exclude flights that have already departed
-                    if dep_time_minutes < current_time_minutes:
-                        flights_to_remove.add(flight_id)
-                        continue
+                    # # Exclude flights that have already departed
+                    # if dep_time_minutes < current_time_minutes:
+                    #     flights_to_remove.add(flight_id)
+                    #     continue
 
                     flight_times.append((flight_id, dep_time_minutes, arr_time_minutes))
 
@@ -300,7 +301,7 @@ class AircraftDisruptionEnv(gym.Env):
 
         else:
             # Resolve the conflict based on the action
-            return self.resolve_conflict(flight_action, aircraft_action, pre_action_conflicts)
+            return self.handle_flight_operations(flight_action, aircraft_action, pre_action_conflicts)
 
     def extract_action_value(self, action):
         """Extracts the action values from the provided action.
@@ -444,19 +445,30 @@ class AircraftDisruptionEnv(gym.Env):
         return processed_state, reward, terminated, truncated, {}
 
 
-    def resolve_conflict(self, flight_action, aircraft_action, pre_action_conflicts):
-        """Resolves the conflicts in the current state based on the provided action.
+    def handle_flight_operations(self, flight_action, aircraft_action, pre_action_conflicts):
+        """
+        Handles flight operation decisions and resolves conflicts.
 
-        This function handles cancelling a flight or rescheduling it to a specified aircraft.
+        This method processes the agent's actions to either maintain the current state, cancel a flight, 
+        or reschedule it to a different aircraft. It updates the system state accordingly, resolves 
+        any conflicts, and computes the rewards based on the chosen action.
 
         Args:
-            flight_action (int): The flight action value provided by the agent.
-            aircraft_action (int): The aircraft action value provided by the agent.
-            pre_action_conflicts (set): The set of conflicts before taking the action.
+            flight_action (int): The index of the flight action chosen by the agent. 
+                                Use 0 to skip the flight operation.
+            aircraft_action (int): The index of the aircraft action chosen by the agent. 
+                                Use 0 to cancel the flight.
+            pre_action_conflicts (set): The set of conflicts present before the action is taken.
 
         Returns:
-            tuple: A tuple containing the processed state, reward, terminated flag, truncated flag, and info dictionary.
+            tuple: A tuple containing:
+                - processed_state: The updated system state after the action.
+                - reward (float): The reward value calculated based on the resolved conflicts.
+                - terminated (bool): Whether the episode has ended.
+                - truncated (bool): Whether the episode was prematurely stopped.
+                - info (dict): Additional diagnostic information.
         """
+
         if flight_action == 0:
             # No action taken
             # Proceed to next timestep

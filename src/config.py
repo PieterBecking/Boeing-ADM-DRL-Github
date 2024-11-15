@@ -31,7 +31,7 @@ DEBUG_MODE_PRINT_STATE = False  # Turn on/off debug mode for printing state
 DEBUG_MODE_CANCELLED_FLIGHT = False  # Turn on/off debug mode for cancelled flight
 DEBUG_MODE_VISUALIZATION = False
 DEBUG_MODE_BREAKDOWN = False  # Turn on/off debug mode for breakdowns (so rolling the dice etc)
-DEBUG_MODE_ACTION = False
+DEBUG_MODE_ACTION = True
 
 # Data Generation Settings
 DEPARTURE_AFTER_END_RECOVERY = 1  # how many hours after the end of the recovery period can a generated flight depart
