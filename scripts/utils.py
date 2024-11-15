@@ -107,7 +107,79 @@ def parse_time_with_day_offset(time_str, reference_date):
 
 
 # Print state
-def print_state_nicely(state):
+def print_state_nicely_myopic(state):
+    # First print the information row in tabular form
+    info_row = state[0]
+    # print("\nSimulation Info:")
+    # print("┌────────────────────┬────────────────────┬────────────────────┬────────────────────┐")
+    print("│ Target Aircraft    │ Target Flight      │ Current Time       │ Time Until End     │")
+    # print("├────────────────────┼────────────────────┼────────────────────┼────────────────────┤")
+    print(f"│ {int(info_row[0]) if not np.isnan(info_row[0]) else '-':^19}│ "
+          f"{int(info_row[1]) if not np.isnan(info_row[1]) else '-':^19}│ "
+          f"{int(info_row[2]) if not np.isnan(info_row[2]) else '-':^19}│ "
+          f"{int(info_row[3]) if not np.isnan(info_row[3]) else '-':^19}│")
+    # print("└────────────────────┴────────────────────┴────────────────────┴────────────────────┘")
+    print("")  # Empty line for separation
+    
+    # Define column widths with extra space for non-flight headers
+    ac_width = 4
+    prob_width = 6
+    start_width = 6
+    end_width = 5
+    flight_width = 5
+    time_width = 5
+    
+    # Generate headers dynamically with proper spacing
+    headers = [
+        f"{'AC':>{ac_width}}", 
+        f"{'Prob':>{prob_width}}", 
+        f"{'Start':>{start_width}}", 
+        f"{'End':>{end_width}}"
+    ]
+    
+    # Add flight headers with proper spacing
+    for i in range(1, MAX_FLIGHTS_PER_AIRCRAFT + 1):
+        headers.extend([
+            f"| {'F'+str(i):>{flight_width}}", 
+            f"{'Dep'+str(i):>{time_width}}", 
+            f"{'Arr'+str(i):>{time_width}}"
+        ])
+    
+    # Print headers
+    print(" ".join(headers))
+    
+    # Print state rows with matching alignment
+    formatted_rows = []
+    for row in state[1:]:
+        formatted_values = []
+        for i, x in enumerate(row):
+            # Add vertical line before flight groups
+            if i >= 4 and (i - 4) % 3 == 0:
+                formatted_values.append("|")
+                
+            if np.isnan(x):
+                formatted_values.append(f"{'-':>{time_width}}" if i >= 4 else 
+                                     f"{'-':>{ac_width}}" if i == 0 else
+                                     f"{'-':>{prob_width}}" if i == 1 else
+                                     f"{'-':>{start_width}}" if i == 2 else
+                                     f"{'-':>{end_width}}")
+            else:
+                if i == 0:  # Aircraft index
+                    formatted_values.append(f"{float(x):>{ac_width}.0f}")
+                elif i == 1:  # Probability
+                    formatted_values.append(f"{float(x):>{prob_width}.2f}")
+                elif i == 2:  # Start time
+                    formatted_values.append(f"{float(x):>{start_width}.0f}")
+                elif i == 3:  # End time
+                    formatted_values.append(f"{float(x):>{end_width}.0f}")
+                else:  # Flight numbers and times
+                    formatted_values.append(f"{float(x):>{time_width}.0f}")
+        formatted_rows.append(" ".join(formatted_values))
+    
+    print('\n'.join(formatted_rows))
+
+# Print state
+def print_state_nicely_proactive(state):
     # First print the information row in tabular form
     info_row = state[0]
     # print("\nSimulation Info:")
