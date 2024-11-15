@@ -53,7 +53,7 @@ class AircraftDisruptionEnv(gym.Env):
         self.observation_space = spaces.Dict({
             'state': spaces.Box(
                 low=-np.inf, high=np.inf, 
-                shape=(self.rows_state_space * self.columns_state_space * 2,), 
+                shape=(self.rows_state_space * self.columns_state_space,), 
                 dtype=np.float32
             ),
             'action_mask': spaces.Box(
@@ -266,7 +266,7 @@ class AircraftDisruptionEnv(gym.Env):
 
         # Print the current state if in debug mode
         if DEBUG_MODE_PRINT_STATE:
-            print_state_nicely(self.state)
+            print_state_nicely_proactive(self.state)
             print("")
 
         # Extract the action values from the action
@@ -289,7 +289,7 @@ class AircraftDisruptionEnv(gym.Env):
         self.process_uncertainties()
 
         # Print the state after processing uncertainties
-        print_state_nicely(self.state)
+        print_state_nicely_proactive(self.state)
 
         # Get pre-action conflicts
         pre_action_conflicts = self.get_current_conflicts()
