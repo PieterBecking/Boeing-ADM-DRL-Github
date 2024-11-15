@@ -96,6 +96,9 @@ class AircraftDisruptionEnv(gym.Env):
         self.uncertain_breakdowns = {}
         self.current_breakdowns = {}
 
+        # Initialize a dictionary to store unavailabilities
+        self.unavailabilities_dict = {}
+
         # Initialize the environment state without generating probabilities
         self.current_datetime = self.start_datetime
         self.state = self._get_initial_state()
@@ -162,6 +165,14 @@ class AircraftDisruptionEnv(gym.Env):
             state[idx + 1, 1] = breakdown_probability
             state[idx + 1, 2] = unavail_start_minutes
             state[idx + 1, 3] = unavail_end_minutes
+
+            # Store the unavailability information in the unavailabilities dictionary
+            self.unavailabilities_dict[aircraft_id] = {
+                'Probability': breakdown_probability,
+                'StartTime': unavail_start_minutes,
+                'EndTime': unavail_end_minutes
+            }
+
 
             # Gather and store flight times (starting from column 4)
             flight_times = []
@@ -378,10 +389,10 @@ class AircraftDisruptionEnv(gym.Env):
         # Iterate over each aircraft's row in the state space to check for unresolved breakdowns
         for idx, aircraft_id in enumerate(self.aircraft_ids):
             # Get probability, start, and end time from the state space
-            prob = self.state[idx + 1, 1]
-            start_minutes = self.state[idx + 1, 2]
-            end_minutes = self.state[idx + 1, 3]
-            
+            prob = self.unavailabilities_dict[aircraft_id]['Probability']
+            start_minutes = self.unavailabilities_dict[aircraft_id]['StartTime']
+            end_minutes = self.unavailabilities_dict[aircraft_id]['EndTime']
+
             # Only process unresolved breakdowns
             if prob != 0.00 and prob != 1.00:
                 breakdown_start_time = self.earliest_datetime + timedelta(minutes=start_minutes)
@@ -390,16 +401,19 @@ class AircraftDisruptionEnv(gym.Env):
                 if self.current_datetime + self.timestep >= breakdown_start_time:
                     if DEBUG_MODE_BREAKDOWN:
                         print(f"Rolling the dice for breakdown with initial probability {prob} starting at {breakdown_start_time}")
-                    
+
                     # Roll the dice
                     if np.random.random() <= prob:
                         if DEBUG_MODE_BREAKDOWN:
                             print(f"Breakdown confirmed for aircraft {aircraft_id} with probability {prob}")
                         self.state[idx + 1, 1] = 1.00  # Confirm the breakdown
+                        self.unavailabilities_dict[aircraft_id]['Probability'] = 1.00
+
                     else:
                         if DEBUG_MODE_BREAKDOWN:
                             print(f"Breakdown not occurring for aircraft {aircraft_id}")
                         self.state[idx + 1, 1] = 0.00  # Resolve as no breakdown
+                        self.unavailabilities_dict[aircraft_id]['Probability'] = 0.00
 
                     # Ensure `self.alt_aircraft_dict[aircraft_id]` is a list of dictionaries
                     if aircraft_id in self.alt_aircraft_dict:
@@ -632,9 +646,10 @@ class AircraftDisruptionEnv(gym.Env):
             flight_duration = arr_time - dep_time
 
         # Check for unavailability conflicts
-        unavail_start = self.state[aircraft_idx, 2]
-        unavail_end = self.state[aircraft_idx, 3]
-        unavail_prob = self.state[aircraft_idx, 1]  # Assuming unavailability probability is stored in this position
+        unavail_info = self.unavailabilities_dict.get(aircraft_id, {})
+        unavail_start = unavail_info.get('StartTime', np.nan)
+        unavail_end = unavail_info.get('EndTime', np.nan)
+        unavail_prob = unavail_info.get('Probability', 0.0)
 
         if not np.isnan(unavail_start) and not np.isnan(unavail_end):
             # Check if desired dep_time overlaps with unavailability
@@ -1003,12 +1018,12 @@ class AircraftDisruptionEnv(gym.Env):
             if idx >= self.max_aircraft:
                 break
 
-            breakdown_probability = self.state[idx + 1, 1]
+            breakdown_probability = self.unavailabilities_dict[aircraft_id]['Probability']
             if breakdown_probability != 1.0:  # Only consider unavailability with probability 1.00
                 continue  # Skip if probability is not 1.00
 
-            unavail_start = self.state[idx + 1, 2]
-            unavail_end = self.state[idx + 1, 3]
+            unavail_start = self.unavailabilities_dict[aircraft_id]['StartTime']
+            unavail_end = self.unavailabilities_dict[aircraft_id]['EndTime']
 
             if not np.isnan(unavail_start) and not np.isnan(unavail_end):
                 # Check for conflicts between flights and unavailability periods
@@ -1071,10 +1086,10 @@ class AircraftDisruptionEnv(gym.Env):
         """
         unresolved_uncertainties = []
         for idx, aircraft_id in enumerate(self.aircraft_ids):
-            prob = self.state[idx + 1, 1]
+            prob = self.unavailabilities_dict[aircraft_id]['Probability']
             if prob != 0.00 and prob != 1.00:
                 # Uncertainty not yet resolved
-                start_minutes = self.state[idx + 1, 2]
+                start_minutes = self.unavailabilities_dict[aircraft_id]['StartTime']
                 breakdown_start_time = self.earliest_datetime + timedelta(minutes=start_minutes)
                 if self.current_datetime < breakdown_start_time:
                     unresolved_uncertainties.append((aircraft_id, prob))
