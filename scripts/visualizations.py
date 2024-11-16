@@ -8,7 +8,7 @@ from scripts.utils import parse_time_with_day_offset, load_data
 from stable_baselines3.common.evaluation import evaluate_policy
 from src.config import *
 import matplotlib.patches as patches
-
+from scripts.utils import *
 
 # StatePlotter class for visualizing the state of the environment
 class StatePlotter_Myopic:
@@ -789,3 +789,106 @@ def plot_epsilon_decay(n_episodes, epsilon_start, epsilon_min, decay_rate):
 
 
 
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+from src.environment_proactive import AircraftDisruptionEnv
+
+def simulate_and_plot_epsilon_decay(training_folders_path, n_episodes, epsilon_start, epsilon_min, epsilon_decay_rate):
+    """
+    Simulates a batch of scenarios using a random agent, estimates total timesteps for training,
+    generates epsilon decay values, and plots the decay curve.
+
+    Args:
+        training_folders_path (str): Path to the folder containing training scenarios.
+        n_episodes (int): Number of episodes for training.
+        epsilon_start (float): Initial epsilon value for exploration.
+        epsilon_min (float): Minimum epsilon value.
+        epsilon_decay_rate (float): Rate at which epsilon decays.
+    """
+    # Initialize variables
+    total_timesteps_per_batch = 0
+    timesteps_per_scenario = []
+
+    # List all the scenario folders in Data/Training
+    scenario_folders = [
+        os.path.join(training_folders_path, folder)
+        for folder in os.listdir(training_folders_path)
+        if os.path.isdir(os.path.join(training_folders_path, folder))
+    ]
+
+    # Simulate one batch with a random agent
+    for scenario_folder in scenario_folders:
+        # Load the data for the current scenario
+        data_dict = load_scenario_data(scenario_folder)
+        aircraft_dict = data_dict['aircraft']
+        flights_dict = data_dict['flights']
+        rotations_dict = data_dict['rotations']
+        alt_aircraft_dict = data_dict['alt_aircraft']
+        config_dict = data_dict['config']
+
+        # Initialize the environment with the new scenario
+        env = AircraftDisruptionEnv(
+            aircraft_dict,
+            flights_dict,
+            rotations_dict,
+            alt_aircraft_dict,
+            config_dict
+        )
+
+        # Reset the environment
+        obs, _ = env.reset()
+        done = False
+        timesteps = 0
+
+        while not done:
+            # Random action from valid actions
+            action_mask = obs['action_mask']
+            valid_actions = np.where(action_mask == 1)[0]
+            action = np.random.choice(valid_actions)
+
+            # Take the action
+            obs, reward, terminated, truncated, info = env.step(action)
+            timesteps += 1
+
+            done = terminated or truncated
+
+        # Accumulate timesteps
+        total_timesteps_per_batch += timesteps
+        timesteps_per_scenario.append(timesteps)
+
+    # Estimate total timesteps for the entire training process
+    total_timesteps_estimate = total_timesteps_per_batch * n_episodes
+    print(f"Estimated total timesteps for training: {total_timesteps_estimate}")
+
+    # Generate epsilon values over the estimated total timesteps
+    epsilon_values_estimate = []
+    epsilon = epsilon_start
+    min_epsilon_reached_at = 0
+
+    for t in range(int(total_timesteps_estimate)):
+        epsilon = max(epsilon_min, epsilon * (1 - epsilon_decay_rate))
+        epsilon_values_estimate.append(epsilon)
+
+        # Record when epsilon reaches the minimum value
+        if epsilon == epsilon_min:
+            min_epsilon_reached_at = t
+            # Extend the list with EPSILON_MIN for the remaining timesteps
+            epsilon_values_estimate.extend([epsilon_min] * (int(total_timesteps_estimate) - t - 1))
+            break
+
+    # Calculate the percentage of timesteps where epsilon reaches its minimum value
+    percentage_min_epsilon_reached = (min_epsilon_reached_at / total_timesteps_estimate) * 100
+    print(f"Epsilon reaches its minimum value at {percentage_min_epsilon_reached:.2f}% of total timesteps.")
+
+    # Plot the estimated epsilon decay curve
+    plt.figure(figsize=(10, 6))
+    plt.plot(epsilon_values_estimate)
+    plt.xlabel('Timesteps')
+    plt.ylabel('Epsilon Value')
+    plt.title('Estimated Epsilon Decay over Timesteps')
+    plt.show()
+
+    # Optionally raise an error if epsilon reaches its minimum value below a threshold
+    # if percentage_min_epsilon_reached < 70:
+    #    raise RuntimeError("Epsilon reaches its minimum value below 70% of total timesteps. Aborting the process.")
