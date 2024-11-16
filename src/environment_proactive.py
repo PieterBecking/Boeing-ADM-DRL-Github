@@ -47,16 +47,16 @@ class AircraftDisruptionEnv(gym.Env):
         )
 
         # Define observation and action spaces
-        self.state_space_size = (self.rows_state_space, self.columns_state_space)
+        self.action_space = spaces.Discrete(ACTION_SPACE_SIZE)
         self.observation_space = spaces.Dict({
             'state': spaces.Box(
-                low=-np.inf, high=np.inf, 
-                shape=(self.rows_state_space * self.columns_state_space,), 
+                low=-np.inf, high=np.inf,
+                shape=(self.rows_state_space * self.columns_state_space,),
                 dtype=np.float32
             ),
             'action_mask': spaces.Box(
-                low=0, high=1, 
-                shape=(2, max(len(self.flight_ids) + 1, len(self.aircraft_ids) + 1)), 
+                low=0, high=1,
+                shape=(self.action_space.n,),
                 dtype=np.uint8
             )
         })
@@ -187,7 +187,8 @@ class AircraftDisruptionEnv(gym.Env):
                             # There is an unavailability with prob == 1.00
                             # Check if the flight overlaps with the unavailability
                             if dep_time_minutes < unavail_end_minutes and arr_time_minutes > unavail_start_minutes:
-                                print(f"REMOVING FLIGHT {flight_id} DUE TO UNAVAILABILITY AND PAST DEPARTURE")
+                                if DEBUG_MODE_CANCELLED_FLIGHT:
+                                    print(f"REMOVING FLIGHT {flight_id} DUE TO UNAVAILABILITY AND PAST DEPARTURE")
                                 # Flight is in conflict with unavailability
                                 flights_to_remove.add(flight_id)
                                 continue
@@ -233,7 +234,7 @@ class AircraftDisruptionEnv(gym.Env):
 
         # Create the observation dictionary
         obs_with_mask = {
-            'state': state_flat,
+            'state': state.flatten(),
             'action_mask': action_mask
         }
         return obs_with_mask
@@ -304,8 +305,6 @@ class AircraftDisruptionEnv(gym.Env):
         # Process uncertainties
         self.process_uncertainties()
 
-        # Print the state after processing uncertainties
-        print_state_nicely_proactive(self.state)
 
         # Get pre-action conflicts
         pre_action_conflicts = self.get_current_conflicts()
@@ -396,7 +395,7 @@ class AircraftDisruptionEnv(gym.Env):
                         print(f"Rolling the dice for breakdown with initial probability {prob} starting at {breakdown_start_time}")
 
                     # Roll the dice
-                    if np.random.random() <= prob:
+                    if not np.isnan(prob) and np.random.rand() < prob:
                         if DEBUG_MODE_BREAKDOWN:
                             print(f"Breakdown confirmed for aircraft {aircraft_id} with probability {prob}")
                         self.state[idx + 1, 1] = 1.00  # Confirm the breakdown
@@ -437,7 +436,8 @@ class AircraftDisruptionEnv(gym.Env):
         if next_datetime >= self.end_datetime:
             terminated, reason = self._is_done()
             if terminated:
-                print(f"Episode ended: {reason}")
+                if DEBUG_MODE_STOPPING_CRITERIA:
+                    print(f"Episode ended: {reason}")
                 processed_state = self.process_observation(self.state)
                 truncated = False
                 reward = 0  # Assuming zero reward when episode ends without conflicts
@@ -456,7 +456,8 @@ class AircraftDisruptionEnv(gym.Env):
         reward = 0  # Assuming zero reward when there are no conflicts
 
         if terminated:
-            print(f"Episode ended: {reason}")
+            if DEBUG_MODE_STOPPING_CRITERIA:
+                    print(f"Episode ended: {reason}")
 
         return processed_state, reward, terminated, truncated, {}
 
@@ -500,7 +501,8 @@ class AircraftDisruptionEnv(gym.Env):
             truncated = False
 
             if terminated:
-                print(f"Episode ended: {reason}")
+                if DEBUG_MODE_STOPPING_CRITERIA:
+                    print(f"Episode ended: {reason}")
 
             processed_state = self.process_observation(self.state)
             return processed_state, reward, terminated, truncated, {}
@@ -508,7 +510,8 @@ class AircraftDisruptionEnv(gym.Env):
             # Cancel the flight
             selected_flight_id = self.flight_ids[flight_action - 1]
             self.cancel_flight(selected_flight_id)
-            print(f"Cancelled flight {selected_flight_id}")
+            if DEBUG_MODE_CANCELLED_FLIGHT:
+                print(f"Cancelled flight {selected_flight_id}")
 
             # Proceed to next timestep
             next_datetime = self.current_datetime + self.timestep
@@ -523,7 +526,8 @@ class AircraftDisruptionEnv(gym.Env):
             truncated = False
 
             if terminated:
-                print(f"Episode ended: {reason}")
+                if DEBUG_MODE_STOPPING_CRITERIA:
+                    print(f"Episode ended: {reason}")
 
             processed_state = self.process_observation(self.state)
             return processed_state, reward, terminated, truncated, {}
@@ -607,7 +611,8 @@ class AircraftDisruptionEnv(gym.Env):
             truncated = False
 
             if terminated:
-                print(f"Episode ended: {reason}")
+                if DEBUG_MODE_STOPPING_CRITERIA:
+                    print(f"Episode ended: {reason}")
 
             processed_state = self.process_observation(self.state)
             return processed_state, reward, terminated, truncated, {}
@@ -1057,10 +1062,6 @@ class AircraftDisruptionEnv(gym.Env):
         # Check for unresolved uncertainties
         unresolved_uncertainties = self.get_unresolved_uncertainties()
 
-        # Debugging output
-        print(f"Current time: {self.current_datetime}")
-        print(f"Current conflicts: {current_conflicts}")
-        print(f"Unresolved uncertainties: {unresolved_uncertainties}")
 
         if self.current_datetime >= self.end_datetime:
             return True, "Reached the end of the simulation time."
@@ -1115,24 +1116,16 @@ class AircraftDisruptionEnv(gym.Env):
         return list(range(len(self.aircraft_ids) + 1))  # 0 to len(aircraft_ids)
 
     def get_action_mask(self):
-        max_flight_actions = len(self.flight_ids) + 1  # +1 for 'no action'
-        max_aircraft_actions = len(self.aircraft_ids) + 1  # +1 for 'cancel flight'
-
-        # Initialize action masks with zeros (actions are invalid by default)
-        action_mask = np.zeros((2, max(max_flight_actions, max_aircraft_actions)), dtype=np.uint8)
-
-        # Get valid flight and aircraft actions
         valid_flight_actions = self.get_valid_flight_actions()
         valid_aircraft_actions = self.get_valid_aircraft_actions()
 
-        # Set valid actions to 1
-        action_mask[0, valid_flight_actions] = 1  # Flight actions
-        action_mask[1, valid_aircraft_actions] = 1  # Aircraft actions
+        action_mask = np.zeros(self.action_space.n, dtype=np.uint8)
 
-        # Debugging: Print all possible actions
-        print("Possible flight actions:", valid_flight_actions)
-        print("Possible aircraft actions:", valid_aircraft_actions)
-        print("Action mask:", action_mask)
+        for flight_action in valid_flight_actions:
+            for aircraft_action in valid_aircraft_actions:
+                index = self.map_action_to_index(flight_action, aircraft_action)
+                if index < self.action_space.n:
+                    action_mask[index] = 1
 
         return action_mask
 
