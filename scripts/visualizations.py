@@ -11,8 +11,6 @@ import matplotlib.patches as patches
 
 
 # StatePlotter class for visualizing the state of the environment
-
-# StatePlotter class for visualizing the state of the environment
 class StatePlotter_Myopic:
     def __init__(self, aircraft_dict, flights_dict, rotations_dict, alt_aircraft_dict, start_datetime, end_datetime, 
                  offset_baseline=0, offset_id_number=-0.05, offset_delayed_flight=0, offset_marker_minutes=4):
@@ -139,6 +137,7 @@ class StatePlotter_Myopic:
 
         # Compute rectangle height in data units corresponding to 10 pixels
         rect_height = get_height_in_data_units(ax, 30)
+
         # Handle alt_aircraft_dict unavailabilities, including uncertain ones with probability < 1.0
         if self.alt_aircraft_dict:
             for aircraft_id, unavailability_info in self.alt_aircraft_dict.items():
@@ -152,6 +151,13 @@ class StatePlotter_Myopic:
                     end_time = unavail['EndTime']
                     probability = unavail.get('Probability', 1.0)  # Default to 1.0 if Probability is not given
                     
+
+                    print("In state plotter:")
+                    print(f"    aircraft_id: {aircraft_id}")
+                    print(f"    start_time: {start_time}")
+                    print(f"    end_time: {end_time}")
+                    print(f"    probability: {probability}")
+
                     # Convert to datetime objects
                     unavail_start = datetime.strptime(f"{start_date} {start_time}", '%d/%m/%y %H:%M')
                     unavail_end = datetime.strptime(f"{end_date} {end_time}", '%d/%m/%y %H:%M')
@@ -362,10 +368,23 @@ class StatePlotter_Proactive:
                     end_time = unavail['EndTime']
                     probability = unavail.get('Probability', 1.0)  # Default to 1.0 if Probability is not given
                     
+
+
+                    # print("In state plotter:")
+                    # print(f"    aircraft_id: {aircraft_id}")
+                    # print(f"    start_time: {start_time}")
+                    # print(f"    end_time: {end_time}")
+                    # print(f"    probability: {probability}")
+
+
+
                     # Convert to datetime objects
                     unavail_start = datetime.strptime(f"{start_date} {start_time}", '%d/%m/%y %H:%M')
                     unavail_end = datetime.strptime(f"{end_date} {end_time}", '%d/%m/%y %H:%M')
                     y_offset = aircraft_indices[aircraft_id]
+
+                    if np.isnan(probability):
+                        probability = 0.0
                     
                     # Set color based on probability
                     if probability == 0.0:

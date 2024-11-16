@@ -6,11 +6,6 @@ from datetime import datetime, timedelta
 from src.config import *
 from scripts.utils import *
 
-# import the state plotter
-from scripts.visualizations import StatePlotter_Proactive
-
-MIN_BREAKDOWN_PROBABILITY = 0
-
 class AircraftDisruptionEnv(gym.Env):
     def __init__(self, aircraft_dict, flights_dict, rotations_dict, alt_aircraft_dict, config_dict):
         super(AircraftDisruptionEnv, self).__init__()
