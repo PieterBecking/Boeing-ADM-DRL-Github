@@ -16,7 +16,7 @@ DUMMY_VALUE = -999  # Dummy value for padding
 RESOLVED_CONFLICT_REWARD = 1000     # Reward for resolving a conflict
 DELAY_MINUTE_PENALTY = 6           # Penalty per minute of delay
 MAX_DELAY_PENALTY = 1000000            # Maximum penalty for delay
-NO_ACTION_PENALTY = 5               # Penalty for no action while conflict(s) exist
+NO_ACTION_PENALTY = 0               # Penalty for no action while conflict(s) exist
 CANCELLED_FLIGHT_PENALTY = 1000    # Penalty for cancelling a flight
 
 # Environment Settings
