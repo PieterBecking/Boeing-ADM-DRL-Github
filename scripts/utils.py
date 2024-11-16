@@ -490,3 +490,82 @@ def save_best_and_worst_to_csv(scenario_folder, model_name, worst_actions, best_
         # Append worst and best action sequences
         writer.writerow([model_name, "worst action sequence", worst_actions, worst_reward])
         writer.writerow([model_name, "best action sequence", best_actions, best_reward])
+
+
+import subprocess
+import platform
+
+
+def get_macbook_info():
+    model_info = subprocess.run(["system_profiler", "SPHardwareDataType"], capture_output=True, text=True)
+    output = model_info.stdout
+    
+    # Extract relevant information
+    model_name = re.search(r"Model Name: (.*)", output)
+    chip = re.search(r"Chip: (.*)", output)
+    total_cores = re.search(r"Total Number of Cores: (.*)", output)
+    memory = re.search(r"Memory: (.*)", output)
+    
+    info = {
+        "Model Name": model_name.group(1) if model_name else "Unknown",
+        "Chip": chip.group(1) if chip else "Unknown",
+        "Total Cores": total_cores.group(1) if total_cores else "Unknown",
+        "Memory": memory.group(1) if memory else "Unknown"
+    }
+    
+    return info
+
+
+
+def get_gpu_info():
+    if platform.system() == "Darwin":  # macOS
+        gpu_info = subprocess.run(["system_profiler", "SPDisplaysDataType"], capture_output=True, text=True)
+        output = gpu_info.stdout
+        chipset_model = re.search(r"Chipset Model: (.*)", output)
+        type = re.search(r"Type: (.*)", output)
+        return {
+            "Chipset Model": chipset_model.group(1) if chipset_model else "Unknown",
+            "Type": type.group(1) if type else "Unknown"
+        }
+    elif platform.system() == "Windows" or platform.system() == "Linux":
+        gpu_info = subprocess.run(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"], capture_output=True, text=True)
+        output = gpu_info.stdout.strip()
+        if output:
+            name, memory = output.split(', ')
+            return {
+                "GPU Name": name,
+                "Memory Total": memory
+            }
+        else:
+            return "No NVIDIA GPU found or `nvidia-smi` not available."
+    else:
+        return "Unsupported OS"
+
+
+
+def get_l40s_info():
+    # Querying memory usage, GPU utilization, temperature, etc.
+    gpu_info = subprocess.run(
+        ["nvidia-smi", "--query-gpu=name,driver_version,memory.total,memory.used,memory.free,utilization.gpu,temperature.gpu",
+         "--format=csv,noheader"],
+        capture_output=True, text=True
+    )
+    output = gpu_info.stdout.strip()
+    if output:
+        fields = output.split(', ')
+        return {
+            "GPU Name": fields[0],
+            "Driver Version": fields[1],
+            "Total Memory": fields[2],
+            "Used Memory": fields[3],
+            "Free Memory": fields[4],
+            "GPU Utilization": fields[5],
+            "Temperature": fields[6]
+        }
+    else:
+        return "No detailed information available or `nvidia-smi` not available."
+
+
+
+# device_info = get_l40s_info()
+# print("Detailed GPU Info:", device_info)
