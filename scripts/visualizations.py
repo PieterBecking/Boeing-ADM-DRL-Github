@@ -793,22 +793,23 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from src.environment_proactive import AircraftDisruptionEnv
+import time
 
-def simulate_and_plot_epsilon_decay(training_folders_path, n_episodes, epsilon_start, epsilon_min, epsilon_decay_rate):
+def calculate_total_training_timesteps(training_folders_path, n_episodes):
     """
-    Simulates a batch of scenarios using a random agent, estimates total timesteps for training,
-    generates epsilon decay values, and plots the decay curve.
+    Calculates the total estimated timesteps required for training based on the scenarios and episodes.
+    Times one batch to calculate average time per timestep, scenario, and estimate total training time.
 
     Args:
         training_folders_path (str): Path to the folder containing training scenarios.
         n_episodes (int): Number of episodes for training.
-        epsilon_start (float): Initial epsilon value for exploration.
-        epsilon_min (float): Minimum epsilon value.
-        epsilon_decay_rate (float): Rate at which epsilon decays.
+
+    Returns:
+        int: Estimated total timesteps for the entire training process.
     """
-    # Initialize variables
     total_timesteps_per_batch = 0
-    timesteps_per_scenario = []
+    scenario_count = 0
+    start_time = time.time()  # Start timer for the batch
 
     # List all the scenario folders in Data/Training
     scenario_folders = [
@@ -817,8 +818,10 @@ def simulate_and_plot_epsilon_decay(training_folders_path, n_episodes, epsilon_s
         if os.path.isdir(os.path.join(training_folders_path, folder))
     ]
 
-    # Simulate one batch with a random agent
+    # Simulate one batch with a random agent to calculate timesteps per scenario
     for scenario_folder in scenario_folders:
+        scenario_count += 1
+
         # Load the data for the current scenario
         data_dict = load_scenario_data(scenario_folder)
         aircraft_dict = data_dict['aircraft']
@@ -850,16 +853,39 @@ def simulate_and_plot_epsilon_decay(training_folders_path, n_episodes, epsilon_s
             # Take the action
             obs, reward, terminated, truncated, info = env.step(action)
             timesteps += 1
-
             done = terminated or truncated
 
         # Accumulate timesteps
         total_timesteps_per_batch += timesteps
-        timesteps_per_scenario.append(timesteps)
 
-    # Estimate total timesteps for the entire training process
+    # End timer for the batch
+    end_time = time.time()
+    batch_time = end_time - start_time  # Time taken for the entire batch
+
+    # Calculate averages
+    average_time_per_timestep = batch_time / total_timesteps_per_batch
+    average_time_per_scenario = batch_time / scenario_count
     total_timesteps_estimate = total_timesteps_per_batch * n_episodes
-    print(f"Estimated total timesteps for training: {total_timesteps_estimate}")
+    estimated_training_time = average_time_per_timestep * total_timesteps_estimate
+
+    # Print timing information
+    print(f"Estimated Total Training Time: {estimated_training_time / 3600:.2f} hours")
+    print(f"    Batch Time: {batch_time:.2f} seconds")
+    print(f"    Average Time Per Timestep: {average_time_per_timestep:.6f} seconds")
+    print(f"    Average Time Per Scenario: {average_time_per_scenario:.2f} seconds")
+    print("")
+    print(f"Total Timesteps Estimate: {total_timesteps_estimate}")
+    return total_timesteps_estimate
+
+
+
+def simulate_and_plot_epsilon_decay(training_folders_path, n_episodes, epsilon_start, epsilon_min, epsilon_decay_rate):
+    """
+    Simulates a batch of scenarios using a random agent, estimates total timesteps for training,
+    generates epsilon decay values, and plots the decay curve.
+    """
+    # Calculate total timesteps using the new function
+    total_timesteps_estimate = calculate_total_training_timesteps(training_folders_path, n_episodes)
 
     # Generate epsilon values over the estimated total timesteps
     epsilon_values_estimate = []
@@ -888,7 +914,3 @@ def simulate_and_plot_epsilon_decay(training_folders_path, n_episodes, epsilon_s
     plt.ylabel('Epsilon Value')
     plt.title('Estimated Epsilon Decay over Timesteps')
     plt.show()
-
-    # Optionally raise an error if epsilon reaches its minimum value below a threshold
-    # if percentage_min_epsilon_reached < 70:
-    #    raise RuntimeError("Epsilon reaches its minimum value below 70% of total timesteps. Aborting the process.")

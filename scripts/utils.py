@@ -645,3 +645,25 @@ def create_results_directory(base_dir='../results'):
     os.makedirs(results_dir, exist_ok=True)
     os.makedirs(os.path.join(results_dir, 'plots'), exist_ok=True)
     return results_dir
+
+def calculate_epsilon_decay_rate(total_timesteps, epsilon_start, epsilon_min, percentage_min=95):
+    """
+    Calculates the decay rate for epsilon such that it reaches epsilon_min after the specified percentage of total timesteps.
+
+    Args:
+        total_timesteps (int): Total number of timesteps in training.
+        epsilon_start (float): Initial epsilon value for exploration.
+        epsilon_min (float): Minimum epsilon value for exploration.
+        percentage_min (float): Percentage of timesteps at which epsilon should reach epsilon_min (default is 95%).
+
+    Returns:
+        float: Calculated epsilon decay rate.
+    """
+    # Calculate the timesteps at which epsilon should reach epsilon_min
+    target_timesteps = total_timesteps * (percentage_min / 100)
+
+    # Solve for the decay rate using the exponential decay formula
+    decay_rate = -np.log(epsilon_min / epsilon_start) / target_timesteps
+
+    print(f"Calculated EPSILON_DECAY_RATE: {decay_rate}")
+    return decay_rate
