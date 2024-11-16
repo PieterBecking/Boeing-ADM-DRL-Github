@@ -4,7 +4,8 @@ from datetime import datetime, timedelta
 import re
 from src.config import *
 import csv
-
+import torch as th
+import math
 
 # File reader with comment filtering
 def read_csv_with_comments(file_path):
@@ -569,3 +570,78 @@ def get_l40s_info():
 
 # device_info = get_l40s_info()
 # print("Detailed GPU Info:", device_info)
+
+
+def initialize_device():
+    """Initialize and return the computation device."""
+    if th.cuda.is_available():
+        device = th.device('cuda')
+    elif th.backends.mps.is_available():
+        device = th.device('mps')
+    else:
+        device = th.device('cpu')
+
+    print(f"Using device: {device}")
+    return device
+
+
+def get_device_info(device):
+    """Get detailed information about the device."""
+    device_str = str(device).lower()
+    print("Device:", device_str)
+
+    if device_str == 'mps':
+        print("Using MacBook M1")
+        device_info = {"device_type": "MacBook M1"}
+    elif device_str == 'cuda':
+        print("Using GPU")
+        device_info = {"device_type": "GPU"}
+    else:
+        print("Using CPU")
+        device_info = {"device_type": "CPU"}
+
+    return device_info
+
+
+def check_device_capabilities():
+    """Check and print device capabilities."""
+    print("CUDA available:", th.cuda.is_available())
+    print("Number of GPUs available:", th.cuda.device_count())
+    if th.cuda.is_available():
+        print("Current GPU name:", th.cuda.get_device_name())
+    print("cuDNN enabled:", th.backends.cudnn.enabled)
+
+
+def verify_training_folders(path):
+    """Verify if the training folders exist and return folder names."""
+    if not os.path.exists(path):
+        raise FileNotFoundError(f'Training folder not found at {path}')
+
+    training_folders = [
+        folder for folder in os.listdir(path) if os.path.isdir(os.path.join(path, folder))
+    ]
+    return training_folders
+
+
+def calculate_training_days(n_episodes, folders):
+    """Calculate total training days."""
+    return n_episodes * len(folders)
+
+
+def format_days(days):
+    """Format the number of days for better readability."""
+    if days >= 1000000:
+        return f"{math.floor(days / 1000000)}M"
+    elif days >= 1000:
+        return f"{math.floor(days / 1000)}k"
+    return str(days)
+
+
+def create_results_directory(base_dir='../results'):
+    """Create a results directory with the current datetime."""
+    now = datetime.now()
+    folder_name = now.strftime('%Y%m%d-%H-%M')
+    results_dir = os.path.join(base_dir, folder_name)
+    os.makedirs(results_dir, exist_ok=True)
+    os.makedirs(os.path.join(results_dir, 'plots'), exist_ok=True)
+    return results_dir
