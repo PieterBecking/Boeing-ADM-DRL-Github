@@ -62,7 +62,7 @@ class AircraftDisruptionEnv(gym.Env):
         })
 
         # Action space: select a flight and an aircraft
-        self.action_space = spaces.MultiDiscrete([len(self.flight_ids) + 1, len(self.aircraft_ids) + 1])
+        self.action_space = spaces.Discrete(ACTION_SPACE_SIZE)
 
         # Store the dictionaries as class attributes
         self.alt_aircraft_dict = alt_aircraft_dict
@@ -326,22 +326,20 @@ class AircraftDisruptionEnv(gym.Env):
             return self.handle_flight_operations(flight_action, aircraft_action, pre_action_conflicts)
 
     def extract_action_value(self, action):
-        """Extracts the action values from the provided action.
-
-        This function handles different types of action inputs, such as lists or arrays,
-        and extracts the flight and aircraft action values accordingly.
+        """Extracts the flight and aircraft action values from the flattened action.
 
         Args:
-            action (list or array): The action provided by the agent.
+            action (int): The flattened action index.
 
         Returns:
             tuple: The flight action and aircraft action values.
         """
-        if isinstance(action, (list, np.ndarray)) and len(action) >= 2:
-            flight_action = action[0]
-            aircraft_action = action[1]
-        else:
-            raise ValueError("Invalid action format")
+        if action < 0 or action >= ACTION_SPACE_SIZE:
+            raise ValueError("Invalid action index")
+
+        flight_action = action // (len(self.aircraft_ids) + 1)  # Integer division to get flight action
+        aircraft_action = action % (len(self.aircraft_ids) + 1)  # Modulus to get aircraft action
+
         return flight_action, aircraft_action
 
     def validate_action(self, flight_action, aircraft_action):
@@ -1154,4 +1152,28 @@ class AircraftDisruptionEnv(gym.Env):
 
         return action_mask
 
+    def map_action_to_index(self, flight_action, aircraft_action):
+        """Maps the (flight, aircraft) action pair to a single index in the flattened action space.
+
+        Args:
+            flight_action (int): The index of the flight action.
+            aircraft_action (int): The index of the aircraft action.
+
+        Returns:
+            int: The corresponding index in the flattened action space.
+        """
+        return flight_action * (len(self.aircraft_ids) + 1) + aircraft_action
+    
+    def map_index_to_action(self, index):
+        """Maps the flattened action space index to the corresponding (flight, aircraft) action pair.
+
+        Args:
+            index (int): The index in the flattened action space.
+
+        Returns:
+            tuple: A tuple containing the flight and aircraft actions.
+        """
+        flight_action = index // (len(self.aircraft_ids) + 1)
+        aircraft_action = index % (len(self.aircraft_ids) + 1)
+        return flight_action, aircraft_action
 
