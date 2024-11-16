@@ -14,4 +14,4 @@ results/*/action_sequences/
 results/*/plots/reward-plots-per-scenario/
 
 # Ignore Jupyter notebook checkpoints and output
-.ipynb_checkpoints/
+# .ipynb_checkpoints/
