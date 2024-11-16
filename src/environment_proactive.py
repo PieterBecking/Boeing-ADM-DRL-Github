@@ -1115,26 +1115,24 @@ class AircraftDisruptionEnv(gym.Env):
         return list(range(len(self.aircraft_ids) + 1))  # 0 to len(aircraft_ids)
 
     def get_action_mask(self):
-        max_len = max(len(self.flight_ids) + 1, len(self.aircraft_ids) + 1)
+        max_flight_actions = len(self.flight_ids) + 1  # +1 for 'no action'
+        max_aircraft_actions = len(self.aircraft_ids) + 1  # +1 for 'cancel flight'
 
         # Initialize action masks with zeros (actions are invalid by default)
-        flight_action_mask = np.zeros(max_len, dtype=np.uint8)  # +1 for 'no action'
-        aircraft_action_mask = np.zeros(max_len, dtype=np.uint8)  # +1 for 'cancel flight'
+        action_mask = np.zeros((2, max(max_flight_actions, max_aircraft_actions)), dtype=np.uint8)
 
         # Get valid flight and aircraft actions
         valid_flight_actions = self.get_valid_flight_actions()
         valid_aircraft_actions = self.get_valid_aircraft_actions()
 
         # Set valid actions to 1
-        flight_action_mask[valid_flight_actions] = 1
-        aircraft_action_mask[valid_aircraft_actions] = 1
-
-        # Combine the masks into a single action mask
-        action_mask = np.array([flight_action_mask, aircraft_action_mask])
+        action_mask[0, valid_flight_actions] = 1  # Flight actions
+        action_mask[1, valid_aircraft_actions] = 1  # Aircraft actions
 
         # Debugging: Print all possible actions
         print("Possible flight actions:", valid_flight_actions)
         print("Possible aircraft actions:", valid_aircraft_actions)
+        print("Action mask:", action_mask)
 
         return action_mask
 
