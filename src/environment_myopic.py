@@ -399,7 +399,7 @@ class AircraftDisruptionEnv(gym.Env):
 
             # Only process unresolved breakdowns
             if prob != 0.00 and prob != 1.00:
-                if not np.isnan(start_minutes) and not np.isnan(end_minutes):
+                if not np.isnan(start_minutes) and not np.isnan(end_minutes) and not np.isnan(prob):
                     # print(start_minutes)
                     breakdown_start_time = self.earliest_datetime + timedelta(minutes=start_minutes)
                 else:
