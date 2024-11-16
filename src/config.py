@@ -6,6 +6,10 @@ MAX_FLIGHTS_PER_AIRCRAFT = 12  # Maximum number of flights per aircraft
 ROWS_STATE_SPACE = 1 + MAX_AIRCRAFT  # Number of rows in the state space
 COLUMNS_STATE_SPACE = 1 + 2 + 3 * MAX_FLIGHTS_PER_AIRCRAFT # Number of columns in the state space: 1 for ac id, 2 for ac unavail, 3 for each flight (id, start, end)
 
+# Calculate the flattened action space size
+ACTION_SPACE_SIZE = (MAX_AIRCRAFT + 1) * (MAX_FLIGHTS_PER_AIRCRAFT + 1)  # Number of possible actions (+1 for the zero for no action and cancellations)
+
+
 # Time Settings for intervals
 TIMESTEP_HOURS = 1  # Length of each timestep in hours
 
