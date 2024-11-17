@@ -315,10 +315,6 @@ class AircraftDisruptionEnv(gym.Env):
         # Process uncertainties
         self.process_uncertainties()
 
-        # Print the state after processing uncertainties
-        if DEBUG_MODE_PRINT_STATE:
-            print_state_nicely_proactive(self.state)
-
         # Get pre-action conflicts
         pre_action_conflicts = self.get_current_conflicts()
 
