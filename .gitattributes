@@ -1,1 +1,2 @@
 /notebooks_utils/*.ipynb linguist-detectable=false
+/notebooks/*.ipynb linguist-detectable=false
