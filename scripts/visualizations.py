@@ -792,7 +792,7 @@ def plot_epsilon_decay(n_episodes, epsilon_start, epsilon_min, decay_rate):
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from src.environment_proactive import AircraftDisruptionEnv
+from src.environment import AircraftDisruptionEnv
 import time
 
 def calculate_total_training_timesteps(training_folders_path, n_episodes):
@@ -818,6 +818,7 @@ def calculate_total_training_timesteps(training_folders_path, n_episodes):
         if os.path.isdir(os.path.join(training_folders_path, folder))
     ]
 
+    print(f"amount of scenario folders:{len(scenario_folders)}")
     # Simulate one batch with a random agent to calculate timesteps per scenario
     for scenario_folder in scenario_folders:
         scenario_count += 1
@@ -829,6 +830,7 @@ def calculate_total_training_timesteps(training_folders_path, n_episodes):
         rotations_dict = data_dict['rotations']
         alt_aircraft_dict = data_dict['alt_aircraft']
         config_dict = data_dict['config']
+        env_type = 'myopic'
 
         # Initialize the environment with the new scenario
         env = AircraftDisruptionEnv(
@@ -836,7 +838,8 @@ def calculate_total_training_timesteps(training_folders_path, n_episodes):
             flights_dict,
             rotations_dict,
             alt_aircraft_dict,
-            config_dict
+            config_dict,
+            env_type
         )
 
         # Reset the environment
@@ -870,6 +873,7 @@ def calculate_total_training_timesteps(training_folders_path, n_episodes):
 
     # Print timing information
     print(f"Estimated Total Training Time: {estimated_training_time / 3600:.2f} hours")
+    print(f"Estimated Total Training Time: {estimated_training_time / 60:.2f} minutes")
     print(f"    Batch Time: {batch_time:.2f} seconds")
     print(f"    Average Time Per Timestep: {average_time_per_timestep:.6f} seconds")
     print(f"    Average Time Per Scenario: {average_time_per_scenario:.2f} seconds")
