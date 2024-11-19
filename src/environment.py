@@ -172,6 +172,12 @@ class AircraftDisruptionEnv(gym.Env):
                 unavail_start_minutes = np.nan
                 unavail_end_minutes = np.nan
 
+            # In the proactive env, the info for unrealized breakdowns is also not shown
+            if np.isnan(breakdown_probability):
+                breakdown_probability = np.nan  # Set to NaN if not 1.00
+                unavail_start_minutes = np.nan
+                unavail_end_minutes = np.nan
+
             # Store probability and unavailability times
             state[idx + 1, 1] = breakdown_probability
             state[idx + 1, 2] = unavail_start_minutes
