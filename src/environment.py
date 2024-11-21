@@ -678,10 +678,8 @@ class AircraftDisruptionEnv(gym.Env):
         if not np.isnan(unavail_start) and not np.isnan(unavail_end):
             # Check if desired dep_time overlaps with unavailability
             if dep_time < unavail_end and arr_time > unavail_start:
-                # If unavailability probability is below 1.00, do not adjust dep_time
-                if unavail_prob < 1.00:
-                    pass  # No adjustment needed
-                else:
+                # Only adjust times if probability is 1.00
+                if unavail_prob == 1.00:
                     # Adjust dep_time to after unavailability end plus MIN_TURN_TIME
                     dep_time = max(dep_time, unavail_end + MIN_TURN_TIME)
                     dep_time = max(dep_time, original_dep_minutes)  # Ensure not earlier than original dep time
@@ -1124,8 +1122,25 @@ class AircraftDisruptionEnv(gym.Env):
         Returns:
             list: A list of valid flight actions that the agent can take.
         """
-        # Get all non-cancelled flight IDs
-        valid_flight_ids = [flight_id for flight_id in self.flight_ids if flight_id not in self.cancelled_flights]
+        # Calculate current time in minutes from earliest_datetime
+        current_time_minutes = (self.current_datetime - self.earliest_datetime).total_seconds() / 60
+
+        # Get all valid flight IDs (not cancelled and not departed)
+        valid_flight_ids = []
+        for flight_id in self.flight_ids:
+            if flight_id in self.cancelled_flights:
+                continue
+            
+            # Get flight departure time
+            if flight_id in self.flights_dict:
+                flight_info = self.flights_dict[flight_id]
+                dep_time = parse_time_with_day_offset(flight_info['DepTime'], self.start_datetime)
+                dep_time_minutes = (dep_time - self.earliest_datetime).total_seconds() / 60
+                
+                # Only include flights that haven't departed yet
+                if dep_time_minutes >= current_time_minutes:
+                    valid_flight_ids.append(flight_id)
+
         # Convert flight IDs to their corresponding indices
         valid_flight_indices = [self.flight_id_to_idx[flight_id] + 1 for flight_id in valid_flight_ids]  # +1 for action 0 being 'no action'
         
