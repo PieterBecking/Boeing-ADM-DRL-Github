@@ -1143,6 +1143,7 @@ class AircraftDisruptionEnv(gym.Env):
 
         # Convert flight IDs to their corresponding indices
         valid_flight_indices = [self.flight_id_to_idx[flight_id] + 1 for flight_id in valid_flight_ids]  # +1 for action 0 being 'no action'
+
         
         return [0] + valid_flight_indices  # Include 'no action' option
 
