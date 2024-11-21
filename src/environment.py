@@ -311,26 +311,28 @@ class AircraftDisruptionEnv(gym.Env):
         # Print the processed action and chosen action
         if DEBUG_MODE:
             print(f"Processed action: {action} of type: {type(action)}")
-
-        if DEBUG_MODE_ACTION:
             print(f"Chosen action: flight {flight_action}, aircraft {aircraft_action}")
 
         # Initialize info dictionary
         info = {}
-
-        # Process uncertainties
-        self.process_uncertainties()
 
         # Get pre-action conflicts
         pre_action_conflicts = self.get_current_conflicts()
 
         if len(pre_action_conflicts) == 0:
             # Handle the case when there are no conflicts
-            return self.handle_no_conflicts(flight_action, aircraft_action)
-
+            processed_state, reward, terminated, truncated, info = self.handle_no_conflicts(flight_action, aircraft_action)
         else:
             # Resolve the conflict based on the action
-            return self.handle_flight_operations(flight_action, aircraft_action, pre_action_conflicts)
+            processed_state, reward, terminated, truncated, info = self.handle_flight_operations(flight_action, aircraft_action, pre_action_conflicts)
+
+        # Process uncertainties after handling flight operations or no conflicts
+        self.process_uncertainties()
+
+        # Update the processed state after processing uncertainties
+        processed_state = self.process_observation(self.state)
+
+        return processed_state, reward, terminated, truncated, info
 
     def extract_action_value(self, action):
         """Extracts the flight and aircraft action values from the flattened action.
@@ -593,7 +595,7 @@ class AircraftDisruptionEnv(gym.Env):
                 # Schedule the flight on the same aircraft starting from new_dep_time_minutes
                 # The schedule_flight_on_aircraft method will handle adjusting subsequent flights
                 self.schedule_flight_on_aircraft(
-                    selected_aircraft_id, selected_flight_id, new_dep_time_minutes, None
+                    selected_aircraft_id, selected_flight_id, new_dep_time_minutes, current_aircraft_id, None
                 )
 
             else:
@@ -620,7 +622,7 @@ class AircraftDisruptionEnv(gym.Env):
                 dep_time_minutes = (dep_time - self.earliest_datetime).total_seconds() / 60
                 arr_time_minutes = (arr_time - self.earliest_datetime).total_seconds() / 60
 
-                self.schedule_flight_on_aircraft(selected_aircraft_id, selected_flight_id, dep_time_minutes, arr_time_minutes)
+                self.schedule_flight_on_aircraft(selected_aircraft_id, selected_flight_id, dep_time_minutes, current_aircraft_id, arr_time_minutes)
 
             # Proceed to next timestep
             next_datetime = self.current_datetime + self.timestep
@@ -643,7 +645,12 @@ class AircraftDisruptionEnv(gym.Env):
             processed_state = self.process_observation(self.state)
             return processed_state, reward, terminated, truncated, {}
 
-    def schedule_flight_on_aircraft(self, aircraft_id, flight_id, dep_time, arr_time=None, delayed_flights=None):
+    def schedule_flight_on_aircraft(self, aircraft_id, flight_id, dep_time, current_aircraft_id, arr_time=None, delayed_flights=None):
+        if DEBUG_MODE_SCHEDULING:
+            print("\n=== Starting schedule_flight_on_aircraft ===")
+            print(f"Scheduling flight {flight_id} on aircraft {aircraft_id}")
+            print(f"Initial dep_time: {dep_time}, arr_time: {arr_time}")
+
         if delayed_flights is None:
             delayed_flights = set()
         
@@ -659,18 +666,21 @@ class AircraftDisruptionEnv(gym.Env):
         original_dep_minutes = (original_dep_time - self.earliest_datetime).total_seconds() / 60
         flight_duration = (original_arr_time - original_dep_time).total_seconds() / 60
 
+        if DEBUG_MODE_SCHEDULING:
+            print(f"Original departure minutes: {original_dep_minutes}")
+            print(f"Flight duration: {flight_duration}")
+
         # Ensure dep_time is not earlier than original departure time
         dep_time = max(dep_time, original_dep_minutes)
 
         if arr_time is None:
-            # Calculate new arrival time based on flight duration
             arr_time = dep_time + flight_duration
         else:
-            # If arr_time is provided, update flight_duration accordingly
             flight_duration = arr_time - dep_time
 
         # Get current aircraft assignment
-        current_aircraft_id = self.rotations_dict[flight_id]['Aircraft']
+        print("****Current aircraft ID:")
+        print(current_aircraft_id)
         
         # Check for unavailability conflicts
         unavail_info = self.unavailabilities_dict.get(aircraft_id, {})
@@ -678,47 +688,45 @@ class AircraftDisruptionEnv(gym.Env):
         unavail_end = unavail_info.get('EndTime', np.nan)
         unavail_prob = unavail_info.get('Probability', 0.0)
 
+        if DEBUG_MODE_SCHEDULING:
+            print(f"\nUnavailability check:")
+            print(f"Current aircraft: {current_aircraft_id}, Target aircraft: {aircraft_id}")
+            print(f"Unavailability - Start: {unavail_start}, End: {unavail_end}, Prob: {unavail_prob}")
+
         # Check if flight overlaps with unavailability
         has_unavail_overlap = (not np.isnan(unavail_start) and not np.isnan(unavail_end) and 
                               dep_time < unavail_end and arr_time > unavail_start)
 
         if has_unavail_overlap:
+            if DEBUG_MODE_SCHEDULING:
+                print("\nFlight overlaps with unavailability period!")
+                print(f"Flight times - Dep: {dep_time}, Arr: {arr_time}")
+                print(f"Unavail times - Start: {unavail_start}, End: {unavail_end}")
+
             if aircraft_id == current_aircraft_id:
-                # Case: Flight on its current aircraft
                 if unavail_prob > 0.00:
-                    # Move flight after unavailability
+                    if DEBUG_MODE_SCHEDULING:
+                        print("Case 1: Current aircraft with prob > 0.00 - Moving flight after unavailability")
                     dep_time = max(dep_time, unavail_end + MIN_TURN_TIME)
                     dep_time = max(dep_time, original_dep_minutes)
                     arr_time = dep_time + flight_duration
-
-                    # Track the delay
                     delay = dep_time - original_dep_minutes
                     self.environment_delayed_flights[flight_id] = self.environment_delayed_flights.get(flight_id, 0) + delay
-
-                    if DEBUG_MODE:
-                        print(f"Moved flight {flight_id} after unavailability on current aircraft {aircraft_id}")
                 else:
-                    # prob == 0.00, do nothing
-                    if DEBUG_MODE:
-                        print(f"Keeping flight {flight_id} during unavailability (prob=0) on current aircraft {aircraft_id}")
+                    if DEBUG_MODE_SCHEDULING:
+                        print("Case 2: Current aircraft with prob = 0.00 - Keeping original schedule")
             else:
-                # Case: Flight on different aircraft
                 if unavail_prob == 1.00:
-                    # Move flight after unavailability
+                    if DEBUG_MODE_SCHEDULING:
+                        print("Case 3: Different aircraft with prob = 1.00 - Moving flight after unavailability")
                     dep_time = max(dep_time, unavail_end + MIN_TURN_TIME)
                     dep_time = max(dep_time, original_dep_minutes)
                     arr_time = dep_time + flight_duration
-
-                    # Track the delay
                     delay = dep_time - original_dep_minutes
                     self.environment_delayed_flights[flight_id] = self.environment_delayed_flights.get(flight_id, 0) + delay
-
-                    if DEBUG_MODE:
-                        print(f"Moved flight {flight_id} after certain unavailability on new aircraft {aircraft_id}")
                 else:
-                    # prob < 1.00, allow overlap
-                    if DEBUG_MODE:
-                        print(f"Allowing flight {flight_id} during uncertain unavailability on new aircraft {aircraft_id}")
+                    if DEBUG_MODE_SCHEDULING:
+                        print("Case 4: Different aircraft with prob < 1.00 - Allowing overlap")
 
         # Now handle conflicts with other flights
         scheduled_flights = []
@@ -755,7 +763,7 @@ class AircraftDisruptionEnv(gym.Env):
                     self.environment_delayed_flights[flight_id] = self.environment_delayed_flights.get(flight_id, 0) + total_delay
 
                     # Debugging: Print the delayed departure and arrival times
-                    if DEBUG_MODE:
+                    if DEBUG_MODE_SCHEDULING:
                         print(f"Delayed departure time for flight {flight_id} to {dep_time} minutes due to conflict.")
                         print(f"Delayed arrival time for flight {flight_id} to {arr_time} minutes.")
                 else:
@@ -771,7 +779,7 @@ class AircraftDisruptionEnv(gym.Env):
                         self.environment_delayed_flights[flight_id] = self.environment_delayed_flights.get(flight_id, 0) + total_delay
 
                         # Debugging: Print the delayed departure and arrival times
-                        if DEBUG_MODE:
+                        if DEBUG_MODE_SCHEDULING:
                             print(f"Delayed departure time for flight {flight_id} to {dep_time} minutes due to conflict with existing flight.")
                             print(f"Delayed arrival time for flight {flight_id} to {arr_time} minutes.")
                     else:
@@ -798,7 +806,7 @@ class AircraftDisruptionEnv(gym.Env):
                         # Update flights_dict for existing flight
                         self.update_flight_times(existing_flight_id, new_dep_time, new_arr_time)
                         # Recursively resolve conflicts for existing flight
-                        self.schedule_flight_on_aircraft(aircraft_id, existing_flight_id, new_dep_time, new_arr_time, delayed_flights)
+                        self.schedule_flight_on_aircraft(aircraft_id, existing_flight_id, new_dep_time, current_aircraft_id, new_arr_time, delayed_flights)
 
         # Now, update the flight's times in the state
         for j in range(4, self.columns_state_space - 2, 3):
@@ -816,7 +824,7 @@ class AircraftDisruptionEnv(gym.Env):
         self.update_flight_times(flight_id, dep_time, arr_time)
 
         # Debugging: Print the final departure and arrival times
-        if DEBUG_MODE:
+        if DEBUG_MODE_SCHEDULING:
             print(f"Final departure time for flight {flight_id}: {dep_time} minutes.")
             print(f"Final arrival time for flight {flight_id}: {arr_time} minutes.")
 
