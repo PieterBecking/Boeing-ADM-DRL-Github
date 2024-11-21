@@ -99,9 +99,6 @@ class StatePlotter:
                 elif swapped:
                     plot_color = 'green'
                     plot_label = 'Swapped Flight'
-                elif delayed:
-                    plot_color = 'orange'
-                    plot_label = 'Environment Delayed Flight'
                 else:
                     plot_color = 'blue'
                     plot_label = 'Scheduled Flight'
@@ -116,7 +113,11 @@ class StatePlotter:
                 dep_marker = dep_datetime + marker_offset
                 arr_marker = arr_datetime - marker_offset
 
-                ax.plot(dep_marker, y_offset, color=plot_color, marker='>', markersize=6, markeredgewidth=0)
+                if delayed:
+                    ax.plot(dep_marker, y_offset, color='red', marker='>', markersize=6, markeredgewidth=0, label='Environment Delayed Flight' if not labels['Environment Delayed Flight'] else None)
+                    labels['Environment Delayed Flight'] = True
+                else:
+                    ax.plot(dep_marker, y_offset, color=plot_color, marker='>', markersize=6, markeredgewidth=0)
                 ax.plot(arr_marker, y_offset, color=plot_color, marker='<', markersize=6, markeredgewidth=0)
 
                 if delayed:
