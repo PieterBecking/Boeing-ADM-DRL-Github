@@ -1137,7 +1137,7 @@ class AircraftDisruptionEnv(gym.Env):
                 dep_time = parse_time_with_day_offset(flight_info['DepTime'], self.start_datetime)
                 dep_time_minutes = (dep_time - self.earliest_datetime).total_seconds() / 60
                 
-                # Only include flights that haven't departed yet :
+                # Only include flights that haven't departed yet
                 if dep_time_minutes >= current_time_minutes:
                     valid_flight_ids.append(flight_id)
 
