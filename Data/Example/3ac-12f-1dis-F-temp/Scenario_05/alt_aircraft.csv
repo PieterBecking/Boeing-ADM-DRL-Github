@@ -1,0 +1,5 @@
+%Aircraft StartDate StartTime EndDate EndTime Probability
+A320#1 17/09/24 09:09 17/09/24 21:39 0.24
+A320#2 17/09/24 09:09 17/09/24 18:41 0.33
+A320#3 17/09/24 09:04 17/09/24 22:43 1.00
+#
