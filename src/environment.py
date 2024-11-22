@@ -688,10 +688,6 @@ class AircraftDisruptionEnv(gym.Env):
         else:
             flight_duration = arr_time - dep_time
 
-        # Get current aircraft assignment
-        print("****Current aircraft ID:")
-        print(current_aircraft_id)
-        
         # Check for unavailability conflicts
         unavail_info = self.unavailabilities_dict.get(aircraft_id, {})
         unavail_start = unavail_info.get('StartTime', np.nan)
