@@ -333,7 +333,24 @@ def create_data_scenario(
                 file.write(f"{flight}")
             file.write('#')
 
-
+        # Update probability in alt_aircraft file
+        alt_aircraft_lines = []
+        with open(alt_aircraft_file, 'r') as file:
+            for line in file:
+                if line.startswith('%') or line.startswith('#'):
+                    alt_aircraft_lines.append(line)
+                    continue
+                parts = line.strip().split(' ')
+                if parts[0] == aircraft_id:
+                    # Keep all data the same but set probability to 0.00
+                    parts[-1] = "0.00"
+                    alt_aircraft_lines.append(' '.join(parts) + '\n')
+                else:
+                    alt_aircraft_lines.append(line)
+        
+        with open(alt_aircraft_file, 'w') as file:
+            for line in alt_aircraft_lines:
+                file.write(line)
 
     print(f"Data creation for scenario {scenario_name} completed with {len(aircraft_ids)} aircraft and {len(flights_dict)} flights.")
 

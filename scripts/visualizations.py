@@ -603,7 +603,7 @@ def calculate_total_training_timesteps(training_folders_path, n_episodes):
         if os.path.isdir(os.path.join(training_folders_path, folder))
     ]
 
-    print(f"amount of scenario folders:{len(scenario_folders)}")
+    # print(f"amount of scenario folders:{len(scenario_folders)}")
     # Simulate one batch with a random agent to calculate timesteps per scenario
     for scenario_folder in scenario_folders:
         scenario_count += 1
@@ -657,24 +657,24 @@ def calculate_total_training_timesteps(training_folders_path, n_episodes):
     estimated_training_time = average_time_per_timestep * total_timesteps_estimate
 
     # Print timing information
-    print(f"Estimated Total Training Time: {estimated_training_time / 3600:.2f} hours")
-    print(f"Estimated Total Training Time: {estimated_training_time / 60:.2f} minutes")
-    print(f"    Batch Time: {batch_time:.2f} seconds")
-    print(f"    Average Time Per Timestep: {average_time_per_timestep:.6f} seconds")
-    print(f"    Average Time Per Scenario: {average_time_per_scenario:.2f} seconds")
-    print("")
-    print(f"Total Timesteps Estimate: {total_timesteps_estimate}")
+    # print(f"Estimated Total Training Time: {estimated_training_time / 3600:.2f} hours")
+    # print(f"Estimated Total Training Time: {estimated_training_time / 60:.2f} minutes")
+    # print(f"    Batch Time: {batch_time:.2f} seconds")
+    # print(f"    Average Time Per Timestep: {average_time_per_timestep:.6f} seconds")
+    # print(f"    Average Time Per Scenario: {average_time_per_scenario:.2f} seconds")
+    # print("")
+    # print(f"Total Timesteps Estimate: {total_timesteps_estimate}")
     return total_timesteps_estimate
 
 
 
-def simulate_and_plot_epsilon_decay(training_folders_path, n_episodes, epsilon_start, epsilon_min, epsilon_decay_rate):
+def simulate_and_plot_epsilon_decay(training_folders_path, n_episodes, epsilon_start, epsilon_min, epsilon_decay_rate, estimated_total_timesteps):
     """
     Simulates a batch of scenarios using a random agent, estimates total timesteps for training,
     generates epsilon decay values, and plots the decay curve.
     """
-    # Calculate total timesteps using the new function
-    total_timesteps_estimate = calculate_total_training_timesteps(training_folders_path, n_episodes)
+    
+    total_timesteps_estimate = estimated_total_timesteps
 
     # Generate epsilon values over the estimated total timesteps
     epsilon_values_estimate = []
