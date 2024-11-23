@@ -693,6 +693,7 @@ class AircraftDisruptionEnv(gym.Env):
         )
         original_dep_minutes = (original_dep_time - self.earliest_datetime).total_seconds() / 60
         flight_duration = (original_arr_time - original_dep_time).total_seconds() / 60
+        original_arr_minutes = (original_arr_time - self.earliest_datetime).total_seconds() / 60
 
         if DEBUG_MODE_SCHEDULING:
             print(f"Original departure minutes: {original_dep_minutes}")
@@ -718,10 +719,28 @@ class AircraftDisruptionEnv(gym.Env):
             print(f"Unavailability - Start: {unavail_start}, End: {unavail_end}, Prob: {unavail_prob}")
 
         # Check if flight overlaps with unavailability
-        has_unavail_overlap = (not np.isnan(unavail_start) and not np.isnan(unavail_end) and 
-                              dep_time < unavail_end and arr_time > unavail_start)
-        if DEBUG_MODE_SCHEDULING:
-            print(f"****** has_unavail_overlap: {has_unavail_overlap}")
+        has_unavail_overlap = False
+        if (not np.isnan(unavail_start) and 
+            not np.isnan(unavail_end) and 
+            unavail_prob > 0.0):  # Only check for overlap if there's an actual unavailability
+            
+            # Convert times to ensure proper comparison
+            flight_start = float(original_dep_minutes)
+            flight_end = float(original_arr_minutes)
+            unavail_start_time = float(unavail_start)
+            unavail_end_time = float(unavail_end)
+            
+            # Check for any overlap between flight and unavailability period
+            if max(flight_start, unavail_start_time) < min(flight_end, unavail_end_time):
+                has_unavail_overlap = True
+                
+            if DEBUG_MODE_SCHEDULING:
+                print(f"\nChecking overlap:")
+                print(f"Flight: {flight_start} -> {flight_end}")
+                print(f"Unavail: {unavail_start_time} -> {unavail_end_time}")
+                print(f"Overlap detected: {has_unavail_overlap}")
+
+
 
         current_ac_is_same_as_target_ac = aircraft_id == current_aircraft_id
         if DEBUG_MODE_SCHEDULING:
