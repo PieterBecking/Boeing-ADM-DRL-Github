@@ -34,8 +34,8 @@ MIN_BREAKDOWN_PROBABILITY = 0
 # Logging and Debug Settings
 DEBUG_MODE = False # Turn on/off debug mode
 DEBUG_MODE_TRAINING = False  # Turn on/off debug mode for training
-DEBUG_MODE_REWARD = True  # Turn on/off debug mode for reward calculation
-DEBUG_MODE_PRINT_STATE = True         # Turn on/off debug mode for printing state
+DEBUG_MODE_REWARD = False  # Turn on/off debug mode for reward calculation
+DEBUG_MODE_PRINT_STATE = False         # Turn on/off debug mode for printing state
 DEBUG_MODE_CANCELLED_FLIGHT = False  # Turn on/off debug mode for cancelled flight
 DEBUG_MODE_VISUALIZATION = False
 DEBUG_MODE_BREAKDOWN = False  # Turn on/off debug mode for breakdowns (so rolling the dice etc)
