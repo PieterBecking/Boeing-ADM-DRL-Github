@@ -118,6 +118,9 @@ class AircraftDisruptionEnv(gym.Env):
         # List to keep track of flights to remove from dictionaries
         flights_to_remove = set()
 
+        # Set to collect actual flights in state space
+        active_flights = set()
+
         # Populate state matrix with aircraft and flight information
         for idx, aircraft_id in enumerate(self.aircraft_ids):
             if idx >= self.max_aircraft:
@@ -183,8 +186,6 @@ class AircraftDisruptionEnv(gym.Env):
             state[idx + 1, 2] = unavail_start_minutes
             state[idx + 1, 3] = unavail_end_minutes
 
-
-
             # Gather and store flight times (starting from column 4)
             flight_times = []
             for flight_id, rotation_info in self.rotations_dict.items():
@@ -210,6 +211,7 @@ class AircraftDisruptionEnv(gym.Env):
                                 continue
 
                     flight_times.append((flight_id, dep_time_minutes, arr_time_minutes))
+                    active_flights.add(flight_id)  # Add to active flights set
 
             # Sort flights by departure time
             flight_times.sort(key=lambda x: x[1])
@@ -221,6 +223,11 @@ class AircraftDisruptionEnv(gym.Env):
                     state[idx + 1, col_start] = flight_id
                     state[idx + 1, col_start + 1] = dep_time
                     state[idx + 1, col_start + 2] = arr_time
+
+        # Update flight_id_to_idx with only the active flights
+        self.flight_id_to_idx = {
+            flight_id: idx for idx, flight_id in enumerate(sorted(active_flights))
+        }
 
         # Remove past flights from dictionaries
         for flight_id in flights_to_remove:
@@ -306,8 +313,14 @@ class AircraftDisruptionEnv(gym.Env):
         flight_action, aircraft_action = self.map_index_to_action(action_index)
 
         # Check if the flight action is valid
-        if flight_action != 0 and flight_action - 1 not in self.flight_id_to_idx.values():
-            raise ValueError(f"Invalid flight action: {flight_action}")
+        if DEBUG_MODE_ACTION:
+            print(f"***Flight action: {flight_action}")
+            print(f"***self.flight_id_to_idx.keys(): {self.flight_id_to_idx.keys()}")
+        
+        if flight_action != 0:
+            # Check if the flight_action exists in our valid flight IDs
+            if flight_action not in self.flight_id_to_idx.keys():
+                raise ValueError(f"Invalid flight action: {flight_action}")
 
         # Validate the action
         self.validate_action(flight_action, aircraft_action)
@@ -358,8 +371,6 @@ class AircraftDisruptionEnv(gym.Env):
     def validate_action(self, flight_action, aircraft_action):
         """Validates the provided action values.
 
-        This function ensures that the action is within the set of valid actions.
-
         Args:
             flight_action (int): The flight action value to be validated.
             aircraft_action (int): The aircraft action value to be validated.
@@ -367,23 +378,17 @@ class AircraftDisruptionEnv(gym.Env):
         Raises:
             ValueError: If the action is not valid.
         """
-        # Check if flight_action and aircraft_action are within the action_space bounds
-        if not (0 <= flight_action <= len(self.flight_ids)):
-            raise ValueError(f"Invalid flight action: {flight_action}")
-        if not (0 <= aircraft_action <= len(self.aircraft_ids)):
-            raise ValueError(f"Invalid aircraft action: {aircraft_action}")
-
-        # Get valid actions from the action mask
+        # Get valid actions
         valid_flight_actions = self.get_valid_flight_actions()
         valid_aircraft_actions = self.get_valid_aircraft_actions()
 
         # Check if flight_action is valid
         if flight_action not in valid_flight_actions:
-            raise ValueError(f"Invalid flight action: {flight_action} is not in valid actions {valid_flight_actions}")
+            raise ValueError(f"Invalid flight action: {flight_action}")
 
         # Check if aircraft_action is valid
         if aircraft_action not in valid_aircraft_actions:
-            raise ValueError(f"Invalid aircraft action: {aircraft_action} is not in valid actions {valid_aircraft_actions}")
+            raise ValueError(f"Invalid aircraft action: {aircraft_action}")
 
         # No action case
         if flight_action == 0:
@@ -997,7 +1002,7 @@ class AircraftDisruptionEnv(gym.Env):
         # 5. **Penalty for last-minute changes (delays or cancellations)**
         last_minute_penalty = 0
         if flight_action != 0:  # Only apply if a flight action was taken
-            selected_flight_id = self.flight_ids[flight_action - 1]
+            selected_flight_id = flight_action  # Use flight_action directly as it's now the actual flight ID
             if selected_flight_id in self.flights_dict:
                 flight_info = self.flights_dict[selected_flight_id]
                 original_dep_time = parse_time_with_day_offset(flight_info['DepTime'], self.start_datetime)
@@ -1014,11 +1019,6 @@ class AircraftDisruptionEnv(gym.Env):
                         delay_minutes = self.environment_delayed_flights[selected_flight_id]
                         if time_to_departure < LAST_MINUTE_THRESHOLD:
                             last_minute_penalty = LAST_MINUTE_DELAY_PENALTY * delay_minutes
-                
-            else:
-                # Handle the case when the selected flight ID is not found in flights_dict
-                # You can choose to skip the penalty calculation or assign a default penalty
-                pass
 
         reward -= last_minute_penalty
         
@@ -1200,27 +1200,35 @@ class AircraftDisruptionEnv(gym.Env):
     # Note: get_valid_actions is no longer needed due to action_space change
 
     def get_valid_flight_actions(self):
-        """Generates a list of valid flight actions for the agent.
-
-        Returns:
-            list: A list of valid flight actions that the agent can take.
-        """
+        """Generates a list of valid flight actions based on flights in state space."""
         # Calculate current time in minutes from earliest_datetime
         current_time_minutes = (self.current_datetime - self.earliest_datetime).total_seconds() / 60
 
-        # Get all valid flight IDs (not cancelled, not departed, and in flights_dict)
-        valid_flight_ids = [
-            flight_id for flight_id in self.flights_dict.keys()
-            if flight_id not in self.cancelled_flights
-            and (parse_time_with_day_offset(self.flights_dict[flight_id]['DepTime'], self.start_datetime) - self.earliest_datetime).total_seconds() / 60 >= current_time_minutes
-        ]
+        # Get all valid flight IDs from the state space
+        valid_flight_ids = set()
+        for idx in range(1, self.rows_state_space):
+            for j in range(4, self.columns_state_space - 2, 3):
+                flight_id = self.state[idx, j]
+                if not np.isnan(flight_id):
+                    flight_id = int(flight_id)
+                    # Check if flight hasn't departed yet
+                    dep_time = self.state[idx, j + 1]
+                    if dep_time >= current_time_minutes and flight_id not in self.cancelled_flights:
+                        valid_flight_ids.add(flight_id)
 
-        # Convert flight IDs to their corresponding indices
-        valid_flight_indices = [self.flight_id_to_idx[flight_id] + 1 for flight_id in valid_flight_ids]
+        # Convert to sorted list and add 'no action' option
+        valid_flight_ids = sorted(list(valid_flight_ids))
+        
+        # Update flight_id_to_idx mapping using actual flight IDs
+        self.flight_id_to_idx = {
+            flight_id: flight_id - 1 for flight_id in valid_flight_ids
+        }
 
-        print(f"Valid flight indices: {valid_flight_indices}")
-
-        return [0] + valid_flight_indices  # Include 'no action' option
+        if DEBUG_MODE_ACTION:
+            print(f"Valid flight indices: {valid_flight_ids}")
+        
+        # Return [0] + actual flight IDs instead of creating sequential indices
+        return [0] + valid_flight_ids
 
 
 
