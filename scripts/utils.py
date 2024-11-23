@@ -433,13 +433,17 @@ def load_data(data_folder):
     return data_dict
 
 
-# The name of the model is the current date in the format YYYYMMDD-X where X is the subsequent number of the model, based on the number of models already saved for the current day
+# Check the trained_models folder, split each name by "-" and see the last part, which is the model version. add one to it and return it as a string
 def get_model_version(model_name):
+    print(f"Getting model version for {model_name}")
+    
     model_number = 1
     for file in os.listdir('../trained_models'):
-        print(f"checking file: {file}")
-        if file.startswith(model_name):
-            print(f" - file starts with {model_name}")
+
+        # drop the -x in the end
+        file_model_name = file.split('-')[0]
+
+        if file_model_name == model_name:
             model_number += 1
     return str(model_number)
 
