@@ -304,6 +304,7 @@ class AircraftDisruptionEnv(gym.Env):
         # Fix the state before processing the action
         self.fix_state(self.state)
 
+
         # Print the current state if in debug mode
         if DEBUG_MODE_PRINT_STATE:
             print_state_nicely_proactive(self.state)
@@ -335,14 +336,20 @@ class AircraftDisruptionEnv(gym.Env):
 
         # Get pre-action conflicts
         pre_action_conflicts = self.get_current_conflicts()
+        unresolved_uncertainties = self.get_unresolved_uncertainties()
+
+        # print("-----1-----")
+        # print(f"pre_action_conflicts: {pre_action_conflicts}")
 
         # Process uncertainties before handling flight operations
         self.process_uncertainties()
 
-        if len(pre_action_conflicts) == 0:
+        if len(pre_action_conflicts) == 0 and len(unresolved_uncertainties) == 0:
             # Handle the case when there are no conflicts
+            # print("-----2-----")
             processed_state, reward, terminated, truncated, info = self.handle_no_conflicts(flight_action, aircraft_action)
         else:
+            # print("-----3-----")
             # Resolve the conflict based on the action
             processed_state, reward, terminated, truncated, info = self.handle_flight_operations(flight_action, aircraft_action, pre_action_conflicts)
 

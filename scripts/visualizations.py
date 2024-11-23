@@ -43,8 +43,8 @@ class StatePlotter:
             end_datetime
         )
 
-    def plot_state(self, flights_dict, swapped_flights, environment_delayed_flights, cancelled_flights, current_datetime):
-        if DEBUG_MODE:
+    def plot_state(self, flights_dict, swapped_flights, environment_delayed_flights, cancelled_flights, current_datetime, title_appendix="", debug_print=False):
+        if debug_print:
             print(f"Plotting state with following flights: {flights_dict}")
 
         updated_rotations_dict = self.rotations_dict.copy()
@@ -220,7 +220,7 @@ class StatePlotter:
 
         plt.xlabel('Time')
         plt.ylabel('Aircraft')
-        plt.title('Aircraft Rotations and Unavailability')
+        plt.title(f'Aircraft Rotations and Unavailability {title_appendix.title()}')
         plt.grid(True)
         plt.xticks(rotation=45)
         plt.tight_layout()
