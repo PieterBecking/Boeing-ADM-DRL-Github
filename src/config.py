@@ -17,10 +17,10 @@ TIMESTEP_HOURS = 1  # Length of each timestep in hours
 DUMMY_VALUE = -999  # Dummy value for padding
 
 # Reward and Penalty Values
-RESOLVED_CONFLICT_REWARD = 1000     # Reward for resolving a conflict
+RESOLVED_CONFLICT_REWARD = 2000     # Reward for resolving a conflict
 DELAY_MINUTE_PENALTY = 6           # Penalty per minute of delay
-MAX_DELAY_PENALTY = 1000            # Maximum penalty for delay
-NO_ACTION_PENALTY = 5               # Penalty for no action while conflict(s) exist
+MAX_DELAY_PENALTY = 750            # Maximum penalty for delay
+NO_ACTION_PENALTY = 0               # Penalty for no action while conflict(s) exist
 CANCELLED_FLIGHT_PENALTY = 1000    # Penalty for cancelling a flight
 LAST_MINUTE_THRESHOLD = 60           # Threshold for last-minute changes in minutes
 LAST_MINUTE_CANCEL_PENALTY = 100    # Penalty for cancelling a flight at the last minute
