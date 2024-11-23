@@ -22,6 +22,10 @@ DELAY_MINUTE_PENALTY = 6           # Penalty per minute of delay
 MAX_DELAY_PENALTY = 1000            # Maximum penalty for delay
 NO_ACTION_PENALTY = 5               # Penalty for no action while conflict(s) exist
 CANCELLED_FLIGHT_PENALTY = 1000    # Penalty for cancelling a flight
+LAST_MINUTE_THRESHOLD = 60           # Threshold for last-minute changes in minutes
+LAST_MINUTE_CANCEL_PENALTY = 100    # Penalty for cancelling a flight at the last minute
+LAST_MINUTE_DELAY_PENALTY = 10      # Penalty for delaying a flight at the last minute
+
 
 # Environment Settings
 MIN_TURN_TIME = 0  # Minimum gap between flights for the same aircraft
@@ -30,8 +34,8 @@ MIN_BREAKDOWN_PROBABILITY = 0
 # Logging and Debug Settings
 DEBUG_MODE = False # Turn on/off debug mode
 DEBUG_MODE_TRAINING = False  # Turn on/off debug mode for training
-DEBUG_MODE_REWARD = False  # Turn on/off debug mode for reward calculation
-DEBUG_MODE_PRINT_STATE = False         # Turn on/off debug mode for printing state
+DEBUG_MODE_REWARD = True  # Turn on/off debug mode for reward calculation
+DEBUG_MODE_PRINT_STATE = True         # Turn on/off debug mode for printing state
 DEBUG_MODE_CANCELLED_FLIGHT = False  # Turn on/off debug mode for cancelled flight
 DEBUG_MODE_VISUALIZATION = False
 DEBUG_MODE_BREAKDOWN = False  # Turn on/off debug mode for breakdowns (so rolling the dice etc)
