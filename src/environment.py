@@ -7,7 +7,7 @@ from src.config import MAX_AIRCRAFT, MAX_FLIGHTS_PER_AIRCRAFT, ROWS_STATE_SPACE,
 from scripts.utils import parse_time_with_day_offset, print_state_nicely_proactive
 
 class AircraftDisruptionEnv(gym.Env):
-    def __init__(self, aircraft_dict, flights_dict, rotations_dict, alt_aircraft_dict, config_dict, env_type='myopic'):
+    def __init__(self, aircraft_dict, flights_dict, rotations_dict, alt_aircraft_dict, config_dict, env_type):
         super(AircraftDisruptionEnv, self).__init__()
         
         # Store the environment type ('myopic' or 'proactive')
@@ -129,10 +129,7 @@ class AircraftDisruptionEnv(gym.Env):
             # Store aircraft index instead of ID
             state[idx + 1, 0] = idx + 1  # Use numerical index instead of string ID
 
-            # Check for predefined unavailabilities and assign actual probability
-            print(aircraft_id)
-            print(self.alt_aircraft_dict)
-            
+            # Check for predefined unavailabilities and assign actual probability            
             if aircraft_id in self.alt_aircraft_dict:
                 unavails = self.alt_aircraft_dict[aircraft_id]
                 if not isinstance(unavails, list):
@@ -723,6 +720,17 @@ class AircraftDisruptionEnv(gym.Env):
         # Check if flight overlaps with unavailability
         has_unavail_overlap = (not np.isnan(unavail_start) and not np.isnan(unavail_end) and 
                               dep_time < unavail_end and arr_time > unavail_start)
+        if DEBUG_MODE_SCHEDULING:
+            print(f"****** has_unavail_overlap: {has_unavail_overlap}")
+
+        current_ac_is_same_as_target_ac = aircraft_id == current_aircraft_id
+        if DEBUG_MODE_SCHEDULING:
+            print(f"****** current_ac_is_same_as_target_ac: {current_ac_is_same_as_target_ac}") 
+
+        if current_ac_is_same_as_target_ac and not has_unavail_overlap:
+            if DEBUG_MODE_SCHEDULING:
+                print("****** No unavailability overlap and current aircraft is the same as target aircraft - Keeping original schedule")
+            return
 
         if has_unavail_overlap:
             if DEBUG_MODE_SCHEDULING:

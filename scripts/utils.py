@@ -437,9 +437,9 @@ def load_data(data_folder):
 def get_model_version(model_name):
     model_number = 1
     for file in os.listdir('../trained_models'):
-        # print(f"checking file: {file}")
+        print(f"checking file: {file}")
         if file.startswith(model_name):
-            # print(f" - file starts with {model_name}")
+            print(f" - file starts with {model_name}")
             model_number += 1
     return str(model_number)
 
