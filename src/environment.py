@@ -304,7 +304,6 @@ class AircraftDisruptionEnv(gym.Env):
 
         # Extract the action values from the action
         flight_action, aircraft_action = self.map_index_to_action(action_index)
-        print(f"Extracted flight_action: {flight_action}, aircraft_action: {aircraft_action}")
 
         # Check if the flight action is valid
         if flight_action != 0 and flight_action - 1 not in self.flight_id_to_idx.values():
@@ -434,11 +433,6 @@ class AircraftDisruptionEnv(gym.Env):
                 if DEBUG_MODE:
                     print(f"Aircraft {aircraft_id}: Probability updated from {prob:.2f} to {new_prob:.2f}")
 
-                # If within the current time step, resolve the breakdown
-                print(f"Current datetime: {self.current_datetime}")
-                print(f"Timestep: {self.timestep}")
-                print(f"Next datetime: {self.current_datetime + self.timestep}")
-                print(f"Breakdown start time: {breakdown_start_time}")
                 if self.current_datetime + self.timestep >= breakdown_start_time:
                     if DEBUG_MODE_BREAKDOWN:
                         print(f"Rolling the dice for breakdown with updated probability {new_prob} starting at {breakdown_start_time}")
@@ -537,7 +531,6 @@ class AircraftDisruptionEnv(gym.Env):
                 - info (dict): Additional diagnostic information.
         """
 
-        print(f"Handling flight operations - flight_action: {flight_action}, aircraft_action: {aircraft_action}")
 
         if flight_action == 0:
             # No action taken
@@ -561,7 +554,6 @@ class AircraftDisruptionEnv(gym.Env):
             return processed_state, reward, terminated, truncated, {}
         elif aircraft_action == 0:
             # Cancel the flight
-            print(f"Cancelling flight {flight_action}")
             self.cancel_flight(flight_action)
             if DEBUG_MODE_CANCELLED_FLIGHT:
                 print(f"Cancelled flight {flight_action}")
@@ -586,16 +578,19 @@ class AircraftDisruptionEnv(gym.Env):
             return processed_state, reward, terminated, truncated, {}
         else:
             # Reschedule the flight to the selected aircraft
-            print(f"Rescheduling flight {flight_action} to aircraft {aircraft_action}")
             selected_flight_id = flight_action
             selected_aircraft_id = self.aircraft_ids[aircraft_action - 1]
-            print(f"Selected flight ID: {selected_flight_id}")
-            print(f"Selected aircraft ID: {selected_aircraft_id}")
 
             # Check if the flight is in rotations_dict
             if selected_flight_id not in self.rotations_dict:
                 # Flight has been canceled or does not exist
                 print(f"Flight {selected_flight_id} has been canceled or does not exist.")
+                
+                # Proceed to next timestep
+                next_datetime = self.current_datetime + self.timestep
+                self.current_datetime = next_datetime
+                self.state = self._get_initial_state()
+                
                 # Handle this case appropriately
                 reward = self._calculate_reward(pre_action_conflicts, pre_action_conflicts, flight_action, aircraft_action)
                 terminated, reason = self._is_done()
@@ -674,7 +669,6 @@ class AircraftDisruptionEnv(gym.Env):
             return processed_state, reward, terminated, truncated, {}
 
     def schedule_flight_on_aircraft(self, aircraft_id, flight_id, dep_time, current_aircraft_id, arr_time=None, delayed_flights=None):
-        print(f"Scheduling flight {flight_id} on aircraft {aircraft_id}")
         if DEBUG_MODE_SCHEDULING:
             print("\n=== Starting schedule_flight_on_aircraft ===")
             print(f"Scheduling flight {flight_id} on aircraft {aircraft_id}")
@@ -1224,6 +1218,8 @@ class AircraftDisruptionEnv(gym.Env):
         # Convert flight IDs to their corresponding indices
         valid_flight_indices = [self.flight_id_to_idx[flight_id] + 1 for flight_id in valid_flight_ids]
 
+        print(f"Valid flight indices: {valid_flight_indices}")
+
         return [0] + valid_flight_indices  # Include 'no action' option
 
 
@@ -1273,6 +1269,5 @@ class AircraftDisruptionEnv(gym.Env):
         """
         flight_action = index // (len(self.aircraft_ids) + 1)
         aircraft_action = index % (len(self.aircraft_ids) + 1)
-        print(f"Mapped index {index} to flight_action: {flight_action}, aircraft_action: {aircraft_action}")
         return flight_action, aircraft_action
 
