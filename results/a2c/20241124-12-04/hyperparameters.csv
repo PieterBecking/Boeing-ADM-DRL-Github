@@ -1,0 +1,26 @@
+Parameter,Value
+myopic_model_name,myopic_3ac
+proactive_model_name,proactive_3ac
+runtime_in_seconds_myopic,19.542145
+runtime_in_seconds_proactive,15.082996
+runtime_in_hh:mm:ss_myopic,19.542145
+runtime_in_hh:mm:ss_proactive,15.082996
+device,mps
+device_info,{'device_type': 'MacBook M1'}
+MAX_AIRCRAFT,3
+MAX_FLIGHTS_PER_AIRCRAFT,12
+TIMESTEP_HOURS,1
+DUMMY_VALUE,-999
+RESOLVED_CONFLICT_REWARD,2000
+wallclock_seconds_per_timestep_myopic,dummy
+wallclock_seconds_per_timestep_proactive,dummy
+N_EPISODES,100
+MAX_TIMESTEPS,1000
+LEARNING_RATE,0.0007
+GAMMA,0.99
+N_STEPS,5
+VALUE_FUNCTION_COEF,0.5
+ENTROPY_COEF,0.01
+MAX_GRAD_NORM,0.5
+NEURAL_NET_STRUCTURE,
+CROSS_VAL_INTERVAL,10
