@@ -20,7 +20,21 @@ results/*/plots/reward-plots-per-scenario/
 /results/ppo/*
 /results/dqn/*
 
-!/results/a2c/*-good/
-!/results/ppo/*-good/
-!/results/dqn/*-good/
+!/results/a2c/_*
+!/results/ppo/_*
+!/results/dqn/_*
 
+# Ignore all files in the trained_models directory
+/trained_models/dqn/*
+/trained_models/a2c/*
+/trained_models/ppo/*
+
+# Except do not ignore the trained_models directory itself
+!/trained_models/dqn/
+!/trained_models/a2c/
+!/trained_models/ppo/
+
+# Do not ignore files that start with an underscore in the trained_models directory
+!/trained_models/dqn/_*
+!/trained_models/a2c/_*
+!/trained_models/ppo/_*
