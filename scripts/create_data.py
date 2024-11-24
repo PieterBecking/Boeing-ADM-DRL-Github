@@ -84,7 +84,6 @@ def generate_aircraft_file(file_name, aircraft_types, total_aircraft_range):
 
 # generate_alt_aircraft_file(alt_aircraft_file, aircraft_ids, amount_aircraft_disrupted, config_dict, min_delta_start_unavailability, max_delta_start_unavailability, min_period_unavailability, max_period_unavailability, probability_range, probability_distribution)
 
-# Function to generate alt_aircraft.csv
 def generate_alt_aircraft_file(file_name, aircraft_ids, amount_aircraft_disrupted, config_dict, min_delta_start_unavailability, max_delta_start_unavailability, min_period_unavailability, max_period_unavailability, probability_range, probability_distribution):
     """Generates the alt_aircraft.csv file with additional probability information."""
     clear_file(file_name)
@@ -96,23 +95,40 @@ def generate_alt_aircraft_file(file_name, aircraft_ids, amount_aircraft_disrupte
         if aircraft_id in disrupted_aircraft_ids:
             start_date = config_dict['RecoveryPeriod']['StartDate']
             start_time_recovery = config_dict['RecoveryPeriod']['StartTime']
+
+            # Parse date in dd/mm/yy format
+            start_date_obj = datetime.strptime(start_date, '%d/%m/%y')
             start_unavail = (datetime.strptime(start_time_recovery, '%H:%M') +
                              timedelta(minutes=random.randint(min_delta_start_unavailability, max_delta_start_unavailability))).strftime('%H:%M')
-            
+
             end_date = config_dict['RecoveryPeriod']['EndDate']
             start_unavail_obj = datetime.strptime(start_unavail, '%H:%M')
             end_unavail = (start_unavail_obj + timedelta(minutes=random.randint(min_period_unavailability, max_period_unavailability))).strftime('%H:%M')
+
+            # Adjust end_date if end_unavail is earlier than start_unavail
+            if datetime.strptime(end_unavail, '%H:%M') < start_unavail_obj:
+                end_date_obj = datetime.strptime(end_date, '%d/%m/%y')
+                end_date = (end_date_obj + timedelta(days=1)).strftime('%d/%m/%y')
 
             all_aircraft_data.append(f"{aircraft_id} {start_date} {start_unavail} {end_date} {end_unavail} 1.00")
         else:
             start_date = config_dict['RecoveryPeriod']['StartDate']
             start_time_recovery = config_dict['RecoveryPeriod']['StartTime']
+
+            # Parse date in dd/mm/yy format
+            start_date_obj = datetime.strptime(start_date, '%d/%m/%y')
             start_unavail = (datetime.strptime(start_time_recovery, '%H:%M') +
                              timedelta(minutes=random.randint(min_delta_start_unavailability, max_delta_start_unavailability))).strftime('%H:%M')
-            
+
             end_date = config_dict['RecoveryPeriod']['EndDate']
             start_unavail_obj = datetime.strptime(start_unavail, '%H:%M')
             end_unavail = (start_unavail_obj + timedelta(minutes=random.randint(min_period_unavailability, max_period_unavailability))).strftime('%H:%M')
+
+            # Adjust end_date if end_unavail is earlier than start_unavail
+            if datetime.strptime(end_unavail, '%H:%M') < start_unavail_obj:
+                end_date_obj = datetime.strptime(end_date, '%d/%m/%y')
+                end_date = (end_date_obj + timedelta(days=1)).strftime('%d/%m/%y')
+
             probability = random.uniform(probability_range[0], probability_range[1])
             all_aircraft_data.append(f"{aircraft_id} {start_date} {start_unavail} {end_date} {end_unavail} {probability:.2f}")
 

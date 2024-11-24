@@ -67,6 +67,23 @@ def load_scenario_data(scenario_folder):
         else:
             data_dict[file_type] = None
 
+    # # Fix the alt_aircraft file: if the arrival time is before the departure time, add 24 hours to the arrival time
+    # if data_dict['alt_aircraft']:
+    #     print(f"Fixing alt_aircraft file")
+    #     print(data_dict['alt_aircraft'])
+    #     """
+    #     data_dict['alt_aircraft'] is of this form:
+    #     {'A320#1': {'StartDate': '14/09/24', 'StartTime': '08:02', 'EndDate': '14/09/24', 'EndTime': '23:29', 'Probability': 0.17}, 'A320#2': {'StartDate': '14/09/24', 'StartTime': '08:15', 'EndDate': '14/09/24', 'EndTime': '13:13', 'Probability': 0.31}, 'A320#3': {'StartDate': '14/09/24', 'StartTime': '08:12', 'EndDate': '14/09/24', 'EndTime': '15:54', 'Probability': 0.0}}
+    #     """
+    #     for aircraft in data_dict['alt_aircraft']:
+    #         for flight in data_dict['alt_aircraft'][aircraft]:
+    #             deptime = data_dict['alt_aircraft'][aircraft]['StartTime']
+    #             print(f"deptime: {deptime}")
+    #             arrtime = data_dict['alt_aircraft'][aircraft]['EndTime']
+    #             print(f"arrtime: {arrtime}")
+    #             if arrtime < deptime:
+    #                 # add one day to the end date
+    #                 data_dict['alt_aircraft'][aircraft]['EndDate'] = (datetime.strptime(data_dict['alt_aircraft'][aircraft]['EndDate'], '%d/%m/%y') + timedelta(days=1)).strftime('%d/%m/%y')
     return data_dict
 
 # Clear file content
@@ -434,11 +451,11 @@ def load_data(data_folder):
 
 
 # Check the trained_models folder, split each name by "-" and see the last part, which is the model version. add one to it and return it as a string
-def get_model_version(model_name):
+def get_model_version(model_name, model_type):
     print(f"Getting model version for {model_name}")
     
     model_number = 1
-    for file in os.listdir('../trained_models'):
+    for file in os.listdir(f'../trained_models/{model_type}'):
 
         # drop the -x in the end
         file_model_name = file.split('-')[0]
@@ -447,7 +464,19 @@ def get_model_version(model_name):
             model_number += 1
     return str(model_number)
 
+# Check the trained_models folder, split each name by "-" and see the last part, which is the model version. add one to it and return it as a string
+def get_model_version_from_root(model_name, model_type):
+    print(f"Getting model version for {model_name}")
+    
+    model_number = 1
+    for file in os.listdir(f'trained_models/dqn/{model_type}'):
 
+        # drop the -x in the end
+        file_model_name = file.split('-')[0]
+
+        if file_model_name == model_name:
+            model_number += 1
+    return str(model_number)
 
 
 

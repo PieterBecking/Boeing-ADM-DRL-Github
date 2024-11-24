@@ -39,9 +39,14 @@ class AircraftDisruptionEnv(gym.Env):
     
 
         # Flight information and indexing
-        self.flight_ids = list(flights_dict.keys())
-        self.flight_id_to_idx = {flight_id: idx for idx, flight_id in enumerate(self.flight_ids)}
-
+        # if flights_dict is empty, flights_dict is empty
+        if flights_dict:
+            self.flight_ids = list(flights_dict.keys())
+            self.flight_id_to_idx = {flight_id: idx for idx, flight_id in enumerate(self.flight_ids)}
+        else:
+            self.flight_ids = []
+            self.flight_id_to_idx = {}
+    
         # Filter out flights with '+' in DepTime (next day flights)
         this_day_flights = [flight_info for flight_info in flights_dict.values() if '+' not in flight_info['DepTime']]
 
@@ -114,11 +119,12 @@ class AircraftDisruptionEnv(gym.Env):
         time_until_end_minutes = (self.end_datetime - self.current_datetime).total_seconds() / 60
 
         # Insert the current_time_minutes and time_until_end_minutes in the first row
-        for i in range(0, self.columns_state_space - 1, 2):  # Start at 0 and step by 2
+        for i in range(0, self.columns_state_space // 2, 2):  # Start at 0 and step by 2 for the half of the columns
             if i + 1 < self.columns_state_space:  # Check to ensure i+1 is in range
                 state[0, i] = current_time_minutes  # Current time
                 state[0, i + 1] = time_until_end_minutes  # Time until end of recovery period
 
+        # XXX
 
         # List to keep track of flights to remove from dictionaries
         flights_to_remove = set()
@@ -1350,4 +1356,3 @@ class AircraftDisruptionEnv(gym.Env):
         flight_action = index // (len(self.aircraft_ids) + 1)
         aircraft_action = index % (len(self.aircraft_ids) + 1)
         return flight_action, aircraft_action
-
