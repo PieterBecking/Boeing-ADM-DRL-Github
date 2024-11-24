@@ -128,7 +128,7 @@ class AircraftDisruptionEnv(gym.Env):
                 state[0, i] = current_time_minutes  # Current time
                 state[0, i + 1] = time_until_end_minutes  # Time until end of recovery period
 
-        # XXX
+        # self.something_happened = False
 
         # List to keep track of flights to remove from dictionaries
         flights_to_remove = set()
@@ -778,12 +778,16 @@ class AircraftDisruptionEnv(gym.Env):
 
 
         current_ac_is_same_as_target_ac = aircraft_id == current_aircraft_id
+        if not current_ac_is_same_as_target_ac:
+            self.something_happened = True
+
         if DEBUG_MODE_SCHEDULING:
             print(f"****** current_ac_is_same_as_target_ac: {current_ac_is_same_as_target_ac}") 
 
         if current_ac_is_same_as_target_ac and not has_unavail_overlap:
             if DEBUG_MODE_SCHEDULING:
                 print("****** No unavailability overlap and current aircraft is the same as target aircraft - Keeping original schedule")
+            self.something_happened = False
             return
 
         if has_unavail_overlap:
@@ -801,9 +805,11 @@ class AircraftDisruptionEnv(gym.Env):
                     arr_time = dep_time + flight_duration
                     delay = dep_time - original_dep_minutes
                     self.environment_delayed_flights[flight_id] = self.environment_delayed_flights.get(flight_id, 0) + delay
+                    self.something_happened = True
                 else:
                     if DEBUG_MODE_SCHEDULING:
                         print("Case 2: Current aircraft with prob = 0.00 - Keeping original schedule")
+                    self.something_happened = False
             else:
                 if unavail_prob == 1.00:
                     if DEBUG_MODE_SCHEDULING:
@@ -813,9 +819,11 @@ class AircraftDisruptionEnv(gym.Env):
                     arr_time = dep_time + flight_duration
                     delay = dep_time - original_dep_minutes
                     self.environment_delayed_flights[flight_id] = self.environment_delayed_flights.get(flight_id, 0) + delay
+                    self.something_happened = True
                 else:
                     if DEBUG_MODE_SCHEDULING:
                         print("Case 4: Different aircraft with prob < 1.00 - Allowing overlap")
+                    self.something_happened = True
 
         # Now handle conflicts with other flights
         scheduled_flights = []
@@ -943,6 +951,8 @@ class AircraftDisruptionEnv(gym.Env):
                     self.state[idx, j + 1] = np.nan
                     self.state[idx, j + 2] = np.nan
 
+        self.something_happened = True
+
 
     def update_flight_times(self, flight_id, dep_time_minutes, arr_time_minutes):
         """Updates the flight times in the flights dictionary.
@@ -1062,7 +1072,10 @@ class AircraftDisruptionEnv(gym.Env):
 
         # 5. **Bonus for proactive changes **
         ahead_of_time_bonus = 0
-        if flight_action != 0:
+        
+        if flight_action == 0:
+            self.something_happened = False
+        if flight_action != 0 and self.something_happened:
             selected_flight_id = flight_action
             original_dep_time = parse_time_with_day_offset(original_flight_action_departure_time, self.start_datetime)
             original_dep_minutes = (original_dep_time - self.earliest_datetime).total_seconds() / 60
@@ -1074,8 +1087,6 @@ class AircraftDisruptionEnv(gym.Env):
 
             ahead_of_time_bonus = AHEAD_BONUS_PER_MINUTE * time_to_departure
 
-
-                
         reward += ahead_of_time_bonus
         
         if DEBUG_MODE_REWARD:
@@ -1083,6 +1094,14 @@ class AircraftDisruptionEnv(gym.Env):
                 print(f"  +{ahead_of_time_bonus} bonus for proactive action ({time_to_departure:.1f} minutes ahead)")
             else:
                 print(f"  -{ahead_of_time_bonus} bonus for proactive action")
+
+
+        # 6. **Penalty per minute passed**
+        time_penalty = (self.current_datetime - self.earliest_datetime).total_seconds() / 60 * TIME_MINUTE_PENALTY
+        reward -= time_penalty
+        if DEBUG_MODE_REWARD:
+            print(f"  -{time_penalty} penalty for time passed")
+
 
         if DEBUG_MODE_REWARD:
             print("_______________")

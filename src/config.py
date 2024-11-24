@@ -24,7 +24,8 @@ NO_ACTION_PENALTY = 0 #23               # Penalty for no action while conflict(s
 CANCELLED_FLIGHT_PENALTY = 1000    # Penalty for cancelling a flight
 LAST_MINUTE_THRESHOLD = 120           # Threshold for last-minute changes in minutes
 LAST_MINUTE_FLIGHT_PENALTY = 100      # Penalty for last-minute flight changes  
-AHEAD_BONUS_PER_MINUTE = 1                # Reward for proactive flight changes
+AHEAD_BONUS_PER_MINUTE = 0.5                # Reward for proactive flight changes
+TIME_MINUTE_PENALTY = 1
 
 # Environment Settings
 MIN_TURN_TIME = 0  # Minimum gap between flights for the same aircraft
