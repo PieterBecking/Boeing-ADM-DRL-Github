@@ -268,7 +268,6 @@ def generate_rotations_file(file_name, flight_rotation_data, start_datetime):
     )
 
 """
-# Main function to run the whole process (but you can call this whatever you like)
 
 def create_data_scenario(
     scenario_name, template_folder, data_root_folder, aircraft_types, total_aircraft_range,
