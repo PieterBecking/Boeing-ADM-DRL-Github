@@ -16,4 +16,11 @@ results/*/plots/reward-plots-per-scenario/
 # Ignore Jupyter notebook checkpoints and output
 # .ipynb_checkpoints/
 
-*.png
+/results/a2c/*
+/results/ppo/*
+/results/dqn/*
+
+!/results/a2c/*-good/
+!/results/ppo/*-good/
+!/results/dqn/*-good/
+

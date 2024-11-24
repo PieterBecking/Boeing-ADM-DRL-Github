@@ -46,7 +46,7 @@ class AircraftDisruptionEnv(gym.Env):
         else:
             self.flight_ids = []
             self.flight_id_to_idx = {}
-    
+
         # Filter out flights with '+' in DepTime (next day flights)
         this_day_flights = [flight_info for flight_info in flights_dict.values() if '+' not in flight_info['DepTime']]
 
@@ -1075,25 +1075,11 @@ class AircraftDisruptionEnv(gym.Env):
                     print(f"Time at action: {time_at_action:.1f} minutes")
                     print(f"Original departure time: {original_dep_minutes:.1f} minutes")
                     print(f"Time to departure: {time_to_departure:.1f} minutes")
-                # # Calculate proactive bonus
-                # if time_to_departure > LAST_MINUTE_THRESHOLD:
-                #     # Normalize the bonus based on how far ahead the action is taken
-                #     # Maximum bonus when action is taken at the start of the recovery window
-                #     max_possible_lead_time = (self.end_datetime - self.start_datetime).total_seconds() / 60
-                #     normalized_lead_time = min(time_to_departure / max_possible_lead_time, 1.0)
-                #     ahead_of_time_bonus = FULL_AHEAD_REWARD * normalized_lead_time
-                #     if DEBUG_MODE_REWARD:
-                #         print(f"  **+{ahead_of_time_bonus} bonus for proactive action ({time_to_departure:.1f} minutes ahead)")
-                # else:
-                #     if DEBUG_MODE_REWARD:
-                #         print(f"  **-{ahead_of_time_bonus} penalty for last-minute action ({time_to_departure:.1f} minutes ahead)")
 
-                # Calculate last-minute penalties
-                if time_to_departure < LAST_MINUTE_THRESHOLD:
-                    last_minute_penalty = LAST_MINUTE_FLIGHT_PENALTY  # Equal penalty for delays and cancellations, independent of delay minutes
-
+                ahead_of_time_bonus = AHEAD_BONUS_PER_MINUTE * time_to_departure
+                
         # reward += ahead_of_time_bonus
-        reward -= last_minute_penalty
+        reward -= ahead_of_time_bonus
         
         if DEBUG_MODE_REWARD:
             # if ahead_of_time_bonus > 0:
