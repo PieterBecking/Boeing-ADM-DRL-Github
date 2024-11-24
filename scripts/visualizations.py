@@ -606,6 +606,7 @@ def calculate_total_training_timesteps(training_folders_path, n_episodes):
     # print(f"amount of scenario folders:{len(scenario_folders)}")
     # Simulate one batch with a random agent to calculate timesteps per scenario
     for scenario_folder in scenario_folders:
+        # print(f"*****scenario_folder: {scenario_folder}")
         scenario_count += 1
 
         # Load the data for the current scenario
