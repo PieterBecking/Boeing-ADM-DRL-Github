@@ -451,11 +451,11 @@ def load_data(data_folder):
 
 
 # Check the trained_models folder, split each name by "-" and see the last part, which is the model version. add one to it and return it as a string
-def get_model_version(model_name, model_type):
+def get_model_version(model_name, myopic_proactive, drl_type):
     print(f"Getting model version for {model_name}")
     
     model_number = 1
-    for file in os.listdir(f'../trained_models/{model_type}'):
+    for file in os.listdir(f'../trained_models/{drl_type}'):
 
         # drop the -x in the end
         file_model_name = file.split('-')[0]
