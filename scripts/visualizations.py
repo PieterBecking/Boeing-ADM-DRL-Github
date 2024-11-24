@@ -668,7 +668,7 @@ def calculate_total_training_timesteps(training_folders_path, n_episodes):
 
 
 
-def simulate_and_plot_epsilon_decay(training_folders_path, n_episodes, epsilon_start, epsilon_min, epsilon_decay_rate, estimated_total_timesteps):
+def simulate_and_plot_epsilon_decay(epsilon_start, epsilon_min, epsilon_decay_rate, estimated_total_timesteps, EPSILON_TYPE):
     """
     Simulates a batch of scenarios using a random agent, estimates total timesteps for training,
     generates epsilon decay values, and plots the decay curve.
@@ -682,7 +682,10 @@ def simulate_and_plot_epsilon_decay(training_folders_path, n_episodes, epsilon_s
     min_epsilon_reached_at = 0
 
     for t in range(int(total_timesteps_estimate)):
-        epsilon = max(epsilon_min, epsilon * (1 - epsilon_decay_rate))
+        if EPSILON_TYPE == "exponential":
+            epsilon = max(epsilon_min, epsilon * (1 - epsilon_decay_rate))
+        elif EPSILON_TYPE == "linear":
+            epsilon = max(epsilon_min, epsilon - epsilon_decay_rate)
         epsilon_values_estimate.append(epsilon)
 
         # Record when epsilon reaches the minimum value

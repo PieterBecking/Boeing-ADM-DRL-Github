@@ -641,8 +641,9 @@ def format_days(days):
     return str(days)
 
 
-def create_results_directory(base_dir='../results'):
+def create_results_directory(base_dir='../results', append_to_name=''):
     """Create a results directory with the current datetime."""
+    base_dir = os.path.join(base_dir, append_to_name)
     now = datetime.now()
     folder_name = now.strftime('%Y%m%d-%H-%M')
     results_dir = os.path.join(base_dir, folder_name)
@@ -650,7 +651,7 @@ def create_results_directory(base_dir='../results'):
     os.makedirs(os.path.join(results_dir, 'plots'), exist_ok=True)
     return results_dir
 
-def calculate_epsilon_decay_rate(total_timesteps, epsilon_start, epsilon_min, percentage_min=95):
+def calculate_epsilon_decay_rate(total_timesteps, epsilon_start, epsilon_min, percentage_min=95, EPSILON_TYPE="exponential"):
     """
     Calculates the decay rate for epsilon such that it reaches epsilon_min after the specified percentage of total timesteps.
 
@@ -666,8 +667,11 @@ def calculate_epsilon_decay_rate(total_timesteps, epsilon_start, epsilon_min, pe
     # Calculate the timesteps at which epsilon should reach epsilon_min
     target_timesteps = total_timesteps * (percentage_min / 100)
 
-    # Solve for the decay rate using the exponential decay formula
-    decay_rate = -np.log(epsilon_min / epsilon_start) / target_timesteps
+    if EPSILON_TYPE == "exponential":
+        # Solve for the decay rate using the exponential decay formula
+        decay_rate = -np.log(epsilon_min / epsilon_start) / target_timesteps
+    elif EPSILON_TYPE == "linear":
+        decay_rate = (epsilon_start - epsilon_min) / target_timesteps
 
     print(f"Calculated EPSILON_DECAY_RATE: {decay_rate}")
     return decay_rate

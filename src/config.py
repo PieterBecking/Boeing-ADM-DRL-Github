@@ -22,10 +22,9 @@ DELAY_MINUTE_PENALTY = 6           # Penalty per minute of delay
 MAX_DELAY_PENALTY = 750            # Maximum penalty for delay
 NO_ACTION_PENALTY = 0               # Penalty for no action while conflict(s) exist
 CANCELLED_FLIGHT_PENALTY = 1000    # Penalty for cancelling a flight
-LAST_MINUTE_THRESHOLD = 60           # Threshold for last-minute changes in minutes
-LAST_MINUTE_CANCEL_PENALTY = 100    # Penalty for cancelling a flight at the last minute
-LAST_MINUTE_DELAY_PENALTY = 10      # Penalty for delaying a flight at the last minute
-
+LAST_MINUTE_THRESHOLD = 120           # Threshold for last-minute changes in minutes
+LAST_MINUTE_FLIGHT_PENALTY = 100      # Penalty for last-minute flight changes  
+FULL_AHEAD_REWARD = 1000                # Reward for proactive flight changes
 
 # Environment Settings
 MIN_TURN_TIME = 0  # Minimum gap between flights for the same aircraft
@@ -42,6 +41,7 @@ DEBUG_MODE_BREAKDOWN = False  # Turn on/off debug mode for breakdowns (so rollin
 DEBUG_MODE_ACTION = False
 DEBUG_MODE_STOPPING_CRITERIA = False
 DEBUG_MODE_SCHEDULING = False
+DEBUG_MODE_REWARD_LAST_MINUTE_PENALTY = False  # Turn on/off debug mode for reward calculation last minute penalty
 
 # Data Generation Settings
 DEPARTURE_AFTER_END_RECOVERY = 1  # how many hours after the end of the recovery period can a generated flight depart

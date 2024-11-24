@@ -3,8 +3,8 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 from datetime import datetime, timedelta
-from src.config import MAX_AIRCRAFT, MAX_FLIGHTS_PER_AIRCRAFT, ROWS_STATE_SPACE, COLUMNS_STATE_SPACE, TIMESTEP_HOURS, ACTION_SPACE_SIZE, DUMMY_VALUE, RESOLVED_CONFLICT_REWARD, DELAY_MINUTE_PENALTY, MAX_DELAY_PENALTY, NO_ACTION_PENALTY, CANCELLED_FLIGHT_PENALTY, LAST_MINUTE_THRESHOLD, LAST_MINUTE_CANCEL_PENALTY, LAST_MINUTE_DELAY_PENALTY, MIN_TURN_TIME, MIN_BREAKDOWN_PROBABILITY, DEBUG_MODE, DEBUG_MODE_TRAINING, DEBUG_MODE_REWARD, DEBUG_MODE_PRINT_STATE, DEBUG_MODE_CANCELLED_FLIGHT, DEBUG_MODE_VISUALIZATION, DEBUG_MODE_BREAKDOWN, DEBUG_MODE_ACTION, DEBUG_MODE_STOPPING_CRITERIA, DEBUG_MODE_SCHEDULING, DEPARTURE_AFTER_END_RECOVERY, BREAKDOWN_PROBABILITY, BREAKDOWN_DURATION, INDICATION_TIME_BEFORE_BREAKDOWN
-from scripts.utils import parse_time_with_day_offset, print_state_nicely_proactive
+from src.config import *
+from scripts.utils import *
 
 class AircraftDisruptionEnv(gym.Env):
     def __init__(self, aircraft_dict, flights_dict, rotations_dict, alt_aircraft_dict, config_dict, env_type):
@@ -489,6 +489,13 @@ class AircraftDisruptionEnv(gym.Env):
         This function updates the current datetime, checks if the episode is terminated,
         updates the state, and returns the appropriate outputs.
         """
+
+        # store the departure time of the flight that is being acted upon (before the action is taken)
+        if flight_action != 0:
+            original_flight_action_departure_time = self.flights_dict[flight_action]['DepTime']
+        else:
+            original_flight_action_departure_time = None
+
         next_datetime = self.current_datetime + self.timestep
         if next_datetime >= self.end_datetime:
             terminated, reason = self._is_done()
@@ -502,9 +509,10 @@ class AircraftDisruptionEnv(gym.Env):
 
         self.current_datetime = next_datetime
         self.state = self._get_initial_state()
+        
 
         # Call _calculate_reward even when there are no conflicts
-        reward = self._calculate_reward(set(), set(), flight_action, aircraft_action)
+        reward = self._calculate_reward(set(), set(), flight_action, aircraft_action, original_flight_action_departure_time)
 
         # Since there are no conflicts, return the new state with zero reward
         terminated, reason = self._is_done()
@@ -543,6 +551,11 @@ class AircraftDisruptionEnv(gym.Env):
                 - info (dict): Additional diagnostic information.
         """
 
+        # store the departure time of the flight that is being acted upon (before the action is taken)
+        if flight_action != 0:
+            original_flight_action_departure_time = self.flights_dict[flight_action]['DepTime']
+        else:
+            original_flight_action_departure_time = None
 
         if flight_action == 0:
             # No action taken
@@ -553,7 +566,7 @@ class AircraftDisruptionEnv(gym.Env):
 
             post_action_conflicts = self.get_current_conflicts()
             resolved_conflicts = pre_action_conflicts - post_action_conflicts
-            reward = self._calculate_reward(resolved_conflicts, post_action_conflicts, flight_action, aircraft_action)
+            reward = self._calculate_reward(resolved_conflicts, post_action_conflicts, flight_action, aircraft_action, original_flight_action_departure_time)
 
             terminated, reason = self._is_done()
             truncated = False
@@ -577,7 +590,7 @@ class AircraftDisruptionEnv(gym.Env):
 
             post_action_conflicts = self.get_current_conflicts()
             resolved_conflicts = pre_action_conflicts - post_action_conflicts
-            reward = self._calculate_reward(resolved_conflicts, post_action_conflicts, flight_action, aircraft_action)
+            reward = self._calculate_reward(resolved_conflicts, post_action_conflicts, flight_action, aircraft_action, original_flight_action_departure_time)
 
             terminated, reason = self._is_done()
             truncated = False
@@ -604,7 +617,7 @@ class AircraftDisruptionEnv(gym.Env):
                 self.state = self._get_initial_state()
                 
                 # Handle this case appropriately
-                reward = self._calculate_reward(pre_action_conflicts, pre_action_conflicts, flight_action, aircraft_action)
+                reward = self._calculate_reward(pre_action_conflicts, pre_action_conflicts, flight_action, aircraft_action, original_flight_action_departure_time)
                 terminated, reason = self._is_done()
                 truncated = False
                 processed_state = self.process_observation(self.state)
@@ -668,7 +681,7 @@ class AircraftDisruptionEnv(gym.Env):
             
             resolved_conflicts = pre_action_conflicts - post_action_conflicts
 
-            reward = self._calculate_reward(resolved_conflicts, post_action_conflicts, flight_action, aircraft_action)
+            reward = self._calculate_reward(resolved_conflicts, post_action_conflicts, flight_action, aircraft_action, original_flight_action_departure_time)
 
             terminated, reason = self._is_done()
             truncated = False
@@ -944,7 +957,7 @@ class AircraftDisruptionEnv(gym.Env):
 
 
 
-    def _calculate_reward(self, resolved_conflicts, remaining_conflicts, flight_action, aircraft_action):
+    def _calculate_reward(self, resolved_conflicts, remaining_conflicts, flight_action, aircraft_action, original_flight_action_departure_time):
         """Calculates the reward based on the current state of the environment.
 
         This function evaluates the reward based on conflict resolutions, delays, cancelled flights, and inaction penalties.
@@ -955,7 +968,7 @@ class AircraftDisruptionEnv(gym.Env):
             remaining_conflicts (set): The set of conflicts that remain after the action.
             flight_action (int): The flight action taken by the agent.
             aircraft_action (int): The aircraft action taken by the agent.
-
+            original_flight_action_departure_time (str): The departure time of the flight that is being acted upon (before the action is taken)
         Returns:
             float: The calculated reward for the action.
         """
@@ -1036,30 +1049,48 @@ class AircraftDisruptionEnv(gym.Env):
         if DEBUG_MODE_REWARD:
             print(f"  -{inaction_penalty} for inaction with conflicts")
 
-        # 5. **Penalty for last-minute changes (delays or cancellations)**
+        # 5. **Bonus for proactive changes and penalty for last-minute changes**
+        ahead_of_time_bonus = 0
         last_minute_penalty = 0
         if flight_action != 0:  # Only apply if a flight action was taken
-            selected_flight_id = flight_action  # Use flight_action directly as it's now the actual flight ID
+            selected_flight_id = flight_action
             if selected_flight_id in self.flights_dict:
                 flight_info = self.flights_dict[selected_flight_id]
-                original_dep_time = parse_time_with_day_offset(flight_info['DepTime'], self.start_datetime)
+                original_dep_time = parse_time_with_day_offset(original_flight_action_departure_time, self.start_datetime)
                 original_dep_minutes = (original_dep_time - self.earliest_datetime).total_seconds() / 60
                 current_time_minutes = (self.current_datetime - self.earliest_datetime).total_seconds() / 60
                 
-                time_to_departure = original_dep_minutes - current_time_minutes
+                # we are currently one timestep ahead of the actual time the action is taken
+                time_at_action = current_time_minutes - (timedelta(hours=TIMESTEP_HOURS).total_seconds() / 60)
+                time_to_departure = original_dep_minutes - time_at_action
                 
-                if aircraft_action == 0:  # Flight cancellation
-                    if time_to_departure < LAST_MINUTE_THRESHOLD:
-                        last_minute_penalty = LAST_MINUTE_CANCEL_PENALTY
-                else:  # Flight delay or tail swap
-                    if selected_flight_id in self.environment_delayed_flights:
-                        delay_minutes = self.environment_delayed_flights[selected_flight_id]
-                        if time_to_departure < LAST_MINUTE_THRESHOLD:
-                            last_minute_penalty = LAST_MINUTE_DELAY_PENALTY * delay_minutes
+                if DEBUG_MODE_REWARD_LAST_MINUTE_PENALTY:
+                    print(f"Time at action: {time_at_action:.1f} minutes")
+                    print(f"Original departure time: {original_dep_minutes:.1f} minutes")
+                    print(f"Time to departure: {time_to_departure:.1f} minutes")
+                # # Calculate proactive bonus
+                # if time_to_departure > LAST_MINUTE_THRESHOLD:
+                #     # Normalize the bonus based on how far ahead the action is taken
+                #     # Maximum bonus when action is taken at the start of the recovery window
+                #     max_possible_lead_time = (self.end_datetime - self.start_datetime).total_seconds() / 60
+                #     normalized_lead_time = min(time_to_departure / max_possible_lead_time, 1.0)
+                #     ahead_of_time_bonus = FULL_AHEAD_REWARD * normalized_lead_time
+                #     if DEBUG_MODE_REWARD:
+                #         print(f"  **+{ahead_of_time_bonus} bonus for proactive action ({time_to_departure:.1f} minutes ahead)")
+                # else:
+                #     if DEBUG_MODE_REWARD:
+                #         print(f"  **-{ahead_of_time_bonus} penalty for last-minute action ({time_to_departure:.1f} minutes ahead)")
 
+                # Calculate last-minute penalties
+                if time_to_departure < LAST_MINUTE_THRESHOLD:
+                    last_minute_penalty = LAST_MINUTE_FLIGHT_PENALTY  # Equal penalty for delays and cancellations, independent of delay minutes
+
+        # reward += ahead_of_time_bonus
         reward -= last_minute_penalty
         
         if DEBUG_MODE_REWARD:
+            # if ahead_of_time_bonus > 0:
+            #     print(f"  +{ahead_of_time_bonus} bonus for proactive action ({time_to_departure:.1f} minutes ahead)")
             print(f"  -{last_minute_penalty} penalty for last-minute changes")
 
         if DEBUG_MODE_REWARD:
