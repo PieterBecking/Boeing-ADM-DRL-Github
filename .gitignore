@@ -15,3 +15,5 @@ results/*/plots/reward-plots-per-scenario/
 
 # Ignore Jupyter notebook checkpoints and output
 # .ipynb_checkpoints/
+
+*.png
