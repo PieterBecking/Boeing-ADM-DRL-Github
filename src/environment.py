@@ -5,6 +5,8 @@ from gymnasium import spaces
 from datetime import datetime, timedelta
 from src.config import *
 from scripts.utils import *
+import time
+import random
 
 class AircraftDisruptionEnv(gym.Env):
     def __init__(self, aircraft_dict, flights_dict, rotations_dict, alt_aircraft_dict, config_dict, env_type):
@@ -112,8 +114,11 @@ class AircraftDisruptionEnv(gym.Env):
         time_until_end_minutes = (self.end_datetime - self.current_datetime).total_seconds() / 60
 
         # Insert the current_time_minutes and time_until_end_minutes in the first row
-        state[0, 0] = current_time_minutes  # Current time
-        state[0, 1] = time_until_end_minutes  # Time until end of recovery period
+        for i in range(0, self.columns_state_space - 1, 2):  # Start at 0 and step by 2
+            if i + 1 < self.columns_state_space:  # Check to ensure i+1 is in range
+                state[0, i] = current_time_minutes  # Current time
+                state[0, i + 1] = time_until_end_minutes  # Time until end of recovery period
+
 
         # List to keep track of flights to remove from dictionaries
         flights_to_remove = set()
@@ -1042,10 +1047,6 @@ class AircraftDisruptionEnv(gym.Env):
         if flight_action == 0 and len(remaining_conflicts) > 0:
             inaction_penalty = NO_ACTION_PENALTY
             reward -= inaction_penalty
-        # Updated condition to check for aircraft_action as well
-        if aircraft_action == 0 and len(remaining_conflicts) > 0:
-            inaction_penalty += NO_ACTION_PENALTY  # Accumulate penalty for no aircraft action
-            reward -= NO_ACTION_PENALTY  # Deduct penalty for no aircraft action
         if DEBUG_MODE_REWARD:
             print(f"  -{inaction_penalty} for inaction with conflicts")
 
@@ -1100,18 +1101,16 @@ class AircraftDisruptionEnv(gym.Env):
         return reward
 
     def reset(self, seed=None, options=None):
-        """Resets the environment to its initial state.
-
-        This function reinitializes the environment, including resetting the current time, clearing previous states,
-        and generating new breakdowns for the aircraft. It also processes the state into an observation.
-
-        Args:
-            seed (int, optional): Random seed for reproducibility. Defaults to None.
-            options (dict, optional): Additional options for resetting the environment. Defaults to None.
-
-        Returns:
-            tuple: A tuple containing the processed initial state and an empty dictionary.
-        """
+        """Resets the environment to its initial state."""
+        # Generate a random seed based on current time if none provided
+        if seed is None:
+            seed = int(time.time() * 1000000) % (2**32 - 1)
+        
+        # Set random seeds for all random number generators
+        random.seed(seed)
+        np.random.seed(seed)
+        
+        # Rest of the reset method remains unchanged
         self.current_datetime = self.start_datetime
         self.actions_taken = set()
 
@@ -1316,9 +1315,14 @@ class AircraftDisruptionEnv(gym.Env):
 
         for flight_action in valid_flight_actions:
             for aircraft_action in valid_aircraft_actions:
+                if flight_action == 0:
+                    # Only allow (flight_action=0, aircraft_action=0)
+                    if aircraft_action != 0:
+                        continue
                 index = self.map_action_to_index(flight_action, aircraft_action)
                 if index < self.action_space.n:
                     action_mask[index] = 1
+
 
         return action_mask
 
