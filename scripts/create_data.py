@@ -322,7 +322,25 @@ def create_data_scenario(
     # Clear one random aircraft such that its flights are removed
     if clear_one_random_aircraft:
         aircraft_id = random.choice(aircraft_ids)
-        
+
+        good_aircraft = False
+        while not good_aircraft:
+            # check how many flights this aircraft has
+            flights_with_aircraft = [flight_id for flight_id, flight_data in flights_dict.items() if flight_data['Aircraft'] == aircraft_id]
+            # print(f"*****flights_with_aircraft: {flights_with_aircraft}")
+
+            # then check total amount of flights
+            total_flights = len(flights_dict)
+            # print(f"*****total_flights: {total_flights}")
+            
+            # check if there are any other aircraft left with flights if not, then break
+            if total_flights == len(flights_with_aircraft):
+                # print(f"*****No other flights left with this aircraft. Breaking...")
+                # choose another aircraft
+                aircraft_id = random.choice(aircraft_ids)
+            else:
+                good_aircraft = True
+
         # get its flights from the rotations file
         rotations_data = []
         with open(rotations_file, 'r') as file:

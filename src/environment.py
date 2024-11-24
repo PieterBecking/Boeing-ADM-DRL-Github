@@ -40,6 +40,10 @@ class AircraftDisruptionEnv(gym.Env):
 
         # Flight information and indexing
         # if flights_dict is empty, flights_dict is empty
+        # print(f"*****flights_dict: {flights_dict}")
+        if flights_dict is None:
+            flights_dict = {}  # Initialize as empty dict if None
+
         if flights_dict:
             self.flight_ids = list(flights_dict.keys())
             self.flight_id_to_idx = {flight_id: idx for idx, flight_id in enumerate(self.flight_ids)}
@@ -1056,35 +1060,29 @@ class AircraftDisruptionEnv(gym.Env):
         if DEBUG_MODE_REWARD:
             print(f"  -{inaction_penalty} for inaction with conflicts")
 
-        # 5. **Bonus for proactive changes and penalty for last-minute changes**
+        # 5. **Bonus for proactive changes **
         ahead_of_time_bonus = 0
-        last_minute_penalty = 0
-        if flight_action != 0:  # Only apply if a flight action was taken
+        if flight_action != 0:
             selected_flight_id = flight_action
-            if selected_flight_id in self.flights_dict:
-                flight_info = self.flights_dict[selected_flight_id]
-                original_dep_time = parse_time_with_day_offset(original_flight_action_departure_time, self.start_datetime)
-                original_dep_minutes = (original_dep_time - self.earliest_datetime).total_seconds() / 60
-                current_time_minutes = (self.current_datetime - self.earliest_datetime).total_seconds() / 60
-                
-                # we are currently one timestep ahead of the actual time the action is taken
-                time_at_action = current_time_minutes - (timedelta(hours=TIMESTEP_HOURS).total_seconds() / 60)
-                time_to_departure = original_dep_minutes - time_at_action
-                
-                if DEBUG_MODE_REWARD_LAST_MINUTE_PENALTY:
-                    print(f"Time at action: {time_at_action:.1f} minutes")
-                    print(f"Original departure time: {original_dep_minutes:.1f} minutes")
-                    print(f"Time to departure: {time_to_departure:.1f} minutes")
+            original_dep_time = parse_time_with_day_offset(original_flight_action_departure_time, self.start_datetime)
+            original_dep_minutes = (original_dep_time - self.earliest_datetime).total_seconds() / 60
+            current_time_minutes = (self.current_datetime - self.earliest_datetime).total_seconds() / 60
+            
+            # we are currently one timestep ahead of the actual time the action is taken
+            time_at_action = current_time_minutes - (timedelta(hours=TIMESTEP_HOURS).total_seconds() / 60)
+            time_to_departure = original_dep_minutes - time_at_action
 
-                ahead_of_time_bonus = AHEAD_BONUS_PER_MINUTE * time_to_departure
+            ahead_of_time_bonus = AHEAD_BONUS_PER_MINUTE * time_to_departure
+
+
                 
-        # reward += ahead_of_time_bonus
-        reward -= ahead_of_time_bonus
+        reward += ahead_of_time_bonus
         
         if DEBUG_MODE_REWARD:
-            # if ahead_of_time_bonus > 0:
-            #     print(f"  +{ahead_of_time_bonus} bonus for proactive action ({time_to_departure:.1f} minutes ahead)")
-            print(f"  -{last_minute_penalty} penalty for last-minute changes")
+            if ahead_of_time_bonus > 0:
+                print(f"  +{ahead_of_time_bonus} bonus for proactive action ({time_to_departure:.1f} minutes ahead)")
+            else:
+                print(f"  -{ahead_of_time_bonus} bonus for proactive action")
 
         if DEBUG_MODE_REWARD:
             print("_______________")
