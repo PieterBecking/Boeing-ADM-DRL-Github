@@ -140,7 +140,8 @@ def generate_alt_aircraft_file(file_name, aircraft_ids, amount_aircraft_disrupte
 
 
 # Function to generate flights.csv
-def generate_flights_file(file_name, aircraft_ids, average_flights_per_aircraft, std_dev_flights_per_aircraft, airports, config_dict, start_datetime, end_datetime, first_flight_dep_time_range, flight_length_range, time_between_flights_range):
+def generate_flights_file(file_name, aircraft_ids, average_flights_per_aircraft, std_dev_flights_per_aircraft, airports, config_dict, 
+                          start_datetime, end_datetime, first_flight_dep_time_range, flight_length_range, time_between_flights_range):
     """Generates the flights.csv file."""
     clear_file(file_name)
 
@@ -148,60 +149,78 @@ def generate_flights_file(file_name, aircraft_ids, average_flights_per_aircraft,
     flight_rotation_data = {}
 
     total_flights = max(1, len(aircraft_ids) * average_flights_per_aircraft)  # Ensure at least 1 flight
-    print(f"*****total_flights: {total_flights}")
+
     amount_flights_per_aircraft = {}
     flights_left_to_generate = total_flights
+    min_flights_per_aircraft = max(1, average_flights_per_aircraft - std_dev_flights_per_aircraft)
 
     for aircraft_id in aircraft_ids:
-        amount_flights_per_aircraft[aircraft_id] = max(1, min(
+        # Calculate maximum allowed flights for this aircraft
+        remaining_aircraft = len(aircraft_ids) - len(amount_flights_per_aircraft)
+        max_allowed = flights_left_to_generate - (remaining_aircraft - 1) * min_flights_per_aircraft
+        
+        amount_flights_per_aircraft[aircraft_id] = max(min_flights_per_aircraft, min(
             random.randint(average_flights_per_aircraft - std_dev_flights_per_aircraft, 
-                           average_flights_per_aircraft + std_dev_flights_per_aircraft),
-            flights_left_to_generate
+                          average_flights_per_aircraft + std_dev_flights_per_aircraft),
+            max_allowed
         ))
         flights_left_to_generate -= amount_flights_per_aircraft[aircraft_id]
 
-    flight_id = 0
+    current_flight_id = 1  # Keep track of the current flight ID
+
     for aircraft_id in aircraft_ids:
-        flight_id_ac_specific = 0
+        last_arr_time = None  # Track the last arrival time for this aircraft
 
         for _ in range(amount_flights_per_aircraft[aircraft_id]):
-            flight_id += 1
-            flight_id_ac_specific += 1
             orig, dest = random.choice(airports), random.choice(airports)
             while orig == dest:
                 dest = random.choice(airports)
 
-            if flight_id_ac_specific == 1:
+            if last_arr_time is None:  # First flight for this aircraft
                 dep_time = f"{random.randint(first_flight_dep_time_range[0], first_flight_dep_time_range[1] - 1)}:{random.choice(['00', '15', '30', '45'])}"
                 dep_time_obj = parse_time_with_day_offset(dep_time, start_datetime)
-                arr_time_obj = dep_time_obj + timedelta(hours=random.randint(flight_length_range[0], flight_length_range[1] - 1), minutes=random.randint(0, 59))
             else:
-                arr_time_prev = flights_dict[flight_id - 1]['ArrTime']
-                dep_time_obj = parse_time_with_day_offset(arr_time_prev, start_datetime) + timedelta(hours=random.randint(time_between_flights_range[0], time_between_flights_range[1] - 1), minutes=random.randint(0, 59))
-                arr_time_obj = dep_time_obj + timedelta(hours=random.randint(flight_length_range[0], flight_length_range[1] - 1), minutes=random.randint(0, 59))
+                # Use this aircraft's last arrival time
+                dep_time_obj = parse_time_with_day_offset(last_arr_time, start_datetime) + timedelta(
+                    hours=random.randint(time_between_flights_range[0], time_between_flights_range[1] - 1),
+                    minutes=random.randint(0, 59)
+                )
 
-            # Check if the departure time exceeds the end_datetime with a reasonable buffer
+            arr_time_obj = dep_time_obj + timedelta(
+                hours=random.randint(flight_length_range[0], flight_length_range[1] - 1),
+                minutes=random.randint(0, 59)
+            )
+
+            # Check time constraints
             if dep_time_obj > end_datetime + timedelta(hours=DEPARTURE_AFTER_END_RECOVERY):
-                break  # Stop generating flights if departure time exceeds the limit
-            
-            # Add day offset to arrival and departure times when necessary
+                break
+            if arr_time_obj > end_datetime:
+                break
+
+            # Format times with day offset when necessary
             if arr_time_obj.day > start_datetime.day:
                 arr_time = f"{arr_time_obj.strftime('%H:%M')}+1"
             else:
                 arr_time = arr_time_obj.strftime('%H:%M')
 
-            # Check if departure time crosses into the next day (after midnight)
             if dep_time_obj.day > start_datetime.day:
                 dep_time = f"{dep_time_obj.strftime('%H:%M')}+1"
             else:
                 dep_time = dep_time_obj.strftime('%H:%M')
 
-            flights_dict[flight_id] = {'Orig': orig, 'Dest': dest, 'DepTime': dep_time, 'ArrTime': arr_time, 'PrevFlight': 0, 'Aircraft': aircraft_id}
-            flight_rotation_data[flight_id] = {'Aircraft': aircraft_id}
-
-            # Also, break if arrival time exceeds the end of the recovery period
-            if arr_time_obj > end_datetime:
-                break
+            # Add the flight
+            flights_dict[current_flight_id] = {
+                'Orig': orig,
+                'Dest': dest,
+                'DepTime': dep_time,
+                'ArrTime': arr_time,
+                'PrevFlight': 0,
+                'Aircraft': aircraft_id
+            }
+            flight_rotation_data[current_flight_id] = {'Aircraft': aircraft_id}
+            
+            last_arr_time = arr_time
+            current_flight_id += 1
 
     # Ensure at least one flight is generated
     if not flights_dict:
@@ -233,8 +252,12 @@ def generate_flights_file(file_name, aircraft_ids, average_flights_per_aircraft,
     with open(file_name, 'w') as file:
         file.write('%Flight Orig Dest DepTime ArrTime PrevFlight\n')
         for flight_id, flight_data in flights_dict.items():
-            file.write(f"{flight_id} {flight_data['Orig']} {flight_data['Dest']} {flight_data['DepTime']} {flight_data['ArrTime']} {flight_data['PrevFlight']}\n")
+            line = f"{flight_id} {flight_data['Orig']} {flight_data['Dest']} {flight_data['DepTime']} {flight_data['ArrTime']} {flight_data['PrevFlight']}\n"
+            file.write(line)
         file.write('#')
+
+    print(f"*****flights_dict: {flights_dict}")
+    print(f"*****flight_rotation_data: {flight_rotation_data}")
 
     return flights_dict, flight_rotation_data
 
@@ -291,8 +314,11 @@ def create_data_scenario(
     amount_aircraft_disrupted, min_delta_start_unavailability, max_delta_start_unavailability,
     min_period_unavailability, max_period_unavailability, average_flights_per_aircraft,
     std_dev_flights_per_aircraft, airports, config_dict, recovery_start_date,
-    recovery_start_time, recovery_end_date, recovery_end_time, clear_one_random_aircraft, clear_random_flights, probability_range, probability_distribution, first_flight_dep_time_range, flight_length_range, time_between_flights_range
-):
+    recovery_start_time, recovery_end_date, recovery_end_time, clear_one_random_aircraft, 
+    clear_random_flights, probability_range, probability_distribution, first_flight_dep_time_range, 
+    flight_length_range, time_between_flights_range):
+    """Creates a data scenario."""
+
     data_folder = os.path.join(data_root_folder, scenario_name)
     if os.path.exists(data_folder):
         shutil.rmtree(data_folder)
@@ -386,29 +412,29 @@ def create_data_scenario(
             for line in alt_aircraft_lines:
                 file.write(line)
 
-    if clear_random_flights:
-        print(f"*****Clearing {len(aircraft_ids)} random flights...")
-        # clear the amount of random flights equal to the amount of aircraft
-        amount_flights_to_clear = len(aircraft_ids)
-        flights_to_clear = random.sample(list(flights_dict.keys()), amount_flights_to_clear)
-        for flight_id in flights_to_clear:
-            print(f"*****Clearing flight {flight_id}...")
-            del flights_dict[flight_id]
+    # if clear_random_flights:
+    #     print(f"*****Clearing {len(aircraft_ids)} random flights...")
+    #     # clear the amount of random flights equal to the amount of aircraft
+    #     amount_flights_to_clear = len(aircraft_ids)
+    #     flights_to_clear = random.sample(list(flights_dict.keys()), amount_flights_to_clear)
+    #     for flight_id in flights_to_clear:
+    #         print(f"*****Clearing flight {flight_id}...")
+    #         del flights_dict[flight_id]
 
-        # remove the flights from the flights file
-        flights_data = []
-        with open(flights_file, 'r') as file:
-            for line in file:
-                if line.startswith('%') or line.startswith('#'):
-                    continue
-                flight_id, orig, dest, dep_time, arr_time, prev_flight = line.strip().split(' ')
-                if flight_id not in flights_to_clear:
-                    flights_data.append(line)
-        with open(flights_file, 'w') as file:
-            file.write('%Flight Orig Dest DepTime ArrTime PrevFlight\n')
-            for flight in flights_data:
-                file.write(f"{flight}")
-            file.write('#')
+    #     # remove the flights from the flights file
+    #     flights_data = []
+    #     with open(flights_file, 'r') as file:
+    #         for line in file:
+    #             if line.startswith('%') or line.startswith('#'):
+    #                 continue
+    #             flight_id, orig, dest, dep_time, arr_time, prev_flight = line.strip().split(' ')
+    #             if flight_id not in flights_to_clear:
+    #                 flights_data.append(line)
+    #     with open(flights_file, 'w') as file:
+    #         file.write('%Flight Orig Dest DepTime ArrTime PrevFlight\n')
+    #         for flight in flights_data:
+    #             file.write(f"{flight}")
+    #         file.write('#')
 
     print(f"Data creation for scenario {scenario_name} completed with {len(aircraft_ids)} aircraft and {len(flights_dict)} flights.")
 
