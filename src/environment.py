@@ -158,8 +158,7 @@ class AircraftDisruptionEnv(gym.Env):
             # Store aircraft index instead of ID
             state[idx + 1, 0] = idx + 1  # Use numerical index instead of string ID
 
-            # Check for predefined unavailabilities and assign actual probability  
-            print(f"***alt_aircraft_dict: {self.alt_aircraft_dict}")          
+            # Check for predefined unavailabilities and assign actual probability         
             if aircraft_id in self.alt_aircraft_dict:
                 unavails = self.alt_aircraft_dict[aircraft_id]
                 if not isinstance(unavails, list):
