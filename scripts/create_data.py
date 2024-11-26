@@ -140,7 +140,7 @@ def generate_alt_aircraft_file(file_name, aircraft_ids, amount_aircraft_disrupte
 
 
 # Function to generate flights.csv
-def generate_flights_file(file_name, aircraft_ids, average_flights_per_aircraft, std_dev_flights_per_aircraft, airports, config_dict, start_datetime, end_datetime):
+def generate_flights_file(file_name, aircraft_ids, average_flights_per_aircraft, std_dev_flights_per_aircraft, airports, config_dict, start_datetime, end_datetime, first_flight_dep_time_range, flight_length_range, time_between_flights_range):
     """Generates the flights.csv file."""
     clear_file(file_name)
 
@@ -148,6 +148,7 @@ def generate_flights_file(file_name, aircraft_ids, average_flights_per_aircraft,
     flight_rotation_data = {}
 
     total_flights = max(1, len(aircraft_ids) * average_flights_per_aircraft)  # Ensure at least 1 flight
+    print(f"*****total_flights: {total_flights}")
     amount_flights_per_aircraft = {}
     flights_left_to_generate = total_flights
 
@@ -171,13 +172,13 @@ def generate_flights_file(file_name, aircraft_ids, average_flights_per_aircraft,
                 dest = random.choice(airports)
 
             if flight_id_ac_specific == 1:
-                dep_time = f"{random.randint(6, 12)}:{random.choice(['00', '15', '30', '45'])}"
+                dep_time = f"{random.randint(first_flight_dep_time_range[0], first_flight_dep_time_range[1] - 1)}:{random.choice(['00', '15', '30', '45'])}"
                 dep_time_obj = parse_time_with_day_offset(dep_time, start_datetime)
-                arr_time_obj = dep_time_obj + timedelta(hours=random.randint(1, 4), minutes=random.randint(0, 59))
+                arr_time_obj = dep_time_obj + timedelta(hours=random.randint(flight_length_range[0], flight_length_range[1] - 1), minutes=random.randint(0, 59))
             else:
                 arr_time_prev = flights_dict[flight_id - 1]['ArrTime']
-                dep_time_obj = parse_time_with_day_offset(arr_time_prev, start_datetime) + timedelta(hours=random.randint(0, 2), minutes=random.randint(0, 59))
-                arr_time_obj = dep_time_obj + timedelta(hours=random.randint(1, 4), minutes=random.randint(0, 59))
+                dep_time_obj = parse_time_with_day_offset(arr_time_prev, start_datetime) + timedelta(hours=random.randint(time_between_flights_range[0], time_between_flights_range[1] - 1), minutes=random.randint(0, 59))
+                arr_time_obj = dep_time_obj + timedelta(hours=random.randint(flight_length_range[0], flight_length_range[1] - 1), minutes=random.randint(0, 59))
 
             # Check if the departure time exceeds the end_datetime with a reasonable buffer
             if dep_time_obj > end_datetime + timedelta(hours=DEPARTURE_AFTER_END_RECOVERY):
@@ -210,9 +211,9 @@ def generate_flights_file(file_name, aircraft_ids, average_flights_per_aircraft,
         while orig == dest:
             dest = random.choice(airports)
         
-        dep_time = f"{random.randint(6, 12)}:{random.choice(['00', '15', '30', '45'])}"
+        dep_time = f"{random.randint(first_flight_dep_time_range[0], first_flight_dep_time_range[1])}:{random.choice(['00', '15', '30', '45'])}"
         dep_time_obj = parse_time_with_day_offset(dep_time, start_datetime)
-        arr_time_obj = dep_time_obj + timedelta(hours=random.randint(1, 4), minutes=random.randint(0, 59))
+        arr_time_obj = dep_time_obj + timedelta(hours=random.randint(flight_length_range[0], flight_length_range[1]), minutes=random.randint(0, 59))
 
         # Add day offset to arrival and departure times when necessary
         if arr_time_obj.day > start_datetime.day:
@@ -290,7 +291,7 @@ def create_data_scenario(
     amount_aircraft_disrupted, min_delta_start_unavailability, max_delta_start_unavailability,
     min_period_unavailability, max_period_unavailability, average_flights_per_aircraft,
     std_dev_flights_per_aircraft, airports, config_dict, recovery_start_date,
-    recovery_start_time, recovery_end_date, recovery_end_time, clear_one_random_aircraft, probability_range, probability_distribution
+    recovery_start_time, recovery_end_date, recovery_end_time, clear_one_random_aircraft, clear_random_flights, probability_range, probability_distribution, first_flight_dep_time_range, flight_length_range, time_between_flights_range
 ):
     data_folder = os.path.join(data_root_folder, scenario_name)
     if os.path.exists(data_folder):
@@ -313,7 +314,7 @@ def create_data_scenario(
     flights_file = os.path.join(data_folder, 'flights.csv')
     start_datetime = datetime.strptime(f"{recovery_start_date} {recovery_start_time}", '%d/%m/%y %H:%M')
     end_datetime = datetime.strptime(f"{recovery_end_date} {recovery_end_time}", '%d/%m/%y %H:%M')
-    flights_dict, flight_rotation_data = generate_flights_file(flights_file, aircraft_ids, average_flights_per_aircraft, std_dev_flights_per_aircraft, airports, config_dict, start_datetime, end_datetime)
+    flights_dict, flight_rotation_data = generate_flights_file(flights_file, aircraft_ids, average_flights_per_aircraft, std_dev_flights_per_aircraft, airports, config_dict, start_datetime, end_datetime, first_flight_dep_time_range, flight_length_range, time_between_flights_range)
 
     # Generate rotations data
     rotations_file = os.path.join(data_folder, 'rotations.csv')
@@ -384,6 +385,30 @@ def create_data_scenario(
         with open(alt_aircraft_file, 'w') as file:
             for line in alt_aircraft_lines:
                 file.write(line)
+
+    if clear_random_flights:
+        print(f"*****Clearing {len(aircraft_ids)} random flights...")
+        # clear the amount of random flights equal to the amount of aircraft
+        amount_flights_to_clear = len(aircraft_ids)
+        flights_to_clear = random.sample(list(flights_dict.keys()), amount_flights_to_clear)
+        for flight_id in flights_to_clear:
+            print(f"*****Clearing flight {flight_id}...")
+            del flights_dict[flight_id]
+
+        # remove the flights from the flights file
+        flights_data = []
+        with open(flights_file, 'r') as file:
+            for line in file:
+                if line.startswith('%') or line.startswith('#'):
+                    continue
+                flight_id, orig, dest, dep_time, arr_time, prev_flight = line.strip().split(' ')
+                if flight_id not in flights_to_clear:
+                    flights_data.append(line)
+        with open(flights_file, 'w') as file:
+            file.write('%Flight Orig Dest DepTime ArrTime PrevFlight\n')
+            for flight in flights_data:
+                file.write(f"{flight}")
+            file.write('#')
 
     print(f"Data creation for scenario {scenario_name} completed with {len(aircraft_ids)} aircraft and {len(flights_dict)} flights.")
 
