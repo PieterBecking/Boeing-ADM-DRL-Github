@@ -43,7 +43,7 @@ class StatePlotter:
             end_datetime
         )
 
-    def plot_state(self, flights_dict, swapped_flights, environment_delayed_flights, cancelled_flights, current_datetime, title_appendix="", debug_print=False):
+    def plot_state(self, flights_dict, swapped_flights, environment_delayed_flights, cancelled_flights, current_datetime, title_appendix="", debug_print=False, show_plot=True, reward_and_action=None):
         if debug_print:
             print(f"Plotting state with following flights: {flights_dict}")
 
@@ -220,13 +220,20 @@ class StatePlotter:
 
         plt.xlabel('Time')
         plt.ylabel('Aircraft')
-        plt.title(f'Aircraft Rotations and Unavailability {title_appendix.title()}')
+        title = f'Aircraft Rotations and Unavailability {title_appendix.title()}'
+        if reward_and_action:
+            title += f' (Reward: {reward_and_action[0]:.2f}, Action: {reward_and_action[1]})'
+        plt.title(title)
         plt.grid(True)
         plt.xticks(rotation=45)
         plt.tight_layout()
 
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        plt.show()
+        if show_plot:
+            plt.show()
+        else:
+            plt.close()
+            return fig
 
 
 # Callable entry point for visualization process
