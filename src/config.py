@@ -10,6 +10,12 @@ COLUMNS_STATE_SPACE = 1 + 2 + 3 * MAX_FLIGHTS_PER_AIRCRAFT # Number of columns i
 ACTION_SPACE_SIZE = (MAX_AIRCRAFT + 1) * (MAX_FLIGHTS_PER_AIRCRAFT + 1)  # Number of possible actions (+1 for the zero for no action and cancellations)
 
 
+# Data Generation Settings
+DEPARTURE_AFTER_END_RECOVERY = 1  # how many hours after the end of the recovery period can a generated flight depart
+# Constants for breakdown probabilities
+BREAKDOWN_PROBABILITY = 0.9  # Probability of aircraft breaking down during the day
+BREAKDOWN_DURATION = np.random.uniform(60, 600)  # Duration of breakdown in minutes, uniformly sampled between 60 and 600
+
 # Time Settings for intervals
 TIMESTEP_HOURS = 1  # Length of each timestep in hours
 
@@ -20,7 +26,7 @@ DUMMY_VALUE = -999  # Dummy value for padding
 RESOLVED_CONFLICT_REWARD = 10000     # Reward for resolving a conflict
 DELAY_MINUTE_PENALTY = 11.5           # Penalty per minute of delay
 MAX_DELAY_PENALTY = 750            # Maximum penalty for delay
-NO_ACTION_PENALTY = 0 #23               # Penalty for no action while conflict(s) exist
+NO_ACTION_PENALTY = 0               # Penalty for no action while conflict(s) exist
 CANCELLED_FLIGHT_PENALTY = 1000    # Penalty for cancelling a flight
 LAST_MINUTE_THRESHOLD = 120           # Threshold for last-minute changes in minutes
 LAST_MINUTE_FLIGHT_PENALTY = 455      # Penalty for last-minute flight changes  
@@ -34,7 +40,7 @@ MIN_BREAKDOWN_PROBABILITY = 0
 # Logging and Debug Settings
 DEBUG_MODE = False # Turn on/off debug mode
 DEBUG_MODE_TRAINING = False  # Turn on/off debug mode for training
-DEBUG_MODE_REWARD = False  # Turn on/off debug mode for reward calculation
+DEBUG_MODE_REWARD = True   # Turn on/off debug mode for reward calculation
 DEBUG_MODE_PRINT_STATE = False         # Turn on/off debug mode for printing state
 DEBUG_MODE_CANCELLED_FLIGHT = False  # Turn on/off debug mode for cancelled flight
 DEBUG_MODE_VISUALIZATION = False
@@ -43,15 +49,3 @@ DEBUG_MODE_ACTION = False
 DEBUG_MODE_STOPPING_CRITERIA = False
 DEBUG_MODE_SCHEDULING = False
 DEBUG_MODE_REWARD_LAST_MINUTE_PENALTY = False  # Turn on/off debug mode for reward calculation last minute penalty
-
-# Data Generation Settings
-DEPARTURE_AFTER_END_RECOVERY = 1  # how many hours after the end of the recovery period can a generated flight depart
-
-
-
-# Constants for breakdown probabilities
-BREAKDOWN_PROBABILITY = 0.9  # Probability of aircraft breaking down during the day
-BREAKDOWN_DURATION = np.random.uniform(60, 600)  # Duration of breakdown in minutes, uniformly sampled between 60 and 600
-INDICATION_TIME_BEFORE_BREAKDOWN = 120  # Time before breakdown to provide indication to the agent in minutes
-
-MIN_TURN_TIME = 0  # Minimum turnaround time in minutes
