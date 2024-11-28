@@ -10,6 +10,16 @@ import random
 
 class AircraftDisruptionEnv(gym.Env):
     def __init__(self, aircraft_dict, flights_dict, rotations_dict, alt_aircraft_dict, config_dict, env_type):
+        """Initializes the AircraftDisruptionEnv class.
+
+        Args:
+            aircraft_dict (dict): Dictionary containing aircraft information.
+            flights_dict (dict): Dictionary containing flight information.
+            rotations_dict (dict): Dictionary containing rotation information.
+            alt_aircraft_dict (dict): Dictionary containing alternative aircraft information.
+            config_dict (dict): Dictionary containing configuration information.
+            env_type (str): Type of environment ('myopic' or 'proactive').
+        """
         super(AircraftDisruptionEnv, self).__init__()
         
         # Store the environment type ('myopic' or 'proactive')
@@ -55,6 +65,9 @@ class AircraftDisruptionEnv(gym.Env):
         this_day_flights = [flight_info for flight_info in flights_dict.values() if '+' not in flight_info['DepTime']]
 
         # Determine the earliest possible event in the environment
+        print(f"*****config_dict['RecoveryPeriod']['StartDate']: {config_dict['RecoveryPeriod']['StartDate']}")
+        print(f"*****this_day_flights: {this_day_flights}")
+        print(f"*****self.start_datetime: {self.start_datetime}")
         self.earliest_datetime = min(
             min(datetime.strptime(config_dict['RecoveryPeriod']['StartDate'] + ' ' + flight_info['DepTime'], '%d/%m/%y %H:%M') for flight_info in this_day_flights),
             self.start_datetime
@@ -113,7 +126,11 @@ class AircraftDisruptionEnv(gym.Env):
         self.state = self._get_initial_state()
 
     def _get_initial_state(self):
-        """Initializes the state matrix for the environment."""
+        """Initializes the state matrix for the environment.
+        
+        Returns:
+            np.ndarray: The initial state matrix.
+        """
 
         # Initialize state matrix with NaN values
         state = np.full((self.rows_state_space, self.columns_state_space), np.nan)
@@ -144,7 +161,7 @@ class AircraftDisruptionEnv(gym.Env):
             # Store aircraft index instead of ID
             state[idx + 1, 0] = idx + 1  # Use numerical index instead of string ID
 
-            # Check for predefined unavailabilities and assign actual probability            
+            # Check for predefined unavailabilities and assign actual probability         
             if aircraft_id in self.alt_aircraft_dict:
                 unavails = self.alt_aircraft_dict[aircraft_id]
                 if not isinstance(unavails, list):
@@ -709,6 +726,19 @@ class AircraftDisruptionEnv(gym.Env):
             return processed_state, reward, terminated, truncated, {}
 
     def schedule_flight_on_aircraft(self, aircraft_id, flight_id, dep_time, current_aircraft_id, arr_time=None, delayed_flights=None):
+        """Schedules a flight on an aircraft.
+
+        This function schedules a flight on an aircraft, taking into account unavailability periods and conflicts with existing flights.
+        It updates the state and flights dictionary accordingly.
+        
+        Args:
+            aircraft_id (str): The ID of the aircraft to schedule the flight on.
+            flight_id (str): The ID of the flight to schedule.
+            dep_time (float): The departure time of the flight in minutes from earliest_datetime.
+            current_aircraft_id (str): The ID of the current aircraft.
+            arr_time (float, optional): The arrival time of the flight in minutes from earliest_datetime. Defaults to None.
+            delayed_flights (set, optional): A set of flight IDs that have already been delayed. Defaults to None.
+        """
         if DEBUG_MODE_SCHEDULING:
             print("\n=== Starting schedule_flight_on_aircraft ===")
             print(f"Scheduling flight {flight_id} on aircraft {aircraft_id}")
@@ -929,7 +959,14 @@ class AircraftDisruptionEnv(gym.Env):
 
         
     def cancel_flight(self, flight_id):
-        """Cancels the specified flight."""
+        """Cancels the specified flight.
+
+        This function removes the flight from the rotations dictionary, the flights dictionary, and the state.
+        It also marks the flight as cancelled and removes it from the state.
+        
+        Args:
+            flight_id (str): The ID of the flight to cancel.
+        """
         # Remove the flight from rotations_dict
         if flight_id in self.rotations_dict:
             del self.rotations_dict[flight_id]
@@ -1122,6 +1159,8 @@ class AircraftDisruptionEnv(gym.Env):
         # Rest of the reset method remains unchanged
         self.current_datetime = self.start_datetime
         self.actions_taken = set()
+
+        self.something_happened = False
 
         # Deep copy the initial dictionaries
         self.aircraft_dict = copy.deepcopy(self.initial_aircraft_dict)
