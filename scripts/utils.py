@@ -720,3 +720,46 @@ class NumpyEncoder(json.JSONEncoder):
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
         return super().default(obj)
+
+def load_json(file_path):
+    with open(f"../{file_path}", 'r') as f:
+        return json.load(f)
+
+def get_training_metadata(training_logs_path, env_type):
+    training_metadata = load_json(training_logs_path)
+    return training_metadata[env_type]['metadata']
+
+
+def check_conflicts_between_training_and_current_config(training_logs_path, env_type, inference_config_variables):
+    training_config_variables = get_training_metadata(training_logs_path, env_type)
+
+    print(f"Training Config Variables: {training_config_variables}")
+    print(f"Inference Config Variables: {inference_config_variables}")
+    
+    matching_variables = {}
+    conflicting_variables = {}
+
+    # List of reward-related config variables to check
+    reward_variables = [
+        'RESOLVED_CONFLICT_REWARD',
+        'DELAY_MINUTE_PENALTY',
+        'MAX_DELAY_PENALTY',
+        'NO_ACTION_PENALTY',
+        'CANCELLED_FLIGHT_PENALTY',
+        'LAST_MINUTE_THRESHOLD',
+        'LAST_MINUTE_FLIGHT_PENALTY',
+        'AHEAD_BONUS_PER_MINUTE',
+        'TIME_MINUTE_PENALTY'
+    ]
+
+    for key in reward_variables:
+        if key in inference_config_variables:
+            value = inference_config_variables[key]
+            if key not in training_config_variables:
+                conflicting_variables[key] = value
+            elif training_config_variables[key] != value:
+                conflicting_variables[key] = value
+            else:
+                matching_variables[key] = value
+
+    return matching_variables, conflicting_variables
