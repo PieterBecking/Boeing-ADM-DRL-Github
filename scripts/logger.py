@@ -3,7 +3,8 @@
 import json
 import os
 from datetime import datetime
-
+from scripts.utils import NumpyEncoder
+import numpy as np
 
 def create_new_id(logs_type):
     # Load the ids from the json file
@@ -76,3 +77,130 @@ def mark_log_as_finished(logs_id):
         json.dump(ids, f, indent=4)
     
     print(f"Marked logs_id {logs_id} as finished in {ids_file_path}")
+def log_training_metadata(logs_id, env_type, training_metadata):
+    """
+    Logs the metadata for the training session.
+
+    Args:
+        logs_id (str): Unique ID for the logging session.
+        env_type (str): "myopic" or "proactive"
+        training_metadata (dict): Hyperparameters, environment configuration, and other setup details.
+    """
+    log_file_path = os.path.join("../logs", "training", f"training_{logs_id}.json")
+
+    # Check if the file exists and load existing data if it does
+    if os.path.exists(log_file_path):
+        with open(log_file_path, 'r') as log_file:
+            log_data = json.load(log_file)
+    else:
+        log_data = {}
+
+    # Append new data to the existing data
+    if env_type not in log_data:
+        log_data[env_type] = {
+            "training_id": logs_id,
+            "created_at": datetime.utcnow().isoformat() + "Z",
+            "metadata": training_metadata,
+            "episodes": {}
+        }
+    else:
+        # If the env_type already exists, update the metadata and created_at
+        log_data[env_type]["metadata"] = training_metadata
+        log_data[env_type]["created_at"] = datetime.utcnow().isoformat() + "Z"
+    # Convert log_data to a serializable format before saving
+    serializable_log_data = convert_to_serializable(log_data)
+    # Save the updated data back to the file
+    with open(log_file_path, 'w') as log_file:
+        json.dump(serializable_log_data, log_file, indent=4, cls=NumpyEncoder)   
+
+    print(f"Training metadata logged to {log_file_path}")
+
+def log_training_episode(logs_id, env_type, episode_number, episode_data):
+    """
+    Logs data for a single episode during training.
+
+    Args:
+        logs_id (str): Unique ID for the logging session.
+        env_type (str): "myopic" or "proactive"
+        episode_number (int): The episode number being logged.
+        episode_data (dict): Detailed data about the episode (rewards, actions, scenarios, etc.).
+    """
+    log_file_path = os.path.join("../logs", "training", f"training_{logs_id}.json")
+
+    # Load existing log file
+    with open(log_file_path, 'r') as log_file:
+        log_data = json.load(log_file)
+
+    # Add episode data
+    log_data[env_type]["episodes"][f"{episode_number}"] = episode_data
+
+    # Save back to log file
+    with open(log_file_path, 'w') as log_file:
+        json.dump(log_data, log_file, indent=4, cls=NumpyEncoder)
+
+    print(f"Episode {episode_number} logged to {log_file_path}")
+
+
+def finalize_training_log(logs_id, summary_data):
+    """
+    Marks the training log as finished and adds summary data.
+
+    Args:
+        logs_id (str): Unique ID for the logging session.
+        summary_data (dict): Final statistics and summary of the training session.
+    """
+    log_file_path = os.path.join("../logs", "training", f"training_{logs_id}.json")
+
+    # Load existing log file
+    with open(log_file_path, 'r') as log_file:
+        log_data = json.load(log_file)
+
+    # Update with summary and mark as finished
+    log_data["completed_at"] = datetime.utcnow().isoformat() + "Z"
+    log_data["summary"] = summary_data
+
+    # Save back to log file
+    with open(log_file_path, 'w') as log_file:
+        json.dump(log_data, log_file, indent=4)
+
+    # Update the ids.json to mark as finished
+    mark_log_as_finished(logs_id)
+
+    print(f"Training log finalized and summary added to {log_file_path}")
+
+
+def convert_to_serializable(obj):
+    """
+    Converts various non-JSON-serializable objects into JSON-serializable formats.
+    """
+    if isinstance(obj, dict):
+        return {key: convert_to_serializable(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_to_serializable(element) for element in obj]
+    elif isinstance(obj, (np.integer, int)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, float)):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, datetime):  # Handle datetime objects
+        return obj.isoformat()
+    elif isinstance(obj, str):
+        return obj
+    else:
+        # Fallback for unknown types
+        return str(obj)
+
+
+
+
+def get_config_variables(config_module):
+    """
+    Extracts all non-special, non-private variables from the config module
+    and ensures JSON-serializability.
+    """
+    config_vars = {
+        key: value for key, value in vars(config_module).items()
+        if not key.startswith("__") and not callable(value)  # Exclude magic methods and functions
+    }
+    return convert_to_serializable(config_vars)
