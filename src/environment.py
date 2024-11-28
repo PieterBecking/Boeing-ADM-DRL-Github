@@ -65,6 +65,9 @@ class AircraftDisruptionEnv(gym.Env):
         this_day_flights = [flight_info for flight_info in flights_dict.values() if '+' not in flight_info['DepTime']]
 
         # Determine the earliest possible event in the environment
+        print(f"*****config_dict['RecoveryPeriod']['StartDate']: {config_dict['RecoveryPeriod']['StartDate']}")
+        print(f"*****this_day_flights: {this_day_flights}")
+        print(f"*****self.start_datetime: {self.start_datetime}")
         self.earliest_datetime = min(
             min(datetime.strptime(config_dict['RecoveryPeriod']['StartDate'] + ' ' + flight_info['DepTime'], '%d/%m/%y %H:%M') for flight_info in this_day_flights),
             self.start_datetime

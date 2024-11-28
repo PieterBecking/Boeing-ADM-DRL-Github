@@ -1,0 +1,102 @@
+{
+    "0001": {
+        "type": "training",
+        "finished": false
+    },
+    "0002": {
+        "type": "scenario",
+        "finished": false
+    },
+    "0003": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0004": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0005": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0006": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0007": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0008": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0009": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0010": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0011": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0012": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0013": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0014": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0015": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0016": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0017": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0018": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0019": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0020": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0021": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0022": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0023": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0024": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0025": {
+        "type": "scenario",
+        "finished": true
+    }
+}

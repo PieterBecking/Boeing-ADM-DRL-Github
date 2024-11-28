@@ -1,0 +1,936 @@
+{
+    "scenario_folder_id": "0013",
+    "created_at": "2024-11-28T11:58:00.332302Z",
+    "data_folder": "../data/Training/3ac-1-proactive-example/Scenario_10",
+    "inputs": {
+        "num_scenarios": 10,
+        "aircraft_range": [
+            3,
+            3
+        ],
+        "amount_aircraft_disrupted": 1,
+        "average_flights_per_aircraft": 12,
+        "std_dev_flights_per_aircraft": 1,
+        "min_delta_start_unavailability": 120,
+        "max_delta_start_unavailability": 150,
+        "min_period_unavailability": 120,
+        "max_period_unavailability": 1020,
+        "probability_range": [
+            0.0,
+            0.0
+        ],
+        "probability_distribution": "uniform",
+        "clear_one_random_aircraft": false,
+        "clear_random_flights": false,
+        "first_flight_dep_time_range": [
+            6,
+            8
+        ],
+        "flight_length_range": [
+            2,
+            5
+        ],
+        "time_between_flights_range": [
+            0,
+            1
+        ]
+    },
+    "outputs": {
+        "Scenario_01": {
+            "total_aircraft": 3,
+            "total_flights": 9,
+            "disrupted_aircraft": 1,
+            "disruption_probabilities": {
+                "range": [
+                    0.0,
+                    0.0
+                ],
+                "distribution": "uniform"
+            },
+            "aircraft_ids": [
+                "A320#1",
+                "A320#2",
+                "A320#3"
+            ],
+            "flights_per_aircraft": {
+                "A320#1": 3,
+                "A320#2": 3,
+                "A320#3": 3
+            },
+            "flights": {
+                "1": {
+                    "Orig": "VIE",
+                    "Dest": "TXL",
+                    "DepTime": "07:15",
+                    "ArrTime": "12:05",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "2": {
+                    "Orig": "AMS",
+                    "Dest": "DUB",
+                    "DepTime": "12:06",
+                    "ArrTime": "14:27",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "3": {
+                    "Orig": "BCN",
+                    "Dest": "ZRH",
+                    "DepTime": "15:21",
+                    "ArrTime": "19:49",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "4": {
+                    "Orig": "BCN",
+                    "Dest": "VIE",
+                    "DepTime": "06:45",
+                    "ArrTime": "09:20",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "5": {
+                    "Orig": "DUB",
+                    "Dest": "CDG",
+                    "DepTime": "10:08",
+                    "ArrTime": "14:33",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "6": {
+                    "Orig": "TXL",
+                    "Dest": "BCN",
+                    "DepTime": "14:44",
+                    "ArrTime": "18:25",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "7": {
+                    "Orig": "CDG",
+                    "Dest": "ORY",
+                    "DepTime": "06:15",
+                    "ArrTime": "10:00",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#3"
+                },
+                "8": {
+                    "Orig": "VIE",
+                    "Dest": "DUB",
+                    "DepTime": "10:07",
+                    "ArrTime": "13:37",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#3"
+                },
+                "9": {
+                    "Orig": "IST",
+                    "Dest": "AMS",
+                    "DepTime": "13:50",
+                    "ArrTime": "18:10",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#3"
+                }
+            }
+        },
+        "Scenario_02": {
+            "total_aircraft": 3,
+            "total_flights": 10,
+            "disrupted_aircraft": 1,
+            "disruption_probabilities": {
+                "range": [
+                    0.0,
+                    0.0
+                ],
+                "distribution": "uniform"
+            },
+            "aircraft_ids": [
+                "A320#1",
+                "A320#2",
+                "A320#3"
+            ],
+            "flights_per_aircraft": {
+                "A320#1": 3,
+                "A320#2": 3,
+                "A320#3": 4
+            },
+            "flights": {
+                "1": {
+                    "Orig": "CDG",
+                    "Dest": "FRA",
+                    "DepTime": "06:00",
+                    "ArrTime": "09:54",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "2": {
+                    "Orig": "CDG",
+                    "Dest": "MUC",
+                    "DepTime": "10:34",
+                    "ArrTime": "14:54",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "3": {
+                    "Orig": "ORY",
+                    "Dest": "CDG",
+                    "DepTime": "15:42",
+                    "ArrTime": "17:51",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "4": {
+                    "Orig": "BCN",
+                    "Dest": "ORY",
+                    "DepTime": "07:45",
+                    "ArrTime": "11:54",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "5": {
+                    "Orig": "TXL",
+                    "Dest": "DUB",
+                    "DepTime": "12:13",
+                    "ArrTime": "15:20",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "6": {
+                    "Orig": "CPH",
+                    "Dest": "FRA",
+                    "DepTime": "16:19",
+                    "ArrTime": "19:47",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "7": {
+                    "Orig": "BCN",
+                    "Dest": "MAD",
+                    "DepTime": "07:15",
+                    "ArrTime": "09:34",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#3"
+                },
+                "8": {
+                    "Orig": "IST",
+                    "Dest": "DUB",
+                    "DepTime": "10:23",
+                    "ArrTime": "14:33",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#3"
+                },
+                "9": {
+                    "Orig": "AMS",
+                    "Dest": "VIE",
+                    "DepTime": "15:01",
+                    "ArrTime": "17:10",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#3"
+                },
+                "10": {
+                    "Orig": "VIE",
+                    "Dest": "ZRH",
+                    "DepTime": "17:14",
+                    "ArrTime": "20:19",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#3"
+                }
+            }
+        },
+        "Scenario_03": {
+            "total_aircraft": 3,
+            "total_flights": 9,
+            "disrupted_aircraft": 1,
+            "disruption_probabilities": {
+                "range": [
+                    0.0,
+                    0.0
+                ],
+                "distribution": "uniform"
+            },
+            "aircraft_ids": [
+                "A320#1",
+                "A320#2",
+                "A320#3"
+            ],
+            "flights_per_aircraft": {
+                "A320#1": 4,
+                "A320#2": 5,
+                "A320#3": 0
+            },
+            "flights": {
+                "1": {
+                    "Orig": "ZRH",
+                    "Dest": "TXL",
+                    "DepTime": "07:00",
+                    "ArrTime": "10:45",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "2": {
+                    "Orig": "BCN",
+                    "Dest": "DUB",
+                    "DepTime": "11:08",
+                    "ArrTime": "14:21",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "3": {
+                    "Orig": "FRA",
+                    "Dest": "BRU",
+                    "DepTime": "15:03",
+                    "ArrTime": "18:46",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "4": {
+                    "Orig": "BCN",
+                    "Dest": "MAD",
+                    "DepTime": "19:30",
+                    "ArrTime": "21:42",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "5": {
+                    "Orig": "TXL",
+                    "Dest": "BCN",
+                    "DepTime": "07:00",
+                    "ArrTime": "09:22",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "6": {
+                    "Orig": "ZRH",
+                    "Dest": "DUB",
+                    "DepTime": "09:47",
+                    "ArrTime": "12:07",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "7": {
+                    "Orig": "ZRH",
+                    "Dest": "VIE",
+                    "DepTime": "12:47",
+                    "ArrTime": "17:15",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "8": {
+                    "Orig": "TXL",
+                    "Dest": "BRU",
+                    "DepTime": "18:06",
+                    "ArrTime": "20:26",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "9": {
+                    "Orig": "MAD",
+                    "Dest": "LHR",
+                    "DepTime": "21:01",
+                    "ArrTime": "23:20",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                }
+            }
+        },
+        "Scenario_04": {
+            "total_aircraft": 3,
+            "total_flights": 1,
+            "disrupted_aircraft": 1,
+            "disruption_probabilities": {
+                "range": [
+                    0.0,
+                    0.0
+                ],
+                "distribution": "uniform"
+            },
+            "aircraft_ids": [
+                "A320#1",
+                "A320#2",
+                "A320#3"
+            ],
+            "flights_per_aircraft": {
+                "A320#1": 1,
+                "A320#2": 0,
+                "A320#3": 0
+            },
+            "flights": {
+                "1": {
+                    "Orig": "CPH",
+                    "Dest": "BCN",
+                    "DepTime": "08:15",
+                    "ArrTime": "10:52",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                }
+            }
+        },
+        "Scenario_05": {
+            "total_aircraft": 3,
+            "total_flights": 10,
+            "disrupted_aircraft": 1,
+            "disruption_probabilities": {
+                "range": [
+                    0.0,
+                    0.0
+                ],
+                "distribution": "uniform"
+            },
+            "aircraft_ids": [
+                "A320#1",
+                "A320#2",
+                "A320#3"
+            ],
+            "flights_per_aircraft": {
+                "A320#1": 4,
+                "A320#2": 3,
+                "A320#3": 3
+            },
+            "flights": {
+                "1": {
+                    "Orig": "IST",
+                    "Dest": "MAD",
+                    "DepTime": "07:30",
+                    "ArrTime": "09:55",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "2": {
+                    "Orig": "ORY",
+                    "Dest": "IST",
+                    "DepTime": "10:20",
+                    "ArrTime": "13:03",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "3": {
+                    "Orig": "TXL",
+                    "Dest": "VIE",
+                    "DepTime": "13:24",
+                    "ArrTime": "17:06",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "4": {
+                    "Orig": "IST",
+                    "Dest": "MAD",
+                    "DepTime": "17:54",
+                    "ArrTime": "19:59",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "5": {
+                    "Orig": "BCN",
+                    "Dest": "VIE",
+                    "DepTime": "07:45",
+                    "ArrTime": "12:42",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "6": {
+                    "Orig": "TXL",
+                    "Dest": "AMS",
+                    "DepTime": "12:56",
+                    "ArrTime": "17:33",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "7": {
+                    "Orig": "CPH",
+                    "Dest": "VIE",
+                    "DepTime": "18:07",
+                    "ArrTime": "21:00",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "8": {
+                    "Orig": "CPH",
+                    "Dest": "BRU",
+                    "DepTime": "06:45",
+                    "ArrTime": "09:59",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#3"
+                },
+                "9": {
+                    "Orig": "CDG",
+                    "Dest": "FRA",
+                    "DepTime": "10:13",
+                    "ArrTime": "13:39",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#3"
+                },
+                "10": {
+                    "Orig": "BRU",
+                    "Dest": "CDG",
+                    "DepTime": "14:32",
+                    "ArrTime": "17:33",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#3"
+                }
+            }
+        },
+        "Scenario_06": {
+            "total_aircraft": 3,
+            "total_flights": 11,
+            "disrupted_aircraft": 1,
+            "disruption_probabilities": {
+                "range": [
+                    0.0,
+                    0.0
+                ],
+                "distribution": "uniform"
+            },
+            "aircraft_ids": [
+                "A320#1",
+                "A320#2",
+                "A320#3"
+            ],
+            "flights_per_aircraft": {
+                "A320#1": 4,
+                "A320#2": 4,
+                "A320#3": 3
+            },
+            "flights": {
+                "1": {
+                    "Orig": "CDG",
+                    "Dest": "MAD",
+                    "DepTime": "07:00",
+                    "ArrTime": "09:57",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "2": {
+                    "Orig": "CDG",
+                    "Dest": "TXL",
+                    "DepTime": "10:13",
+                    "ArrTime": "13:32",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "3": {
+                    "Orig": "FRA",
+                    "Dest": "VIE",
+                    "DepTime": "13:37",
+                    "ArrTime": "15:50",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "4": {
+                    "Orig": "BRU",
+                    "Dest": "LHR",
+                    "DepTime": "16:49",
+                    "ArrTime": "19:57",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "5": {
+                    "Orig": "BRU",
+                    "Dest": "IST",
+                    "DepTime": "06:00",
+                    "ArrTime": "10:01",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "6": {
+                    "Orig": "VIE",
+                    "Dest": "LHR",
+                    "DepTime": "10:29",
+                    "ArrTime": "12:42",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "7": {
+                    "Orig": "MAD",
+                    "Dest": "CPH",
+                    "DepTime": "13:30",
+                    "ArrTime": "17:48",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "8": {
+                    "Orig": "VIE",
+                    "Dest": "BRU",
+                    "DepTime": "18:14",
+                    "ArrTime": "20:24",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "9": {
+                    "Orig": "IST",
+                    "Dest": "TXL",
+                    "DepTime": "07:30",
+                    "ArrTime": "11:57",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#3"
+                },
+                "10": {
+                    "Orig": "ZRH",
+                    "Dest": "MAD",
+                    "DepTime": "11:59",
+                    "ArrTime": "14:47",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#3"
+                },
+                "11": {
+                    "Orig": "CPH",
+                    "Dest": "ORY",
+                    "DepTime": "15:20",
+                    "ArrTime": "19:47",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#3"
+                }
+            }
+        },
+        "Scenario_07": {
+            "total_aircraft": 3,
+            "total_flights": 7,
+            "disrupted_aircraft": 1,
+            "disruption_probabilities": {
+                "range": [
+                    0.0,
+                    0.0
+                ],
+                "distribution": "uniform"
+            },
+            "aircraft_ids": [
+                "A320#1",
+                "A320#2",
+                "A320#3"
+            ],
+            "flights_per_aircraft": {
+                "A320#1": 2,
+                "A320#2": 2,
+                "A320#3": 3
+            },
+            "flights": {
+                "1": {
+                    "Orig": "BCN",
+                    "Dest": "CPH",
+                    "DepTime": "07:45",
+                    "ArrTime": "10:24",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "2": {
+                    "Orig": "IST",
+                    "Dest": "MUC",
+                    "DepTime": "10:59",
+                    "ArrTime": "15:34",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "3": {
+                    "Orig": "CDG",
+                    "Dest": "AMS",
+                    "DepTime": "07:00",
+                    "ArrTime": "11:15",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "4": {
+                    "Orig": "TXL",
+                    "Dest": "IST",
+                    "DepTime": "11:39",
+                    "ArrTime": "15:50",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "5": {
+                    "Orig": "FRA",
+                    "Dest": "IST",
+                    "DepTime": "07:15",
+                    "ArrTime": "09:22",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#3"
+                },
+                "6": {
+                    "Orig": "CDG",
+                    "Dest": "CPH",
+                    "DepTime": "10:05",
+                    "ArrTime": "12:37",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#3"
+                },
+                "7": {
+                    "Orig": "ZRH",
+                    "Dest": "FRA",
+                    "DepTime": "13:29",
+                    "ArrTime": "15:54",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#3"
+                }
+            }
+        },
+        "Scenario_08": {
+            "total_aircraft": 3,
+            "total_flights": 9,
+            "disrupted_aircraft": 1,
+            "disruption_probabilities": {
+                "range": [
+                    0.0,
+                    0.0
+                ],
+                "distribution": "uniform"
+            },
+            "aircraft_ids": [
+                "A320#1",
+                "A320#2",
+                "A320#3"
+            ],
+            "flights_per_aircraft": {
+                "A320#1": 3,
+                "A320#2": 3,
+                "A320#3": 3
+            },
+            "flights": {
+                "1": {
+                    "Orig": "BRU",
+                    "Dest": "CPH",
+                    "DepTime": "07:15",
+                    "ArrTime": "10:55",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "2": {
+                    "Orig": "BCN",
+                    "Dest": "MUC",
+                    "DepTime": "11:34",
+                    "ArrTime": "15:02",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "3": {
+                    "Orig": "MUC",
+                    "Dest": "VIE",
+                    "DepTime": "15:52",
+                    "ArrTime": "19:02",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "4": {
+                    "Orig": "CDG",
+                    "Dest": "DUB",
+                    "DepTime": "07:30",
+                    "ArrTime": "09:40",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "5": {
+                    "Orig": "BRU",
+                    "Dest": "TXL",
+                    "DepTime": "10:07",
+                    "ArrTime": "13:26",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "6": {
+                    "Orig": "BRU",
+                    "Dest": "ZRH",
+                    "DepTime": "13:33",
+                    "ArrTime": "18:21",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "7": {
+                    "Orig": "ORY",
+                    "Dest": "ZRH",
+                    "DepTime": "07:45",
+                    "ArrTime": "11:23",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#3"
+                },
+                "8": {
+                    "Orig": "CPH",
+                    "Dest": "ZRH",
+                    "DepTime": "11:53",
+                    "ArrTime": "15:13",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#3"
+                },
+                "9": {
+                    "Orig": "AMS",
+                    "Dest": "IST",
+                    "DepTime": "15:36",
+                    "ArrTime": "17:40",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#3"
+                }
+            }
+        },
+        "Scenario_09": {
+            "total_aircraft": 3,
+            "total_flights": 11,
+            "disrupted_aircraft": 1,
+            "disruption_probabilities": {
+                "range": [
+                    0.0,
+                    0.0
+                ],
+                "distribution": "uniform"
+            },
+            "aircraft_ids": [
+                "A320#1",
+                "A320#2",
+                "A320#3"
+            ],
+            "flights_per_aircraft": {
+                "A320#1": 4,
+                "A320#2": 4,
+                "A320#3": 3
+            },
+            "flights": {
+                "1": {
+                    "Orig": "MAD",
+                    "Dest": "IST",
+                    "DepTime": "07:15",
+                    "ArrTime": "10:33",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "2": {
+                    "Orig": "DUB",
+                    "Dest": "AMS",
+                    "DepTime": "11:01",
+                    "ArrTime": "13:19",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "3": {
+                    "Orig": "DUB",
+                    "Dest": "IST",
+                    "DepTime": "13:41",
+                    "ArrTime": "16:34",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "4": {
+                    "Orig": "VIE",
+                    "Dest": "MAD",
+                    "DepTime": "17:12",
+                    "ArrTime": "20:57",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "5": {
+                    "Orig": "FRA",
+                    "Dest": "CDG",
+                    "DepTime": "07:30",
+                    "ArrTime": "11:24",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "6": {
+                    "Orig": "VIE",
+                    "Dest": "CDG",
+                    "DepTime": "11:44",
+                    "ArrTime": "15:16",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "7": {
+                    "Orig": "ZRH",
+                    "Dest": "AMS",
+                    "DepTime": "15:57",
+                    "ArrTime": "18:01",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "8": {
+                    "Orig": "CPH",
+                    "Dest": "CDG",
+                    "DepTime": "18:22",
+                    "ArrTime": "20:24",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "9": {
+                    "Orig": "LHR",
+                    "Dest": "ORY",
+                    "DepTime": "07:45",
+                    "ArrTime": "10:28",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#3"
+                },
+                "10": {
+                    "Orig": "BCN",
+                    "Dest": "TXL",
+                    "DepTime": "11:01",
+                    "ArrTime": "14:55",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#3"
+                },
+                "11": {
+                    "Orig": "VIE",
+                    "Dest": "MAD",
+                    "DepTime": "15:18",
+                    "ArrTime": "18:46",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#3"
+                }
+            }
+        },
+        "Scenario_10": {
+            "total_aircraft": 3,
+            "total_flights": 5,
+            "disrupted_aircraft": 1,
+            "disruption_probabilities": {
+                "range": [
+                    0.0,
+                    0.0
+                ],
+                "distribution": "uniform"
+            },
+            "aircraft_ids": [
+                "A320#1",
+                "A320#2",
+                "A320#3"
+            ],
+            "flights_per_aircraft": {
+                "A320#1": 3,
+                "A320#2": 2,
+                "A320#3": 0
+            },
+            "flights": {
+                "1": {
+                    "Orig": "LHR",
+                    "Dest": "IST",
+                    "DepTime": "07:45",
+                    "ArrTime": "12:01",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "2": {
+                    "Orig": "DUB",
+                    "Dest": "BRU",
+                    "DepTime": "12:18",
+                    "ArrTime": "15:05",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "3": {
+                    "Orig": "BCN",
+                    "Dest": "LHR",
+                    "DepTime": "15:56",
+                    "ArrTime": "17:57",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#1"
+                },
+                "4": {
+                    "Orig": "DUB",
+                    "Dest": "FRA",
+                    "DepTime": "07:15",
+                    "ArrTime": "10:07",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                },
+                "5": {
+                    "Orig": "MAD",
+                    "Dest": "MUC",
+                    "DepTime": "10:38",
+                    "ArrTime": "15:24",
+                    "PrevFlight": 0,
+                    "Aircraft": "A320#2"
+                }
+            }
+        }
+    }
+}
