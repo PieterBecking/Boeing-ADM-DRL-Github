@@ -321,9 +321,6 @@ def generate_flights_file(file_name, aircraft_ids, average_flights_per_aircraft,
             file.write(line)
         file.write('#')
 
-    print(f"*****flights_dict: {flights_dict}")
-    print(f"*****flight_rotation_data: {flight_rotation_data}")
-
     return flights_dict, flight_rotation_data
 
 
@@ -428,15 +425,12 @@ def create_data_scenario(
         while not good_aircraft:
             # check how many flights this aircraft has
             flights_with_aircraft = [flight_id for flight_id, flight_data in flights_dict.items() if flight_data['Aircraft'] == aircraft_id]
-            # print(f"*****flights_with_aircraft: {flights_with_aircraft}")
 
             # then check total amount of flights
             total_flights = len(flights_dict)
-            # print(f"*****total_flights: {total_flights}")
             
             # check if there are any other aircraft left with flights if not, then break
             if total_flights == len(flights_with_aircraft):
-                # print(f"*****No other flights left with this aircraft. Breaking...")
                 # choose another aircraft
                 aircraft_id = random.choice(aircraft_ids)
             else:
