@@ -50,7 +50,6 @@ class AircraftDisruptionEnv(gym.Env):
 
         # Flight information and indexing
         # if flights_dict is empty, flights_dict is empty
-        # print(f"*****flights_dict: {flights_dict}")
         if flights_dict is None:
             flights_dict = {}  # Initialize as empty dict if None
 
@@ -65,9 +64,6 @@ class AircraftDisruptionEnv(gym.Env):
         this_day_flights = [flight_info for flight_info in flights_dict.values() if '+' not in flight_info['DepTime']]
 
         # Determine the earliest possible event in the environment
-        print(f"*****config_dict['RecoveryPeriod']['StartDate']: {config_dict['RecoveryPeriod']['StartDate']}")
-        print(f"*****this_day_flights: {this_day_flights}")
-        print(f"*****self.start_datetime: {self.start_datetime}")
         self.earliest_datetime = min(
             min(datetime.strptime(config_dict['RecoveryPeriod']['StartDate'] + ' ' + flight_info['DepTime'], '%d/%m/%y %H:%M') for flight_info in this_day_flights),
             self.start_datetime
@@ -347,13 +343,16 @@ class AircraftDisruptionEnv(gym.Env):
 
         # Check if the flight action is valid
         if DEBUG_MODE_ACTION:
-            print(f"***Flight action: {flight_action}")
-            print(f"***self.flight_id_to_idx.keys(): {self.flight_id_to_idx.keys()}")
+            pass
         
         if flight_action != 0:
             # Check if the flight_action exists in our valid flight IDs
             if flight_action not in self.flight_id_to_idx.keys():
                 raise ValueError(f"Invalid flight action: {flight_action}")
+            else:
+                pass
+        else:
+            pass
 
         # Validate the action
         self.validate_action(flight_action, aircraft_action)
@@ -812,11 +811,11 @@ class AircraftDisruptionEnv(gym.Env):
             self.something_happened = True
 
         if DEBUG_MODE_SCHEDULING:
-            print(f"****** current_ac_is_same_as_target_ac: {current_ac_is_same_as_target_ac}") 
+            print(f"current_ac_is_same_as_target_ac: {current_ac_is_same_as_target_ac}") 
 
         if current_ac_is_same_as_target_ac and not has_unavail_overlap:
             if DEBUG_MODE_SCHEDULING:
-                print("****** No unavailability overlap and current aircraft is the same as target aircraft - Keeping original schedule")
+                print("    No unavailability overlap and current aircraft is the same as target aircraft - Keeping original schedule")
             self.something_happened = False
             return
 
