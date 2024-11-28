@@ -91,53 +91,108 @@ def generate_alt_aircraft_file(file_name, aircraft_ids, amount_aircraft_disrupte
 
     disrupted_aircraft_ids = random.sample(aircraft_ids, amount_aircraft_disrupted)
     all_aircraft_data = []
+    disruption_log = {
+        "total_aircraft": len(aircraft_ids),
+        "disrupted_count": amount_aircraft_disrupted,
+        "probability_range": probability_range,
+        "disruptions": []
+    }
 
     for aircraft_id in aircraft_ids:
+        disruption_info = {
+            "aircraft_id": aircraft_id,
+            "is_disrupted": aircraft_id in disrupted_aircraft_ids,
+        }
+
         if aircraft_id in disrupted_aircraft_ids:
             start_date = config_dict['RecoveryPeriod']['StartDate']
             start_time_recovery = config_dict['RecoveryPeriod']['StartTime']
 
             # Parse date in dd/mm/yy format
             start_date_obj = datetime.strptime(start_date, '%d/%m/%y')
+            delta_start = random.randint(min_delta_start_unavailability, max_delta_start_unavailability)
             start_unavail = (datetime.strptime(start_time_recovery, '%H:%M') +
-                             timedelta(minutes=random.randint(min_delta_start_unavailability, max_delta_start_unavailability))).strftime('%H:%M')
+                             timedelta(minutes=delta_start)).strftime('%H:%M')
 
             end_date = config_dict['RecoveryPeriod']['EndDate']
             start_unavail_obj = datetime.strptime(start_unavail, '%H:%M')
-            end_unavail = (start_unavail_obj + timedelta(minutes=random.randint(min_period_unavailability, max_period_unavailability))).strftime('%H:%M')
+            unavail_period = random.randint(min_period_unavailability, max_period_unavailability)
+            end_unavail = (start_unavail_obj + timedelta(minutes=unavail_period)).strftime('%H:%M')
 
             # Adjust end_date if end_unavail is earlier than start_unavail
+            crosses_midnight = False
             if datetime.strptime(end_unavail, '%H:%M') < start_unavail_obj:
                 end_date_obj = datetime.strptime(end_date, '%d/%m/%y')
                 end_date = (end_date_obj + timedelta(days=1)).strftime('%d/%m/%y')
+                crosses_midnight = True
 
             all_aircraft_data.append(f"{aircraft_id} {start_date} {start_unavail} {end_date} {end_unavail} 1.00")
+            
+            # Log disruption details
+            disruption_info.update({
+                "start_date": start_date,
+                "start_time": start_unavail,
+                "end_date": end_date,
+                "end_time": end_unavail,
+                "probability": 1.00,
+                "delta_start_minutes": delta_start,
+                "unavailability_period_minutes": unavail_period,
+                "crosses_midnight": crosses_midnight
+            })
         else:
             start_date = config_dict['RecoveryPeriod']['StartDate']
             start_time_recovery = config_dict['RecoveryPeriod']['StartTime']
 
-            # Parse date in dd/mm/yy format
-            start_date_obj = datetime.strptime(start_date, '%d/%m/%y')
+            delta_start = random.randint(min_delta_start_unavailability, max_delta_start_unavailability)
             start_unavail = (datetime.strptime(start_time_recovery, '%H:%M') +
-                             timedelta(minutes=random.randint(min_delta_start_unavailability, max_delta_start_unavailability))).strftime('%H:%M')
+                             timedelta(minutes=delta_start)).strftime('%H:%M')
 
             end_date = config_dict['RecoveryPeriod']['EndDate']
             start_unavail_obj = datetime.strptime(start_unavail, '%H:%M')
-            end_unavail = (start_unavail_obj + timedelta(minutes=random.randint(min_period_unavailability, max_period_unavailability))).strftime('%H:%M')
+            unavail_period = random.randint(min_period_unavailability, max_period_unavailability)
+            end_unavail = (start_unavail_obj + timedelta(minutes=unavail_period)).strftime('%H:%M')
 
             # Adjust end_date if end_unavail is earlier than start_unavail
+            crosses_midnight = False
             if datetime.strptime(end_unavail, '%H:%M') < start_unavail_obj:
                 end_date_obj = datetime.strptime(end_date, '%d/%m/%y')
                 end_date = (end_date_obj + timedelta(days=1)).strftime('%d/%m/%y')
+                crosses_midnight = True
 
             probability = random.uniform(probability_range[0], probability_range[1])
             all_aircraft_data.append(f"{aircraft_id} {start_date} {start_unavail} {end_date} {end_unavail} {probability:.2f}")
+
+            # Log potential disruption details
+            disruption_info.update({
+                "start_date": start_date,
+                "start_time": start_unavail,
+                "end_date": end_date,
+                "end_time": end_unavail,
+                "probability": probability,
+                "delta_start_minutes": delta_start,
+                "unavailability_period_minutes": unavail_period,
+                "crosses_midnight": crosses_midnight
+            })
+
+        disruption_log["disruptions"].append(disruption_info)
 
     with open(file_name, 'w') as file:
         file.write('%Aircraft StartDate StartTime EndDate EndTime Probability\n')
         for aircraft in all_aircraft_data:
             file.write(f"{aircraft}\n")
         file.write('#')
+
+    # Add summary statistics to the log
+    disruption_log["statistics"] = {
+        "avg_probability": sum(d["probability"] for d in disruption_log["disruptions"]) / len(aircraft_ids),
+        "fully_disrupted": sum(1 for d in disruption_log["disruptions"] if d["probability"] == 1.00),
+        "partially_disrupted": sum(1 for d in disruption_log["disruptions"] if 0 < d["probability"] < 1),
+        "crosses_midnight_count": sum(1 for d in disruption_log["disruptions"] if d["crosses_midnight"]),
+        "avg_unavailability_period": sum(d["unavailability_period_minutes"] for d in disruption_log["disruptions"]) / len(aircraft_ids),
+        "avg_delta_start": sum(d["delta_start_minutes"] for d in disruption_log["disruptions"]) / len(aircraft_ids)
+    }
+
+    return disruption_log
 
 
 # Function to generate flights.csv
@@ -344,7 +399,7 @@ def create_data_scenario(
 
     # Generate alt aircraft (disrupted aircraft)
     alt_aircraft_file = os.path.join(data_folder, 'alt_aircraft.csv')
-    generate_alt_aircraft_file(
+    disruptions = generate_alt_aircraft_file(
         alt_aircraft_file, aircraft_ids, amount_aircraft_disrupted, config_dict, 
         min_delta_start_unavailability, max_delta_start_unavailability, 
         min_period_unavailability, max_period_unavailability, 
@@ -480,6 +535,7 @@ def create_data_scenario(
             for aircraft in aircraft_ids
         },
         "flights": flights_dict,
+        "disruptions": disruptions,
     }
 
     print(f"Data creation for scenario {scenario_name} completed with {len(aircraft_ids)} aircraft and {len(flights_dict)} flights.")

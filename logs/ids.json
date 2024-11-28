@@ -98,5 +98,17 @@
     "0025": {
         "type": "scenario",
         "finished": true
+    },
+    "0026": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0027": {
+        "type": "scenario",
+        "finished": true
+    },
+    "0028": {
+        "type": "scenario",
+        "finished": true
     }
 }
