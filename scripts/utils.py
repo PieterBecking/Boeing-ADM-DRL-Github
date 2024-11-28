@@ -707,3 +707,16 @@ def calculate_epsilon_decay_rate(total_timesteps, epsilon_start, epsilon_min, pe
     print(f"Calculated EPSILON_DECAY_RATE: {decay_rate}")
     return decay_rate
 
+
+import json
+import numpy as np
+
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, (np.integer, np.int32, np.int64)):
+            return int(obj)
+        elif isinstance(obj, (np.floating, np.float32, np.float64)):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
