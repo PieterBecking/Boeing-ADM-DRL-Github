@@ -222,7 +222,7 @@ class StatePlotter:
         plt.ylabel('Aircraft')
         title = f'Aircraft Rotations and Unavailability {title_appendix.title()}'
         if reward_and_action:
-            title += f' (Reward: {reward_and_action[0]:.2f}, Action: {reward_and_action[1]})'
+            title += f' (Reward: {reward_and_action[0]:.2f}, Action: {reward_and_action[1]}, Total Reward: {reward_and_action[2]:.2f})'
         plt.title(title)
         plt.grid(True)
         plt.xticks(rotation=45)
@@ -613,7 +613,6 @@ def calculate_total_training_timesteps(training_folders_path, n_episodes):
     # print(f"amount of scenario folders:{len(scenario_folders)}")
     # Simulate one batch with a random agent to calculate timesteps per scenario
     for scenario_folder in scenario_folders:
-        # print(f"*****scenario_folder: {scenario_folder}")
         scenario_count += 1
 
         # Load the data for the current scenario
