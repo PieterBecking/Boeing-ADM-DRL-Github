@@ -114,6 +114,8 @@ class AircraftDisruptionEnv(gym.Env):
         self.uncertain_breakdowns = {}
         self.current_breakdowns = {}
 
+        self.info_after_step = {}
+
         # Initialize a dictionary to store unavailabilities
         self.unavailabilities_dict = {}
 
@@ -361,9 +363,6 @@ class AircraftDisruptionEnv(gym.Env):
         if DEBUG_MODE:
             print(f"Processed action: {action_index} of type: {type(action_index)}")
             print(f"Chosen action: flight {flight_action}, aircraft {aircraft_action}")
-
-        # Initialize info dictionary
-        info = {}
 
         # Get pre-action conflicts
         pre_action_conflicts = self.get_current_conflicts()
@@ -1017,19 +1016,15 @@ class AircraftDisruptionEnv(gym.Env):
         self.flights_dict[flight_id]['ArrTime'] = arr_time.strftime('%H:%M')
 
 
-
     def _calculate_reward(self, resolved_conflicts, remaining_conflicts, flight_action, aircraft_action, original_flight_action_departure_time):
         """Calculates the reward based on the current state of the environment.
-
-        This function evaluates the reward based on conflict resolutions, delays, cancelled flights, and inaction penalties.
-        It returns the total reward for the action taken.
 
         Args:
             resolved_conflicts (set): The set of conflicts that were resolved during the action.
             remaining_conflicts (set): The set of conflicts that remain after the action.
             flight_action (int): The flight action taken by the agent.
             aircraft_action (int): The aircraft action taken by the agent.
-            original_flight_action_departure_time (str): The departure time of the flight that is being acted upon (before the action is taken)
+            original_flight_action_departure_time (str): The departure time of the flight being acted upon (before the action).
         Returns:
             float: The calculated reward for the action.
         """
@@ -1037,113 +1032,113 @@ class AircraftDisruptionEnv(gym.Env):
 
         if DEBUG_MODE_REWARD:
             print("")
-            print(f"Reward for action: flight {flight_action}, aircraft {aircraft_action}")
+            print(f"Calculating reward for action: flight {flight_action}, aircraft {aircraft_action}")
 
-        # Exclude conflicts resolved via cancellation
-        resolved_conflicts_non_cancellation = set()
-        for conflict in resolved_conflicts:
-            flight_id = conflict[1]
-            if flight_id not in self.cancelled_flights:
-                resolved_conflicts_non_cancellation.add(conflict)
-
-        # 1. **Reward for resolving conflicts**
+        # 1. **Conflict Resolution Reward**
+        resolved_conflicts_non_cancellation = {
+            conflict for conflict in resolved_conflicts if conflict[1] not in self.cancelled_flights
+        }
         conflict_resolution_reward = RESOLVED_CONFLICT_REWARD * len(resolved_conflicts_non_cancellation)
         reward += conflict_resolution_reward
+
         if DEBUG_MODE_REWARD:
-            num_resolved_conflicts = len(resolved_conflicts_non_cancellation)
-            print(f"  +{conflict_resolution_reward} for resolving {num_resolved_conflicts} conflicts (excluding cancellations): {resolved_conflicts_non_cancellation}")
+            print(f"  +{conflict_resolution_reward} for resolving {len(resolved_conflicts_non_cancellation)} conflicts (excluding cancellations)")
 
-        # 2. **Penalty for delays**
-        delay_penalty = 0
-        for flight_id, new_start_time in self.environment_delayed_flights.items():
-            # Check if the flight_id is already in penalized_delays
-            if flight_id in self.penalized_delays:
-                # Compare the new start time with the previously recorded one
-                if new_start_time != self.penalized_delays[flight_id]:
-                    # Apply the delay penalty for the new delay
-                    delay = new_start_time - self.penalized_delays[flight_id]
-                    delay_penalty += delay
-                    self.penalized_delays[flight_id] = new_start_time  # Update to the new start time
-            else:
-                # If not penalized yet, add the delay
-                delay_penalty += new_start_time
-                self.penalized_delays[flight_id] = new_start_time  # Record the new start time
-
-        delay_penalty_total = delay_penalty * DELAY_MINUTE_PENALTY
-
-        capped_delay_penalty = False
-        if delay_penalty_total > MAX_DELAY_PENALTY:
-            capped_delay_penalty = True
-            delay_penalty_total = MAX_DELAY_PENALTY
-        else:
-            delay_penalty_total = delay_penalty_total
-
+        # 2. **Delay Penalty**
+        delay_penalty_minutes = sum(
+            new_start_time - self.penalized_delays.get(flight_id, 0)
+            for flight_id, new_start_time in self.environment_delayed_flights.items()
+            if flight_id not in self.penalized_delays or new_start_time != self.penalized_delays[flight_id]
+        )
+        delay_penalty_total = min(delay_penalty_minutes * DELAY_MINUTE_PENALTY, MAX_DELAY_PENALTY)
         reward -= delay_penalty_total
 
         if DEBUG_MODE_REWARD:
-            penalty_info = f"  -{delay_penalty_total} for delays ({delay_penalty} minutes)"
-            if capped_delay_penalty:
-                penalty_info += " (capped at maximum allowed penalty)"
-            print(penalty_info)
+            print(f"  -{delay_penalty_total} penalty for {delay_penalty_minutes} minutes of delay (capped at {MAX_DELAY_PENALTY})")
 
-        # 3. **Penalty for cancelled flights**
-        cancel_penalty = 0
-        for flight_id in self.cancelled_flights:
-            if flight_id not in self.penalized_cancelled_flights:
-                cancel_penalty += CANCELLED_FLIGHT_PENALTY
-                self.penalized_cancelled_flights.add(flight_id)  # Mark flight as penalized
-
+        # 3. **Cancellation Penalty**
+        cancellation_penalty_count = len({
+            flight_id for flight_id in self.cancelled_flights if flight_id not in self.penalized_cancelled_flights
+        })
+        cancel_penalty = cancellation_penalty_count * CANCELLED_FLIGHT_PENALTY
         reward -= cancel_penalty
 
         if DEBUG_MODE_REWARD:
-            print(f"  -{cancel_penalty} penalty for cancelled flights")
+            print(f"  -{cancel_penalty} penalty for {cancellation_penalty_count} cancelled flights")
 
-        # 4. **Penalty for taking no action when conflicts exist**
-        inaction_penalty = 0
-        if flight_action == 0 and len(remaining_conflicts) > 0:
-            inaction_penalty = NO_ACTION_PENALTY
-            reward -= inaction_penalty
+        # 4. **Inaction Penalty**
+        inaction_penalty = NO_ACTION_PENALTY if flight_action == 0 and remaining_conflicts else 0
+        reward -= inaction_penalty
+
         if DEBUG_MODE_REWARD:
-            print(f"  -{inaction_penalty} for inaction with conflicts")
+            print(f"  -{inaction_penalty} penalty for inaction with remaining conflicts")
 
-        # 5. **Bonus for proactive changes **
-        ahead_of_time_bonus = 0
-        
-        if flight_action == 0:
-            self.something_happened = False
+        # 5. **Proactive Bonus**
+        proactive_bonus = 0
+        time_to_departure = None
         if flight_action != 0 and self.something_happened:
-            selected_flight_id = flight_action
             original_dep_time = parse_time_with_day_offset(original_flight_action_departure_time, self.start_datetime)
-            original_dep_minutes = (original_dep_time - self.earliest_datetime).total_seconds() / 60
             current_time_minutes = (self.current_datetime - self.earliest_datetime).total_seconds() / 60
-            
-            # we are currently one timestep ahead of the actual time the action is taken
-            time_at_action = current_time_minutes - (timedelta(hours=TIMESTEP_HOURS).total_seconds() / 60)
-            time_to_departure = original_dep_minutes - time_at_action
+            action_time = current_time_minutes - TIMESTEP_HOURS * 60
+            time_to_departure = (original_dep_time - self.earliest_datetime).total_seconds() / 60 - action_time
+            proactive_bonus = max(0, time_to_departure * AHEAD_BONUS_PER_MINUTE)
 
-            ahead_of_time_bonus = AHEAD_BONUS_PER_MINUTE * time_to_departure
+        reward += proactive_bonus
 
-        reward += ahead_of_time_bonus
-        
-        if DEBUG_MODE_REWARD:
-            if ahead_of_time_bonus > 0:
-                print(f"  +{ahead_of_time_bonus} bonus for proactive action ({time_to_departure:.1f} minutes ahead)")
-            else:
-                print(f"  -{ahead_of_time_bonus} bonus for proactive action")
+        if DEBUG_MODE_REWARD and proactive_bonus > 0:
+            print(f"  +{proactive_bonus} bonus for proactive action ({time_to_departure:.1f} minutes ahead)")
 
-
-        # 6. **Penalty per minute passed**
-        time_penalty = (self.current_datetime - self.earliest_datetime).total_seconds() / 60 * TIME_MINUTE_PENALTY
+        # 6. **Time Progression Penalty**
+        time_penalty_minutes = (self.current_datetime - self.earliest_datetime).total_seconds() / 60
+        time_penalty = time_penalty_minutes * TIME_MINUTE_PENALTY
         reward -= time_penalty
-        if DEBUG_MODE_REWARD:
-            print(f"  -{time_penalty} penalty for time passed")
-
 
         if DEBUG_MODE_REWARD:
-            print("_______________")
-            print(f"{reward} total reward for action: flight {flight_action}, aircraft {aircraft_action}")
+            print(f"  -{time_penalty} penalty for time progression")
+
+        # 7. **Compile Metrics for Analysis**
+        self.info_after_step = {
+            # General Metrics
+            "total_reward": reward,
+            "current_time_minutes": time_penalty_minutes,
+
+            # Conflict Metrics
+            "resolved_conflicts_count": len(resolved_conflicts),
+            "resolved_conflicts_non_cancellation_count": len(resolved_conflicts_non_cancellation),
+            "remaining_conflicts_count": len(remaining_conflicts),
+            "conflict_resolution_reward": conflict_resolution_reward,
+
+            # Delay Metrics
+            "delay_penalty_minutes": delay_penalty_minutes,
+            "delay_penalty_total": delay_penalty_total,
+            "delay_penalty_capped": delay_penalty_total == MAX_DELAY_PENALTY,
+
+            # Cancellation Metrics
+            "cancelled_flights_count": cancellation_penalty_count,
+            "cancellation_penalty": cancel_penalty,
+
+            # Inaction Metrics
+            "inaction_penalty": inaction_penalty,
+
+            # Proactive Metrics
+            "proactive_bonus": proactive_bonus,
+            "time_to_departure_minutes": time_to_departure,
+
+            # Time Metrics
+            "time_penalty": time_penalty,
+
+            # Action Details
+            "flight_action": flight_action,
+            "aircraft_action": aircraft_action,
+            "original_departure_time": original_flight_action_departure_time,
+        }
+
+        if DEBUG_MODE_REWARD:
+            print(f"Compiled step info: {self.info_after_step}")
 
         return reward
+
+
 
     def reset(self, seed=None, options=None):
         """Resets the environment to its initial state."""
