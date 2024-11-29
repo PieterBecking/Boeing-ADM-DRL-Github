@@ -263,8 +263,8 @@ def find_corresponding_training_id(model_path, env_type):
             if os.path.exists(training_file):
                 with open(training_file, 'r') as f:
                     training_data = json.load(f)
-                    # Check if matches the environment type
-                    if env_type in training_data:
+                    # Check if matches the environment type in metadata
+                    if training_data.get('metadata', {}).get('myopic_or_proactive') == env_type:
                         return id_num
                         
     return None
@@ -289,3 +289,56 @@ def log_inference_scenario_data(inference_id, scenario_data):
     with open(log_file_path, 'w') as log_file:
         json.dump(log_data, log_file, indent=4, cls=NumpyEncoder)
     print(f"Scenario data logged for {scenario_folder} to {log_file_path}")
+
+
+from stable_baselines3.common.callbacks import BaseCallback
+
+class DetailedLoggingCallback(BaseCallback):
+    def __init__(self, verbose=0):
+        super().__init__(verbose)
+        self.episode_rewards = {
+            'delay_penalty': [],
+            'conflict_penalty': [],
+            'cancellation_penalty': [],
+            'ahead_of_time_penalty': []
+        }
+        self.episode_metrics = {
+            'delay_minutes': [],
+            'ahead_of_time_minutes': [],
+            'num_conflicts': [],
+            'num_cancellations': []
+        }
+        
+    def _on_step(self) -> bool:
+        # Get info from last step
+        info = self.locals['infos'][0]  # Assuming single environment
+        
+        # Log rewards
+        for reward_type, value in info['rewards'].items():
+            self.logger.record(f"rewards/{reward_type}", value)
+            self.episode_rewards[reward_type].append(value)
+            
+        # Log metrics
+        for metric, value in info['metrics'].items():
+            self.logger.record(f"metrics/{metric}", value)
+            self.episode_metrics[metric].append(value)
+            
+        return True
+    
+    def _on_rollout_end(self) -> None:
+        # Log episode averages
+        for reward_type, values in self.episode_rewards.items():
+            if values:
+                avg_value = sum(values) / len(values)
+                self.logger.record(f"episode_rewards/{reward_type}_avg", avg_value)
+        
+        for metric, values in self.episode_metrics.items():
+            if values:
+                avg_value = sum(values) / len(values)
+                self.logger.record(f"episode_metrics/{metric}_avg", avg_value)
+                
+        # Clear episode data
+        for reward_type in self.episode_rewards:
+            self.episode_rewards[reward_type] = []
+        for metric in self.episode_metrics:
+            self.episode_metrics[metric] = []
