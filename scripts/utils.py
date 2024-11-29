@@ -727,7 +727,7 @@ def load_json(file_path):
 
 def get_training_metadata(training_logs_path, env_type):
     training_metadata = load_json(training_logs_path)
-    return training_metadata[env_type]['metadata']
+    return training_metadata['metadata']
 
 
 def check_conflicts_between_training_and_current_config(training_logs_path, env_type, inference_config_variables):
