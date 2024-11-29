@@ -278,9 +278,16 @@ def log_inference_scenario_data(inference_id, scenario_data):
     """
     log_file_path = os.path.join("../logs", "inference", f"inference_{inference_id}.json")
 
-    # Load existing log file
-    with open(log_file_path, 'r') as log_file:
-        log_data = json.load(log_file)
+    # Load existing log file or initialize a new log
+    if os.path.exists(log_file_path):
+        with open(log_file_path, 'r') as log_file:
+            log_data = json.load(log_file)
+    else:
+        log_data = {"inference_id": inference_id, "scenarios": {}}  # Initialize with "scenarios" key
+
+    # Ensure "scenarios" key exists
+    if "scenarios" not in log_data:
+        log_data["scenarios"] = {}
 
     # Add scenario data
     scenario_folder = scenario_data["scenario_folder"]
@@ -289,6 +296,16 @@ def log_inference_scenario_data(inference_id, scenario_data):
     with open(log_file_path, 'w') as log_file:
         json.dump(log_data, log_file, indent=4, cls=NumpyEncoder)
     print(f"Scenario data logged for {scenario_folder} to {log_file_path}")
+
+def update_id_status(inference_id, status):
+    """
+    Updates the status of an inference ID in ids.json.
+    """
+    with open('../logs/ids.json', 'r') as f:
+        ids = json.load(f)
+    ids[inference_id]["finished"] = status
+    with open('../logs/ids.json', 'w') as f:
+        json.dump(ids, f, indent=4)
 
 
 from stable_baselines3.common.callbacks import BaseCallback

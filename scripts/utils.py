@@ -722,7 +722,7 @@ class NumpyEncoder(json.JSONEncoder):
         return super().default(obj)
 
 def load_json(file_path):
-    with open(f"../{file_path}", 'r') as f:
+    with open(f"{file_path}", 'r') as f:
         return json.load(f)
 
 def get_training_metadata(training_logs_path, env_type):
