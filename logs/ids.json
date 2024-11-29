@@ -913,5 +913,24 @@
     "0220": {
         "type": "inference",
         "finished": "finished"
+    },
+    "0221": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/temp/"
+    },
+    "0222": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/myopic_3ac-58.zip"
+    },
+    "0223": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/proactive_3ac-51.zip"
+    },
+    "0224": {
+        "type": "inference",
+        "finished": "finished"
     }
 }
