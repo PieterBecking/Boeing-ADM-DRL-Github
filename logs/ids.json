@@ -932,5 +932,73 @@
     "0224": {
         "type": "inference",
         "finished": "finished"
+    },
+    "0225": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/myopic_3ac-1.zip"
+    },
+    "0226": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/proactive_3ac-1.zip"
+    },
+    "0227": {
+        "type": "inference",
+        "finished": "finished"
+    },
+    "0228": {
+        "type": "training",
+        "finished": false
+    },
+    "0229": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/myopic-0229.zip"
+    },
+    "0230": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/myopic-0230.zip"
+    },
+    "0231": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/myopic-0231.zip"
+    },
+    "0232": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/proactive-0232.zip"
+    },
+    "0233": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/myopic-0233.zip"
+    },
+    "0234": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/proactive-0234.zip"
+    },
+    "0235": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/myopic-0235.zip"
+    },
+    "0236": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/proactive-0236.zip"
+    },
+    "0237": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/myopic-0237.zip"
+    },
+    "0238": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/proactive-0238.zip"
     }
 }
