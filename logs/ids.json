@@ -1000,5 +1000,158 @@
         "type": "training",
         "finished": true,
         "additional_info": "../trained_models/dqn/proactive-0238.zip"
+    },
+    "0239": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-1000/"
+    },
+    "0240": {
+        "type": "training",
+        "finished": false
+    },
+    "0241": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-1000/"
+    },
+    "0242": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-1000/"
+    },
+    "0243": {
+        "type": "training",
+        "finished": false
+    },
+    "0244": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/myopic-0244.zip"
+    },
+    "0245": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/proactive-0245.zip"
+    },
+    "0246": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/myopic-0246.zip"
+    },
+    "0247": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/proactive-0247.zip"
+    },
+    "0248": {
+        "type": "training",
+        "finished": false
+    },
+    "0249": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/myopic-0249.zip"
+    },
+    "0250": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/proactive-0250.zip"
+    },
+    "0251": {
+        "type": "training",
+        "finished": false
+    },
+    "0252": {
+        "type": "training",
+        "finished": false
+    },
+    "0253": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-1000/"
+    },
+    "0254": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/myopic-0254.zip"
+    },
+    "0255": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/proactive-0255.zip"
+    },
+    "0256": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/myopic-0256.zip"
+    },
+    "0257": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/proactive-0257.zip"
+    },
+    "0258": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-100/"
+    },
+    "0259": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-100/"
+    },
+    "0260": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-100/"
+    },
+    "0261": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-100/"
+    },
+    "0262": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/myopic-0262.zip"
+    },
+    "0263": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/proactive-0263.zip"
+    },
+    "0264": {
+        "type": "training",
+        "finished": false
+    },
+    "0265": {
+        "type": "training",
+        "finished": false
+    },
+    "0266": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/myopic-0266.zip"
+    },
+    "0267": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/proactive-0267.zip"
+    },
+    "0268": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-100-high-uncertainty/"
+    },
+    "0269": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/myopic-0269.zip"
+    },
+    "0270": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/proactive-0270.zip"
     }
 }
