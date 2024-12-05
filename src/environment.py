@@ -1100,6 +1100,7 @@ class AircraftDisruptionEnv(gym.Env):
         self.info_after_step = {
             # General Metrics
             "total_reward": reward,
+            "something_happened": self.something_happened,
             "current_time_minutes": time_penalty_minutes,
 
             # Conflict Metrics
@@ -1213,10 +1214,8 @@ class AircraftDisruptionEnv(gym.Env):
 
         if DEBUG_MODE:
             print(f"State space shape: {self.state.shape}")
-        
-        # print type of processes state
-        print(f"Type of processed state: {type(processed_state)}")
-        print(processed_state)
+            print(f"Type of processed state: {type(processed_state)}")
+            print(processed_state)
         return processed_state, {}
 
 
