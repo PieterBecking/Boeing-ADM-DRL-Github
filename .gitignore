@@ -38,4 +38,6 @@ results/*/plots/reward-plots-per-scenario/
 !/trained_models/dqn/_*
 !/trained_models/a2c/_*
 !/trained_models/ppo/_*logs/training/training_0238.json
-logs/training/training_0237.json
+
+
+# logs/*
