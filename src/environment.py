@@ -1367,7 +1367,10 @@ class AircraftDisruptionEnv(gym.Env):
                 if index < self.action_space.n:
                     action_mask[index] = 1
 
-
+        # print(f"*** Action mask: {action_mask}")
+        # # print the value of the action together with the mask
+        # for i in range(len(action_mask)):
+        #     print(f"Action {i}: {action_mask[i]}")
         return action_mask
 
     def map_action_to_index(self, flight_action, aircraft_action):
