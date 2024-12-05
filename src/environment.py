@@ -739,8 +739,11 @@ class AircraftDisruptionEnv(gym.Env):
         """
 
         flights_are_overlapping = True
+        loop_counter = 0
 
         while flights_are_overlapping:
+            loop_counter += 1
+            print(f"Loop counter: {loop_counter}")
             if DEBUG_MODE_SCHEDULING:
                 print("\n=== Starting schedule_flight_on_aircraft ===")
                 print(f"Scheduling flight {flight_id} on aircraft {aircraft_id}")
@@ -937,6 +940,12 @@ class AircraftDisruptionEnv(gym.Env):
                             # Recursively resolve conflicts for existing flight
                             self.schedule_flight_on_aircraft(aircraft_id, existing_flight_id, new_dep_time, current_aircraft_id, new_arr_time, delayed_flights)
 
+                            flights_are_overlapping, overlapping_flights = self.check_flights_only_overlap(self.state)
+                            if flights_are_overlapping:
+                                print("ERROR: Conflicts still exist after scheduling!")
+                                print(f"Overlapping flights: {overlapping_flights}")
+                            
+
             # Now, update the flight's times in the state
             for j in range(4, self.columns_state_space - 2, 3):
                 if self.state[aircraft_idx, j] == flight_id:
@@ -959,8 +968,9 @@ class AircraftDisruptionEnv(gym.Env):
 
             flights_are_overlapping, overlapping_flights = self.check_flights_only_overlap(self.state)
 
-            print(f"Flights are overlapping: {flights_are_overlapping}")
-            print(f"Overlapping flights: {overlapping_flights}")
+            if DEBUG_MODE_SCHEDULING:
+                print(f"Flights are overlapping: {flights_are_overlapping}")
+                print(f"Overlapping flights: {overlapping_flights}")
 
 
 
@@ -1295,7 +1305,8 @@ class AircraftDisruptionEnv(gym.Env):
                     
                     # Check if flights overlap
                     if flight1_dep < flight2_arr and flight1_arr > flight2_dep:
-                        print(f"Flights {flight1_id} and {flight2_id} overlap")
+                        if DEBUG_MODE_SCHEDULING:   
+                            print(f"Flights {flight1_id} and {flight2_id} overlap")
                         overlapping_flights.append((flight1_id, flight2_id))
                         flights_are_overlapping = True
 
