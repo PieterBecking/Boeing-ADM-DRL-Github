@@ -40,4 +40,4 @@ results/*/plots/reward-plots-per-scenario/
 !/trained_models/ppo/_*logs/training/training_0238.json
 
 
-# logs/*
+logs/training/*
