@@ -440,76 +440,77 @@ class AircraftDisruptionEnv(gym.Env):
         When the current datetime + timestep reaches the breakdown start time,
         resolve the uncertainty fully to 0.00 or 1.00 by rolling the dice.
         """
-        if DEBUG_MODE:
-            print(f"Current datetime: {self.current_datetime}")
+        
+        # if DEBUG_MODE:
+        #     print(f"Current datetime: {self.current_datetime}")
 
-        # Iterate over each aircraft's row in the state space to check for unresolved breakdowns
-        for idx, aircraft_id in enumerate(self.aircraft_ids):
-            # Get probability, start, and end time from the state space
-            prob = self.unavailabilities_dict[aircraft_id]['Probability']
-            start_minutes = self.unavailabilities_dict[aircraft_id]['StartTime']
-            end_minutes = self.unavailabilities_dict[aircraft_id]['EndTime']
+        # # Iterate over each aircraft's row in the state space to check for unresolved breakdowns
+        # for idx, aircraft_id in enumerate(self.aircraft_ids):
+        #     # Get probability, start, and end time from the state space
+        #     prob = self.unavailabilities_dict[aircraft_id]['Probability']
+        #     start_minutes = self.unavailabilities_dict[aircraft_id]['StartTime']
+        #     end_minutes = self.unavailabilities_dict[aircraft_id]['EndTime']
 
-            # Only process unresolved breakdowns
-            if prob != 0.00 and prob != 1.00:
-                # Check for valid start and end times
-                if not np.isnan(start_minutes) and not np.isnan(end_minutes) and not np.isnan(prob):
-                    breakdown_start_time = self.earliest_datetime + timedelta(minutes=start_minutes)
-                else:
-                    # No start or end time, skip processing
-                    continue
+        #     # Only process unresolved breakdowns
+        #     if prob != 0.00 and prob != 1.00:
+        #         # Check for valid start and end times
+        #         if not np.isnan(start_minutes) and not np.isnan(end_minutes) and not np.isnan(prob):
+        #             breakdown_start_time = self.earliest_datetime + timedelta(minutes=start_minutes)
+        #         else:
+        #             # No start or end time, skip processing
+        #             continue
 
-                # Apply random progression to probability
-                random_variation = np.random.uniform(-0.05, 0.05)  # Random adjustment
-                bias = 0.05 * (1 - prob) if prob > 0.5 else -0.05 * prob  # Bias toward extremes
-                progression = random_variation + bias
-                new_prob = prob + progression
+        #         # Apply random progression to probability
+        #         random_variation = np.random.uniform(-0.05, 0.05)  # Random adjustment
+        #         bias = 0.05 * (1 - prob) if prob > 0.5 else -0.05 * prob  # Bias toward extremes
+        #         progression = random_variation + bias
+        #         new_prob = prob + progression
 
-                # Cap probabilities at [0.05, 0.95]
-                new_prob = max(0.05, min(0.95, new_prob))
-                self.unavailabilities_dict[aircraft_id]['Probability'] = new_prob
+        #         # Cap probabilities at [0.05, 0.95]
+        #         new_prob = max(0.05, min(0.95, new_prob))
+        #         self.unavailabilities_dict[aircraft_id]['Probability'] = new_prob
 
-                if self.env_type == "proactive":
-                    self.state[idx + 1, 1] = new_prob
+        #         if self.env_type == "proactive":
+        #             self.state[idx + 1, 1] = new_prob
 
-                if DEBUG_MODE:
-                    print(f"Aircraft {aircraft_id}: Probability updated from {prob:.2f} to {new_prob:.2f}")
+        #         if DEBUG_MODE:
+        #             print(f"Aircraft {aircraft_id}: Probability updated from {prob:.2f} to {new_prob:.2f}")
 
-                if self.current_datetime + self.timestep >= breakdown_start_time:
-                    if DEBUG_MODE_BREAKDOWN:
-                        print(f"Rolling the dice for breakdown with updated probability {new_prob} starting at {breakdown_start_time}")
+        #         if self.current_datetime + self.timestep >= breakdown_start_time:
+        #             if DEBUG_MODE_BREAKDOWN:
+        #                 print(f"Rolling the dice for breakdown with updated probability {new_prob} starting at {breakdown_start_time}")
 
-                    # Roll the dice
-                    if np.random.rand() < new_prob:
-                        if DEBUG_MODE_BREAKDOWN:
-                            print(f"Breakdown confirmed for aircraft {aircraft_id} with probability {new_prob:.2f}")
-                        self.state[idx + 1, 1] = 1.00  # Confirm the breakdown
-                        self.state[idx + 1, 2] = start_minutes  # Update start time
-                        self.state[idx + 1, 3] = end_minutes
-                        self.unavailabilities_dict[aircraft_id]['Probability'] = 1.00
-                    else:
-                        if DEBUG_MODE_BREAKDOWN:
-                            print(f"Breakdown not occurring for aircraft {aircraft_id}")
+        #             # Roll the dice
+        #             if np.random.rand() < new_prob:
+        #                 if DEBUG_MODE_BREAKDOWN:
+        #                     print(f"Breakdown confirmed for aircraft {aircraft_id} with probability {new_prob:.2f}")
+        #                 self.state[idx + 1, 1] = 1.00  # Confirm the breakdown
+        #                 self.state[idx + 1, 2] = start_minutes  # Update start time
+        #                 self.state[idx + 1, 3] = end_minutes
+        #                 self.unavailabilities_dict[aircraft_id]['Probability'] = 1.00
+        #             else:
+        #                 if DEBUG_MODE_BREAKDOWN:
+        #                     print(f"Breakdown not occurring for aircraft {aircraft_id}")
                         
-                        if self.env_type == "proactive":
-                            self.state[idx + 1, 1] = 0.00  # Resolve as no breakdown
-                        self.unavailabilities_dict[aircraft_id]['Probability'] = 0.00
+        #                 if self.env_type == "proactive":
+        #                     self.state[idx + 1, 1] = 0.00  # Resolve as no breakdown
+        #                 self.unavailabilities_dict[aircraft_id]['Probability'] = 0.00
 
-                    # Update alt_aircraft_dict if necessary
-                    if aircraft_id in self.alt_aircraft_dict:
-                        if isinstance(self.alt_aircraft_dict[aircraft_id], dict):
-                            self.alt_aircraft_dict[aircraft_id] = [self.alt_aircraft_dict[aircraft_id]]
-                        elif isinstance(self.alt_aircraft_dict[aircraft_id], str):
-                            # Handle case where entry is a string
-                            self.alt_aircraft_dict[aircraft_id] = [{
-                                'StartDate': breakdown_start_time.strftime('%d/%m/%y'),
-                                'StartTime': breakdown_start_time.strftime('%H:%M'),
-                                'EndDate': (breakdown_start_time + timedelta(minutes=end_minutes - start_minutes)).strftime('%d/%m/%y'),
-                                'EndTime': (breakdown_start_time + timedelta(minutes=end_minutes - start_minutes)).strftime('%H:%M'),
-                                'Probability': self.state[idx + 1, 1]  # Updated probability
-                            }]
-                        for breakdown_info in self.alt_aircraft_dict[aircraft_id]:
-                            breakdown_info['Probability'] = self.state[idx + 1, 1]
+        #             # Update alt_aircraft_dict if necessary
+        #             if aircraft_id in self.alt_aircraft_dict:
+        #                 if isinstance(self.alt_aircraft_dict[aircraft_id], dict):
+        #                     self.alt_aircraft_dict[aircraft_id] = [self.alt_aircraft_dict[aircraft_id]]
+        #                 elif isinstance(self.alt_aircraft_dict[aircraft_id], str):
+        #                     # Handle case where entry is a string
+        #                     self.alt_aircraft_dict[aircraft_id] = [{
+        #                         'StartDate': breakdown_start_time.strftime('%d/%m/%y'),
+        #                         'StartTime': breakdown_start_time.strftime('%H:%M'),
+        #                         'EndDate': (breakdown_start_time + timedelta(minutes=end_minutes - start_minutes)).strftime('%d/%m/%y'),
+        #                         'EndTime': (breakdown_start_time + timedelta(minutes=end_minutes - start_minutes)).strftime('%H:%M'),
+        #                         'Probability': self.state[idx + 1, 1]  # Updated probability
+        #                     }]
+        #                 for breakdown_info in self.alt_aircraft_dict[aircraft_id]:
+        #                     breakdown_info['Probability'] = self.state[idx + 1, 1]
 
 
 
@@ -1264,29 +1265,63 @@ class AircraftDisruptionEnv(gym.Env):
 
         return current_conflicts
 
+    def check_flight_disruption_overlaps(self):
+        """Checks if there are any overlaps between flights and disruptions (certain or uncertain).
+        
+        Returns:
+            bool: True if there are overlaps, False otherwise.
+        """
+        for idx, aircraft_id in enumerate(self.aircraft_ids):
+            if idx >= self.max_aircraft:
+                break
+
+            # Get disruption info
+            unavail_start = self.unavailabilities_dict[aircraft_id]['StartTime']
+            unavail_end = self.unavailabilities_dict[aircraft_id]['EndTime']
+            prob = self.unavailabilities_dict[aircraft_id]['Probability']
+
+            # Skip if no disruption period defined
+            if np.isnan(unavail_start) or np.isnan(unavail_end):
+                continue
+
+            # Check flights on this aircraft
+            for j in range(4, self.columns_state_space - 2, 3):
+                flight_id = self.state[idx + 1, j]
+                flight_dep = self.state[idx + 1, j + 1]
+                flight_arr = self.state[idx + 1, j + 2]
+
+                if not np.isnan(flight_dep) and not np.isnan(flight_arr):
+                    # Skip cancelled flights
+                    if flight_id in self.cancelled_flights:
+                        continue
+
+                    # Skip past flights
+                    current_time_minutes = (self.current_datetime - self.earliest_datetime).total_seconds() / 60
+                    if flight_dep < current_time_minutes:
+                        continue
+
+                    # Check for overlap with disruption period
+                    if flight_dep < unavail_end and flight_arr > unavail_start:
+                        return True  # Found an overlap
+
+        return False  # No overlaps found
+
     def _is_done(self):
         """Checks if the episode is finished.
 
-        This function determines if the current time has reached or exceeded the end time of the simulation
-        or if there are no remaining conflicts and all uncertainties have been resolved.
+        The episode is considered done if:
+        1. Current time has reached or exceeded the end time, OR
+        2. There are no overlaps between flights and disruptions (regardless of uncertainty status)
 
         Returns:
             tuple: (bool, str) indicating if the episode is done and the reason.
         """
-        current_conflicts = self.get_current_conflicts()  # Get current conflicts
-        if DEBUG_MODE:
-            print(f"Current conflicts before checking done: {current_conflicts}")  # Debugging statement
-
-        # Check for unresolved uncertainties
-        unresolved_uncertainties = self.get_unresolved_uncertainties()
-
-
         if self.current_datetime >= self.end_datetime:
             return True, "Reached the end of the simulation time."
-        elif len(current_conflicts) == 0 and len(unresolved_uncertainties) == 0:
-            if DEBUG_MODE:
-                print("No remaining conflicts or uncertainties detected.")  # Debugging statement
-            return True, "No remaining conflicts or uncertainties."
+        
+        # Check for any overlaps between flights and disruptions
+        if not self.check_flight_disruption_overlaps():
+            return True, "No remaining overlaps between flights and disruptions."
         
         return False, ""
 

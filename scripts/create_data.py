@@ -304,29 +304,34 @@ def generate_flights_file(file_name, aircraft_ids, average_flights_per_aircraft,
             file.write(line)
         file.write('#')
 
-    return flights_dict, flight_rotation_data
+    return flights_dict, flight_rotation_data, file_name
 
 
 
 import random
 
 # Function to generate rotations.csv
-def generate_rotations_file(file_name, flight_rotation_data, start_datetime, clear_one_random_aircraft):
+def generate_rotations_file(file_name, flight_rotation_data, start_datetime, clear_one_random_aircraft, flights_file):
     """Generates the rotations.csv file."""
-    # Clear the file before writing
     clear_file(file_name)
+
+    # Store original flight rotation data
+    original_flight_rotation_data = flight_rotation_data.copy()
+    removed_flights = []
 
     # If clear_one_random_aircraft is True, randomly select one aircraft to clear its flights
     if clear_one_random_aircraft:
         all_aircraft = list(set(flight_data['Aircraft'] for flight_data in flight_rotation_data.values()))
         if all_aircraft:  # Ensure there are aircraft available to choose from
             aircraft_to_clear = random.choice(all_aircraft)
-            # Remove flights assigned to the chosen aircraft
-            flight_rotation_data = {
-                flight_id: flight_data
-                for flight_id, flight_data in flight_rotation_data.items()
-                if flight_data['Aircraft'] != aircraft_to_clear
-            }
+            
+            # Store and remove flights assigned to the chosen aircraft
+            flight_rotation_data = {}
+            for flight_id, flight_data in original_flight_rotation_data.items():
+                if flight_data['Aircraft'] == aircraft_to_clear:
+                    removed_flights.append(flight_id)
+                else:
+                    flight_rotation_data[flight_id] = flight_data
 
     # Prepare rotations data
     rotations_data = []
@@ -340,6 +345,8 @@ def generate_rotations_file(file_name, flight_rotation_data, start_datetime, cle
         for rotation in rotations_data:
             file.write(f"{rotation}\n")
         file.write('#')
+
+    return removed_flights
 
 
 """
@@ -408,7 +415,7 @@ def create_data_scenario(
     flights_file = os.path.join(data_folder, 'flights.csv')
     start_datetime = datetime.strptime(f"{recovery_start_date} {recovery_start_time}", '%d/%m/%y %H:%M')
     end_datetime = datetime.strptime(f"{recovery_end_date} {recovery_end_time}", '%d/%m/%y %H:%M')
-    flights_dict, flight_rotation_data = generate_flights_file(
+    flights_dict, flight_rotation_data, flights_file = generate_flights_file(
         flights_file, aircraft_ids, average_flights_per_aircraft, std_dev_flights_per_aircraft, 
         airports, config_dict, start_datetime, end_datetime, 
         first_flight_dep_time_range, flight_length_range, time_between_flights_range
@@ -416,9 +423,45 @@ def create_data_scenario(
 
     # Generate rotations data
     rotations_file = os.path.join(data_folder, 'rotations.csv')
-    generate_rotations_file(rotations_file, flight_rotation_data, start_datetime, clear_one_random_aircraft)
+    removed_flights = generate_rotations_file(rotations_file, flight_rotation_data, start_datetime, clear_one_random_aircraft, flights_file)
 
-  
+    # Update flights file to remove cleared flights if any
+    if removed_flights:
+        with open(flights_file, 'r') as file:
+            lines = file.readlines()
+        
+        with open(flights_file, 'w') as file:
+            file.write(lines[0])  # Write header
+            for line in lines[1:]:  # Skip header
+                if line.startswith('#'):
+                    file.write(line)  # Write footer
+                    break
+                flight_id = int(line.split()[0])  # Convert to int for comparison
+                if flight_id not in [int(x) for x in removed_flights]:  # Convert removed_flights to ints
+                    file.write(line)
+
+        # Update flights file to remove cleared flights if any
+    if removed_flights:
+        with open(flights_file, 'r') as file:
+            lines = file.readlines()
+
+        with open(flights_file, 'w') as file:
+            file.write(lines[0])  # Write header
+            for line in lines[1:]:  # Skip header
+                if line.startswith('#'):
+                    file.write(line)  # Write footer
+                    break
+                flight_id = int(line.split()[0])
+                if flight_id not in [int(x) for x in removed_flights]:
+                    file.write(line)
+
+        # ALSO remove the same flights from the flights_dict to keep the logs consistent
+        for f_id in removed_flights:
+            if f_id in flights_dict:
+                del flights_dict[f_id]
+
+
+
     # Collect inputs and outputs for logging
     inputs = {
         "scenario_name": scenario_name,

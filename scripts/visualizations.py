@@ -138,8 +138,8 @@ class StatePlotter:
             data_units_per_pixel = 1 / pixels_per_data_unit
             return data_units_per_pixel * pixels
 
-        # Compute rectangle height in data units corresponding to 10 pixels
-        rect_height = get_height_in_data_units(ax, 30)
+        # Compute rectangle height in data units corresponding to 60 pixels (doubled from 30)
+        rect_height = get_height_in_data_units(ax, 60)
         # Handle alt_aircraft_dict unavailabilities, including uncertain ones with probability < 1.0
         if self.alt_aircraft_dict:
             for aircraft_id, unavailability_info in self.alt_aircraft_dict.items():
@@ -198,6 +198,21 @@ class StatePlotter:
                     x_position = unavail_start + (unavail_end - unavail_start) / 2
                     y_position = y_offset - rect_height / 2 - get_height_in_data_units(ax, 10)  # Adjust offset as needed
                     ax.text(x_position, y_position + 0.1, f"{probability:.2f}", ha='center', va='top', fontsize=9)
+
+        # Add transparent rectangles for each aircraft at start of recovery period
+        for aircraft_id in all_aircraft_ids:
+            y_offset = aircraft_indices[aircraft_id]
+            rect_start = self.start_datetime - timedelta(hours=1)
+            rect = patches.Rectangle(
+                (rect_start, y_offset - rect_height / 2),
+                timedelta(minutes=1),  # Very thin rectangle
+                rect_height,
+                linewidth=0,
+                color='white',  # Color doesn't matter since alpha is 0
+                alpha=0,  # Fully transparent
+                zorder=0
+            )
+            ax.add_patch(rect)
 
         x_min = earliest_time - timedelta(hours=1)
         x_max = latest_time + timedelta(hours=1)
