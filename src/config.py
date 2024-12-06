@@ -12,9 +12,6 @@ ACTION_SPACE_SIZE = (MAX_AIRCRAFT + 1) * (MAX_FLIGHTS_PER_AIRCRAFT + 1)  # Numbe
 
 # Data Generation Settings
 DEPARTURE_AFTER_END_RECOVERY = 1  # how many hours after the end of the recovery period can a generated flight depart
-# Constants for breakdown probabilities
-BREAKDOWN_PROBABILITY = 0.9  # Probability of aircraft breaking down during the day
-BREAKDOWN_DURATION = np.random.uniform(60, 600)  # Duration of breakdown in minutes, uniformly sampled between 60 and 600
 
 # Time Settings for intervals
 TIMESTEP_HOURS = 1  # Length of each timestep in hours
@@ -31,6 +28,19 @@ CANCELLED_FLIGHT_PENALTY = 1000    # Penalty for cancelling a flight
 LAST_MINUTE_THRESHOLD = 120           # Threshold for last-minute changes in minutes
 LAST_MINUTE_FLIGHT_PENALTY = 455      # Penalty for last-minute flight changes  
 AHEAD_BONUS_PER_MINUTE = 0.1                # Reward for proactive flight changes
+TIME_MINUTE_PENALTY = 1                 # penalty for every minute passed, each timestep cumulatively
+
+
+
+# Reward and Penalty Values
+RESOLVED_CONFLICT_REWARD = 0     # Reward for resolving a conflict
+DELAY_MINUTE_PENALTY = 0           # Penalty per minute of delay
+MAX_DELAY_PENALTY = 0            # Maximum penalty for delay
+NO_ACTION_PENALTY = 0               # Penalty for no action while conflict(s) exist
+CANCELLED_FLIGHT_PENALTY = 0    # Penalty for cancelling a flight
+LAST_MINUTE_THRESHOLD = 0          # Threshold for last-minute changes in minutes
+LAST_MINUTE_FLIGHT_PENALTY = 0      # Penalty for last-minute flight changes  
+AHEAD_BONUS_PER_MINUTE = 0                # Reward for proactive flight changes
 TIME_MINUTE_PENALTY = 1                 # penalty for every minute passed, each timestep cumulatively
 
 # Environment Settings
