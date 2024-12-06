@@ -478,8 +478,16 @@ class AircraftDisruptionEnv(gym.Env):
                     print(f"Aircraft {aircraft_id}: Probability updated from {prob:.2f} to {new_prob:.2f}")
 
                 if self.current_datetime + self.timestep >= breakdown_start_time:
-                    if DEBUG_MODE_BREAKDOWN:
-                        print(f"Rolling the dice for breakdown with updated probability {new_prob} starting at {breakdown_start_time}")
+                    print(f"Rolling the dice for breakdown with updated probability {new_prob} starting at {breakdown_start_time}")
+                    
+                    
+                    print("state before rolling the dice:")
+                    if self.env_type == "proactive":
+                        print_state_nicely_proactive(self.state)
+                        print("")
+                    else:
+                        print_state_nicely_myopic(self.state)
+                        print("")
 
                     # Roll the dice
                     if np.random.rand() < new_prob:
@@ -493,8 +501,10 @@ class AircraftDisruptionEnv(gym.Env):
                         if DEBUG_MODE_BREAKDOWN:
                             print(f"Breakdown not occurring for aircraft {aircraft_id}")
                         
-                        if self.env_type == "proactive":
-                            self.state[idx + 1, 1] = 0.00  # Resolve as no breakdown
+                        # make the prop, start, end all np.nan for both env types
+                        self.state[idx + 1, 1] = np.nan
+                        self.state[idx + 1, 2] = np.nan
+                        self.state[idx + 1, 3] = np.nan
                         self.unavailabilities_dict[aircraft_id]['Probability'] = 0.00
 
                     # Update alt_aircraft_dict if necessary
@@ -512,6 +522,14 @@ class AircraftDisruptionEnv(gym.Env):
                             }]
                         for breakdown_info in self.alt_aircraft_dict[aircraft_id]:
                             breakdown_info['Probability'] = self.state[idx + 1, 1]
+
+                    print("state after rolling the dice:")
+                    if self.env_type == "proactive":
+                        print_state_nicely_proactive(self.state)
+                        print("")
+                    else:
+                        print_state_nicely_myopic(self.state)
+                        print("")
 
 
 
@@ -1031,6 +1049,13 @@ class AircraftDisruptionEnv(gym.Env):
             float: The calculated reward for the action.
         """
         reward = 0
+        conflict_resolution_reward = 0
+        delay_penalty_total = 0
+        delay_penalty_minutes = 0
+        cancel_penalty = 0
+        inaction_penalty = 0
+        proactive_bonus = 0
+        time_penalty = 0
 
         if DEBUG_MODE_REWARD:
             print("")
@@ -1048,25 +1073,50 @@ class AircraftDisruptionEnv(gym.Env):
 
         # 2. **Delay Penalty**
         delay_penalty_minutes = sum(
-            new_start_time - self.penalized_delays.get(flight_id, 0)
-            for flight_id, new_start_time in self.environment_delayed_flights.items()
-            if flight_id not in self.penalized_delays or new_start_time != self.penalized_delays[flight_id]
+            self.environment_delayed_flights[flight_id] - self.penalized_delays.get(flight_id, 0)
+            for flight_id in self.environment_delayed_flights
         )
+        
+        # Debugging statements to check values
+        if DEBUG_MODE_REWARD:
+            # print("*Calculating Delay Penalty:")
+            # print(f"  *Environment Delayed Flights: {self.environment_delayed_flights}")
+            # print(f"  *Penalized Delays: {self.penalized_delays}")
+            # print(f"  *Delay Penalty Minutes Calculation:")
+            for flight_id in self.environment_delayed_flights:
+                new_delay = self.environment_delayed_flights[flight_id]
+                previous_delay = self.penalized_delays.get(flight_id, 0)
+                additional_delay = new_delay - previous_delay
+                # print(f"    *Flight ID: {flight_id}, New Delay: {new_delay}, Previous Delay: {previous_delay}, Additional Delay to Penalize: {additional_delay}")
+
         delay_penalty_total = min(delay_penalty_minutes * DELAY_MINUTE_PENALTY, MAX_DELAY_PENALTY)
+        
+        # More debugging statements for total penalty
+        # if DEBUG_MODE_REWARD:
+        #     print(f"  *Total Additional Delay Minutes: {delay_penalty_minutes}")
+        #     print(f"  *Calculated Delay Penalty Total (capped at {MAX_DELAY_PENALTY}): {delay_penalty_minutes} * {DELAY_MINUTE_PENALTY} = {delay_penalty_total}")
+
         reward -= delay_penalty_total
 
         if DEBUG_MODE_REWARD:
-            print(f"  -{delay_penalty_total} penalty for {delay_penalty_minutes} minutes of delay (capped at {MAX_DELAY_PENALTY})")
+            print(f"  -{delay_penalty_total} penalty for {delay_penalty_minutes} minutes of additional delay (capped at {MAX_DELAY_PENALTY})")
 
         # 3. **Cancellation Penalty**
-        cancellation_penalty_count = len({
+        new_cancellations = {
             flight_id for flight_id in self.cancelled_flights if flight_id not in self.penalized_cancelled_flights
-        })
+        }
+        cancellation_penalty_count = len(new_cancellations)
         cancel_penalty = cancellation_penalty_count * CANCELLED_FLIGHT_PENALTY
         reward -= cancel_penalty
 
         if DEBUG_MODE_REWARD:
-            print(f"  -{cancel_penalty} penalty for {cancellation_penalty_count} cancelled flights")
+            print(f"  -{cancel_penalty} penalty for {cancellation_penalty_count} new cancelled flights: {new_cancellations}")
+
+        # **Update Penalized Cancellations**
+        self.penalized_cancelled_flights.update(new_cancellations)
+
+        # if DEBUG_MODE_REWARD:
+        #     print(f"Updated penalized cancelled flights after reward calculation: {self.penalized_cancelled_flights}")
 
         # 4. **Inaction Penalty**
         inaction_penalty = NO_ACTION_PENALTY if flight_action == 0 and remaining_conflicts else 0
@@ -1098,7 +1148,20 @@ class AircraftDisruptionEnv(gym.Env):
         if DEBUG_MODE_REWARD:
             print(f"  -{time_penalty} penalty for time progression")
 
-        # 7. **Compile Metrics for Analysis**
+        # 7. **Update Penalized Delays**
+        for flight_id, delay in self.environment_delayed_flights.items():
+            self.penalized_delays[flight_id] = delay
+
+        # if DEBUG_MODE_REWARD:
+        #     print(f"Updated penalized delays after reward calculation: {self.penalized_delays}")
+
+        # 8. **Calculate and print total under the sum line**
+        if DEBUG_MODE_REWARD:
+            print("--------------------------------")
+            print(f"Total reward: {reward}")
+            print("--------------------------------")
+
+        # Bonus. **Compile Metrics for Analysis**
         self.info_after_step = {
             # General Metrics
             "total_reward": reward,
@@ -1135,9 +1198,6 @@ class AircraftDisruptionEnv(gym.Env):
             "aircraft_action": aircraft_action,
             "original_departure_time": original_flight_action_departure_time,
         }
-
-        if DEBUG_MODE_REWARD:
-            print(f"Compiled step info: {self.info_after_step}")
 
         return reward
 
@@ -1298,7 +1358,7 @@ class AircraftDisruptionEnv(gym.Env):
 
                     # Skip past flights
                     current_time_minutes = (self.current_datetime - self.earliest_datetime).total_seconds() / 60
-                    if flight_dep < current_time_minutes:
+                    if flight_arr < current_time_minutes:
                         continue
 
                     # Check for overlap with disruption period
