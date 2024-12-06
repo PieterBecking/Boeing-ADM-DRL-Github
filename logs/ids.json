@@ -1337,5 +1337,70 @@
         "type": "training",
         "finished": true,
         "additional_info": "../trained_models/dqn/proactive-0314.zip"
+    },
+    "0315": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-1-steady/"
+    },
+    "0316": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-1-steady/"
+    },
+    "0317": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-1-steady/"
+    },
+    "0318": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-1-steady/"
+    },
+    "0319": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-1-steady/"
+    },
+    "0320": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-1-uncertain/"
+    },
+    "0321": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-1-uncertain-low-prob/"
+    },
+    "0322": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/myopic-0322.zip"
+    },
+    "0323": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/proactive-0323.zip"
+    },
+    "0324": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/myopic-0324.zip"
+    },
+    "0325": {
+        "type": "training",
+        "finished": true,
+        "additional_info": "../trained_models/dqn/proactive-0325.zip"
+    },
+    "0326": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-1-timestep-comparison/"
+    },
+    "0327": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-1-timestep-comparison/"
     }
 }
