@@ -481,7 +481,7 @@ class AircraftDisruptionEnv(gym.Env):
                     print(f"Aircraft {aircraft_id}: Probability updated from {prob:.2f} to {new_prob:.2f}")
 
                 if self.current_datetime + self.timestep >= breakdown_start_time:
-                    print(f"Rolling the dice for breakdown with updated probability {new_prob} starting at {breakdown_start_time}")
+                    # print(f"Rolling the dice for breakdown with updated probability {new_prob} starting at {breakdown_start_time}")
                     
                     
                     # print("state before rolling the dice:")
@@ -564,12 +564,16 @@ class AircraftDisruptionEnv(gym.Env):
         self.state = self._get_initial_state()
         
 
-        # Call _calculate_reward even when there are no conflicts
-        reward = self._calculate_reward(set(), set(), flight_action, aircraft_action, original_flight_action_departure_time)
 
         # Since there are no conflicts, return the new state with zero reward
         terminated, reason = self._is_done()
         truncated = False
+
+        # Call _calculate_reward even when there are no conflicts
+        done = terminated or truncated
+        reward = self._calculate_reward(set(), set(), flight_action, aircraft_action, original_flight_action_departure_time, done)
+
+
         processed_state = self.process_observation(self.state)
         reward = 0  # Assuming zero reward when there are no conflicts
 
@@ -619,10 +623,11 @@ class AircraftDisruptionEnv(gym.Env):
 
             post_action_conflicts = self.get_current_conflicts()
             resolved_conflicts = pre_action_conflicts - post_action_conflicts
-            reward = self._calculate_reward(resolved_conflicts, post_action_conflicts, flight_action, aircraft_action, original_flight_action_departure_time)
 
             terminated, reason = self._is_done()
             truncated = False
+            done = terminated or truncated
+            reward = self._calculate_reward(resolved_conflicts, post_action_conflicts, flight_action, aircraft_action, original_flight_action_departure_time, done)
 
             if terminated:
                 if DEBUG_MODE_STOPPING_CRITERIA:
@@ -643,10 +648,11 @@ class AircraftDisruptionEnv(gym.Env):
 
             post_action_conflicts = self.get_current_conflicts()
             resolved_conflicts = pre_action_conflicts - post_action_conflicts
-            reward = self._calculate_reward(resolved_conflicts, post_action_conflicts, flight_action, aircraft_action, original_flight_action_departure_time)
 
             terminated, reason = self._is_done()
             truncated = False
+            done = terminated or truncated
+            reward = self._calculate_reward(resolved_conflicts, post_action_conflicts, flight_action, aircraft_action, original_flight_action_departure_time, done)
 
             if terminated:
                 if DEBUG_MODE_STOPPING_CRITERIA:
@@ -670,9 +676,12 @@ class AircraftDisruptionEnv(gym.Env):
                 self.state = self._get_initial_state()
                 
                 # Handle this case appropriately
-                reward = self._calculate_reward(pre_action_conflicts, pre_action_conflicts, flight_action, aircraft_action, original_flight_action_departure_time)
                 terminated, reason = self._is_done()
                 truncated = False
+
+                done = terminated or truncated
+                reward = self._calculate_reward(pre_action_conflicts, pre_action_conflicts, flight_action, aircraft_action, original_flight_action_departure_time, done)
+
                 processed_state = self.process_observation(self.state)
                 return processed_state, reward, terminated, truncated, {}
 
@@ -734,10 +743,10 @@ class AircraftDisruptionEnv(gym.Env):
             
             resolved_conflicts = pre_action_conflicts - post_action_conflicts
 
-            reward = self._calculate_reward(resolved_conflicts, post_action_conflicts, flight_action, aircraft_action, original_flight_action_departure_time)
-
             terminated, reason = self._is_done()
             truncated = False
+            done = terminated or truncated
+            reward = self._calculate_reward(resolved_conflicts, post_action_conflicts, flight_action, aircraft_action, original_flight_action_departure_time, done)
 
             if terminated:
                 if DEBUG_MODE_STOPPING_CRITERIA:
@@ -1039,7 +1048,7 @@ class AircraftDisruptionEnv(gym.Env):
         self.flights_dict[flight_id]['ArrTime'] = arr_time.strftime('%H:%M')
 
 
-    def _calculate_reward(self, resolved_conflicts, remaining_conflicts, flight_action, aircraft_action, original_flight_action_departure_time):
+    def _calculate_reward(self, resolved_conflicts, remaining_conflicts, flight_action, aircraft_action, original_flight_action_departure_time, terminated):
         """Calculates the reward based on the current state of the environment.
 
         Args:
@@ -1048,6 +1057,7 @@ class AircraftDisruptionEnv(gym.Env):
             flight_action (int): The flight action taken by the agent.
             aircraft_action (int): The aircraft action taken by the agent.
             original_flight_action_departure_time (str): The departure time of the flight being acted upon (before the action).
+            terminated (bool): Whether the episode has ended.
         Returns:
             float: The calculated reward for the action.
         """
@@ -1059,6 +1069,7 @@ class AircraftDisruptionEnv(gym.Env):
         inaction_penalty = 0
         proactive_bonus = 0
         time_penalty = 0
+        termination_reward = 0
 
         if DEBUG_MODE_REWARD:
             print("")
@@ -1069,7 +1080,7 @@ class AircraftDisruptionEnv(gym.Env):
             conflict for conflict in resolved_conflicts if conflict[1] not in self.cancelled_flights
         }
 
-        DEBUG_MODE_REWARD_RESOLVED_CONFLICTS = True
+
         if DEBUG_MODE_REWARD_RESOLVED_CONFLICTS:
             print(f"Resolved conflicts: {resolved_conflicts}")
             print(f"Resolved conflicts non-cancellation: {resolved_conflicts_non_cancellation}")
@@ -1181,7 +1192,16 @@ class AircraftDisruptionEnv(gym.Env):
         # if DEBUG_MODE_REWARD:
         #     print(f"Updated penalized delays after reward calculation: {self.penalized_delays}")
 
-        # 8. **Calculate and print total under the sum line**
+        # 8. **Termination Reward**
+        if terminated:
+            time_since_start = (self.current_datetime - self.start_datetime).total_seconds() / 60
+            termination_reward = 5000 - time_since_start
+            reward += termination_reward
+
+            if DEBUG_MODE_REWARD:
+                print(f"  +{termination_reward} termination reward (5000 - {time_since_start})")
+
+        # 9. **Calculate and print total under the sum line**
         if DEBUG_MODE_REWARD:
             print("--------------------------------")
             print(f"Total reward: {reward}")
@@ -1218,6 +1238,9 @@ class AircraftDisruptionEnv(gym.Env):
 
             # Time Metrics
             "time_penalty": time_penalty,
+
+            # Termination Metrics
+            "termination_reward": termination_reward,
 
             # Action Details
             "flight_action": flight_action,

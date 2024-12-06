@@ -48,3 +48,4 @@ DEBUG_MODE_ACTION = False
 DEBUG_MODE_STOPPING_CRITERIA = False
 DEBUG_MODE_SCHEDULING = False
 DEBUG_MODE_REWARD_LAST_MINUTE_PENALTY = False  # Turn on/off debug mode for reward calculation last minute penalty
+DEBUG_MODE_REWARD_RESOLVED_CONFLICTS = False
