@@ -1697,5 +1697,52 @@
         "type": "training",
         "finished": true,
         "additional_info": "../trained_models/dqn/proactive-0388.zip"
+    },
+    "0389": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-1-steady/"
+    },
+    "0390": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-1-steady/"
+    },
+    "0391": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-1-steady/"
+    },
+    "0392": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-1-steady/"
+    },
+    "0393": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-1000-steady/"
+    },
+    "0394": {
+        "type": "training",
+        "finished": false
+    },
+    "0395": {
+        "type": "training",
+        "finished": false
+    },
+    "0396": {
+        "type": "training",
+        "finished": false
+    },
+    "0397": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-10-steady/"
+    },
+    "0398": {
+        "type": "scenario",
+        "finished": true,
+        "additional_info": "../data/Training/3ac-100-steady/"
     }
 }

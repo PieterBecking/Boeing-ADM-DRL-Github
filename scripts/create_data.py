@@ -311,7 +311,7 @@ def generate_flights_file(file_name, aircraft_ids, average_flights_per_aircraft,
 import random
 
 # Function to generate rotations.csv
-def generate_rotations_file(file_name, flight_rotation_data, start_datetime, clear_one_random_aircraft, flights_file):
+def generate_rotations_file(file_name, flight_rotation_data, start_datetime, clear_one_random_aircraft, switch_one_random_flight_to_the_cleared_aircraft, flights_file):
     """Generates the rotations.csv file."""
     clear_file(file_name)
 
@@ -332,6 +332,21 @@ def generate_rotations_file(file_name, flight_rotation_data, start_datetime, cle
                     removed_flights.append(flight_id)
                 else:
                     flight_rotation_data[flight_id] = flight_data
+
+    # If switch_one_random_flight_to_the_cleared_aircraft is True, switch one random flight to the cleared aircraft
+    if switch_one_random_flight_to_the_cleared_aircraft and clear_one_random_aircraft and removed_flights:
+        # Get all available flights that weren't cleared
+        available_flights = list(flight_rotation_data.keys())
+        if available_flights:  # Make sure there are flights available to switch
+            # Choose a random flight to switch
+            flight_to_switch = random.choice(available_flights)
+            
+            # Switch this flight to the cleared aircraft
+            flight_rotation_data[flight_to_switch]['Aircraft'] = aircraft_to_clear
+            
+            # Remove this flight from the removed_flights list if it was there
+            if flight_to_switch in removed_flights:
+                removed_flights.remove(flight_to_switch)
 
     # Prepare rotations data
     rotations_data = []
@@ -385,7 +400,7 @@ def create_data_scenario(
     min_period_unavailability, max_period_unavailability, average_flights_per_aircraft,
     std_dev_flights_per_aircraft, airports, config_dict, recovery_start_date,
     recovery_start_time, recovery_end_date, recovery_end_time, clear_one_random_aircraft, 
-    clear_random_flights, probability_range, probability_distribution, first_flight_dep_time_range, 
+    clear_random_flights, switch_one_random_flight_to_the_cleared_aircraft, probability_range, probability_distribution, first_flight_dep_time_range, 
     flight_length_range, time_between_flights_range):
     """Creates a data scenario and returns the outputs."""
 
@@ -423,7 +438,7 @@ def create_data_scenario(
 
     # Generate rotations data
     rotations_file = os.path.join(data_folder, 'rotations.csv')
-    removed_flights = generate_rotations_file(rotations_file, flight_rotation_data, start_datetime, clear_one_random_aircraft, flights_file)
+    removed_flights = generate_rotations_file(rotations_file, flight_rotation_data, start_datetime, clear_one_random_aircraft, switch_one_random_flight_to_the_cleared_aircraft, flights_file)
 
     # Update flights file to remove cleared flights if any
     if removed_flights:

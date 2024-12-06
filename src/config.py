@@ -32,17 +32,6 @@ TIME_MINUTE_PENALTY = 1                 # penalty for every minute passed, each 
 
 
 
-# Reward and Penalty Values
-RESOLVED_CONFLICT_REWARD = 0     # Reward for resolving a conflict
-DELAY_MINUTE_PENALTY = 0           # Penalty per minute of delay
-MAX_DELAY_PENALTY = 0            # Maximum penalty for delay
-NO_ACTION_PENALTY = 0               # Penalty for no action while conflict(s) exist
-CANCELLED_FLIGHT_PENALTY = 0    # Penalty for cancelling a flight
-LAST_MINUTE_THRESHOLD = 0          # Threshold for last-minute changes in minutes
-LAST_MINUTE_FLIGHT_PENALTY = 0      # Penalty for last-minute flight changes  
-AHEAD_BONUS_PER_MINUTE = 0                # Reward for proactive flight changes
-TIME_MINUTE_PENALTY = 1                 # penalty for every minute passed, each timestep cumulatively
-
 # Environment Settings
 MIN_TURN_TIME = 0  # Minimum gap between flights for the same aircraft
 MIN_BREAKDOWN_PROBABILITY = 0
