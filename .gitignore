@@ -41,3 +41,4 @@ results/*/plots/reward-plots-per-scenario/
 
 
 logs/training/*
+logs/*
