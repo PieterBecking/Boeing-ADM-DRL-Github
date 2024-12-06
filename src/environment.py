@@ -123,6 +123,9 @@ class AircraftDisruptionEnv(gym.Env):
         self.current_datetime = self.start_datetime
         self.state = self._get_initial_state()
 
+        # Initialize eligible flights for conflict resolution bonus
+        self.eligible_flights_for_resolved_bonus = self.get_initial_conflicts()
+
     def _get_initial_state(self):
         """Initializes the state matrix for the environment.
         
@@ -481,13 +484,13 @@ class AircraftDisruptionEnv(gym.Env):
                     print(f"Rolling the dice for breakdown with updated probability {new_prob} starting at {breakdown_start_time}")
                     
                     
-                    print("state before rolling the dice:")
-                    if self.env_type == "proactive":
-                        print_state_nicely_proactive(self.state)
-                        print("")
-                    else:
-                        print_state_nicely_myopic(self.state)
-                        print("")
+                    # print("state before rolling the dice:")
+                    # if self.env_type == "proactive":
+                    #     print_state_nicely_proactive(self.state)
+                    #     print("")
+                    # else:
+                    #     print_state_nicely_myopic(self.state)
+                    #     print("")
 
                     # Roll the dice
                     if np.random.rand() < new_prob:
@@ -523,13 +526,13 @@ class AircraftDisruptionEnv(gym.Env):
                         for breakdown_info in self.alt_aircraft_dict[aircraft_id]:
                             breakdown_info['Probability'] = self.state[idx + 1, 1]
 
-                    print("state after rolling the dice:")
-                    if self.env_type == "proactive":
-                        print_state_nicely_proactive(self.state)
-                        print("")
-                    else:
-                        print_state_nicely_myopic(self.state)
-                        print("")
+                    # print("state after rolling the dice:")
+                    # if self.env_type == "proactive":
+                    #     print_state_nicely_proactive(self.state)
+                    #     print("")
+                    # else:
+                    #     print_state_nicely_myopic(self.state)
+                    #     print("")
 
 
 
@@ -1065,11 +1068,34 @@ class AircraftDisruptionEnv(gym.Env):
         resolved_conflicts_non_cancellation = {
             conflict for conflict in resolved_conflicts if conflict[1] not in self.cancelled_flights
         }
-        conflict_resolution_reward = RESOLVED_CONFLICT_REWARD * len(resolved_conflicts_non_cancellation)
+
+        DEBUG_MODE_REWARD_RESOLVED_CONFLICTS = True
+        if DEBUG_MODE_REWARD_RESOLVED_CONFLICTS:
+            print(f"Resolved conflicts: {resolved_conflicts}")
+            print(f"Resolved conflicts non-cancellation: {resolved_conflicts_non_cancellation}")
+            print(f"Flights eligible: {self.eligible_flights_for_resolved_bonus}")
+
+        # Resolved conflicts: {('A320#3', 10.0, 557.0, 840.0)}
+        # Resolved conflicts non-cancellation: {('A320#3', 10.0, 557.0, 840.0)}
+        # Resolved flights eligible: {('A320#3', 8.0), ('A320#3', 9.0), ('A320#3', 10.0)}
+
+        # Extract only the (aircraft_id, flight_id) pairs from resolved conflicts
+        resolved_conflicts_non_cancellation_ids = set(
+            (aircraft_id, flight_id) for (aircraft_id, flight_id, dep_time, arr_time) in resolved_conflicts_non_cancellation
+        )
+
+        # Filter conflicts to include only those in the eligible list
+        resolved_conflicts_eligible = resolved_conflicts_non_cancellation_ids.intersection(self.eligible_flights_for_resolved_bonus)
+
+        # Calculate the reward based on eligible conflicts
+        conflict_resolution_reward = RESOLVED_CONFLICT_REWARD * len(resolved_conflicts_eligible)
         reward += conflict_resolution_reward
 
+        # Remove rewarded conflicts from the eligible list
+        self.eligible_flights_for_resolved_bonus -= resolved_conflicts_eligible
+
         if DEBUG_MODE_REWARD:
-            print(f"  +{conflict_resolution_reward} for resolving {len(resolved_conflicts_non_cancellation)} conflicts (excluding cancellations)")
+            print(f"  +{conflict_resolution_reward} for resolving {len(resolved_conflicts_eligible)} eligible conflicts (excluding cancellations)")
 
         # 2. **Delay Penalty**
         delay_penalty_minutes = sum(
@@ -1271,6 +1297,9 @@ class AircraftDisruptionEnv(gym.Env):
 
         self.cancelled_flights = set()
 
+        # Initialize eligible flights for conflict resolution bonus
+        self.eligible_flights_for_resolved_bonus = self.get_initial_conflicts()
+
         # Process the state into an observation as a NumPy array
         processed_state = self.process_observation(self.state)
 
@@ -1280,11 +1309,52 @@ class AircraftDisruptionEnv(gym.Env):
             print(processed_state)
         return processed_state, {}
 
+    def get_initial_conflicts(self):
+        """Retrieves the initial conflicts in the environment.
+
+        This function checks for conflicts between flights and unavailability periods,
+        considering unavailabilities with probability greater than 0.0.
+
+        Returns:
+            set: A set of conflicts currently present in the initial state of the environment.
+        """
+        initial_conflicts = set()
+
+        for idx, aircraft_id in enumerate(self.aircraft_ids):
+            if idx >= self.max_aircraft:
+                break
+
+            breakdown_probability = self.unavailabilities_dict[aircraft_id]['Probability']
+            if breakdown_probability <= 0.0 or np.isnan(breakdown_probability):
+                continue  # Only consider unavailabilities with probability > 0.0
+
+            unavail_start = self.unavailabilities_dict[aircraft_id]['StartTime']
+            unavail_end = self.unavailabilities_dict[aircraft_id]['EndTime']
+
+            if not np.isnan(unavail_start) and not np.isnan(unavail_end):
+                # Check for conflicts between flights and unavailability periods
+                for j in range(4, self.columns_state_space - 2, 3):
+                    flight_id = self.state[idx + 1, j]
+                    flight_dep = self.state[idx + 1, j + 1]
+                    flight_arr = self.state[idx + 1, j + 2]
+
+                    if not np.isnan(flight_dep) and not np.isnan(flight_arr):
+                        # Skip cancelled flights
+                        if flight_id in self.cancelled_flights:
+                            continue
+
+                        # Check for overlaps with unavailability periods
+                        if flight_dep < unavail_end and flight_arr > unavail_start:
+                            conflict_identifier = (aircraft_id, flight_id)
+                            initial_conflicts.add(conflict_identifier)
+
+        return initial_conflicts
 
     def get_current_conflicts(self):
         """Retrieves the current conflicts in the environment.
 
-        This function checks for conflicts between flights and unavailability periods, considering only unavailabilities with probability 1.
+        This function checks for conflicts between flights and unavailability periods,
+        considering only unavailabilities with probability 1.0.
         It excludes cancelled flights which are not considered conflicts.
 
         Returns:
