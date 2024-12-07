@@ -141,7 +141,7 @@ class AircraftDisruptionEnv(gym.Env):
         time_until_end_minutes = (self.end_datetime - self.current_datetime).total_seconds() / 60
 
         # Insert the current_time_minutes and time_until_end_minutes in the first row
-        for i in range(0, self.columns_state_space // 2, 2):  # Start at 0 and step by 2 for the half of the columns
+        for i in range(0, 2):  # Start at 0 and step by 2 for the half of the columns
             if i + 1 < self.columns_state_space:  # Check to ensure i+1 is in range
                 state[0, i] = current_time_minutes  # Current time
                 state[0, i + 1] = time_until_end_minutes  # Time until end of recovery period
@@ -1195,17 +1195,36 @@ class AircraftDisruptionEnv(gym.Env):
         # 8. **Termination Reward**
         if terminated:
             time_since_start = (self.current_datetime - self.start_datetime).total_seconds() / 60
-            termination_reward = 5000 - time_since_start
+            termination_reward = TERMINATION_REWARD - time_since_start
             reward += termination_reward
 
             if DEBUG_MODE_REWARD:
-                print(f"  +{termination_reward} termination reward (5000 - {time_since_start})")
+                print(f"  +{termination_reward} termination reward ({TERMINATION_REWARD} - {time_since_start})")
 
         # 9. **Calculate and print total under the sum line**
+        # The total reward will be on the first row, the 4th value
+        self.state[0, 4] = reward
+        self.state[0, 5] = conflict_resolution_reward
+        self.state[0, 6] = delay_penalty_total
+        self.state[0, 7] = cancel_penalty
+        self.state[0, 8] = inaction_penalty
+        self.state[0, 9] = proactive_bonus
+        self.state[0, 10] = time_penalty
+        self.state[0, 11] = termination_reward
+
+        # print_state_semi_raw(self.state) # ******
+
+        # round reward to 1 decimal place
+        reward = round(reward, 1)
+
         if DEBUG_MODE_REWARD:
             print("--------------------------------")
             print(f"Total reward: {reward}")
             print("--------------------------------")
+
+
+        # 10. **ADDING EACH REWARD COMPONENT TO THE STATE SPACE**
+        # 
 
         # Bonus. **Compile Metrics for Analysis**
         self.info_after_step = {
@@ -1390,7 +1409,7 @@ class AircraftDisruptionEnv(gym.Env):
                 break
 
             breakdown_probability = self.unavailabilities_dict[aircraft_id]['Probability']
-            if breakdown_probability != 1.0:  # Only consider unavailability with probability 1.00
+            if breakdown_probability == 0.0:  # Only consider unavailability with probability 1.00
                 continue  # Skip if probability is not 1.00
 
             unavail_start = self.unavailabilities_dict[aircraft_id]['StartTime']

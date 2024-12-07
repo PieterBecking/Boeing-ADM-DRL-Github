@@ -268,6 +268,10 @@ def print_state_nicely_proactive(state):
     
     print('\n'.join(formatted_rows))
 
+def print_state_semi_raw(state):
+    info_row = state[0]
+    print(info_row)
+
 def print_state_raw(state):
     print(state)
 
