@@ -276,73 +276,65 @@ class AircraftDisruptionEnv(gym.Env):
         return state
 
     def process_observation(self, state):
-        """Processes the observation by applying a mask and flattening the state and mask.
-
-        Args:
-            state (np.ndarray): The current state of the environment.
-
-        Returns:
-            dict: A dictionary containing the processed state and action mask.
-        """
+        """Processes the observation by applying env_type-specific masking.
+        Does NOT modify internal state or unavailabilities_dict.
+        Returns an observation suitable for the agent."""
+        # Make a copy of the state for observation
         state_to_observe = state.copy()
 
+        # We do not modify self.unavailabilities_dict here anymore
+        # Keep the internal logic and data intact, only mask the observation.
+
         for idx, aircraft_id in enumerate(self.aircraft_ids):
+            # Get the real, internal probability and times from the state
             breakdown_probability = state_to_observe[idx + 1, 1]
             unavail_start_minutes = state_to_observe[idx + 1, 2]
             unavail_end_minutes = state_to_observe[idx + 1, 3]
 
-            # Store the unavailability information in the unavailabilities dictionary
-            self.unavailabilities_dict[aircraft_id] = {
-                'Probability': breakdown_probability,
-                'StartTime': unavail_start_minutes,
-                'EndTime': unavail_end_minutes
-            }
+            # Make copies for observation only
+            obs_breakdown_probability = breakdown_probability
+            obs_unavail_start_minutes = unavail_start_minutes
+            obs_unavail_end_minutes = unavail_end_minutes
 
-            # In the myopic env, the info for uncertain breakdowns is not shown
-            if breakdown_probability != 1.0 and self.env_type == 'myopic':
-                breakdown_probability = np.nan  # Set to NaN if not 1.00
-                unavail_start_minutes = np.nan
-                unavail_end_minutes = np.nan
+            # Apply env_type logic to these observed values ONLY
+            if self.env_type == 'reactive':
+                # Reactive sees no info about disruptions
+                obs_breakdown_probability = np.nan
+                obs_unavail_start_minutes = np.nan
+                obs_unavail_end_minutes = np.nan
+            elif self.env_type == 'myopic':
+                # Myopic only sees if probability == 1.00
+                if obs_breakdown_probability != 1.0:
+                    obs_breakdown_probability = np.nan
+                    obs_unavail_start_minutes = np.nan
+                    obs_unavail_end_minutes = np.nan
+            elif self.env_type == 'proactive':
+                # Proactive sees everything (no masking needed)
+                pass
 
-            # In the proactive env, the info for unrealized breakdowns is also not shown
-            if np.isnan(breakdown_probability) or breakdown_probability == 0.00:  # Added check for 0.00
-                breakdown_probability = np.nan  # Set to NaN if not 1.00
-                unavail_start_minutes = np.nan
-                unavail_end_minutes = np.nan
-
-
-            # In the reactive env, the info for unrealized breakdowns is also not shown
-            if self.env_type == 'reactive':  # Added check for 0.00
-                breakdown_probability = np.nan  # Set to NaN if not 1.00
-                unavail_start_minutes = np.nan
-                unavail_end_minutes = np.nan
-
-            # Store probability and unavailability times
-            state_to_observe[idx + 1, 1] = breakdown_probability
-            state_to_observe[idx + 1, 2] = unavail_start_minutes
-            state_to_observe[idx + 1, 3] = unavail_end_minutes
-
+            # Assign the masked values back to the observation copy
+            state_to_observe[idx + 1, 1] = obs_breakdown_probability
+            state_to_observe[idx + 1, 2] = obs_unavail_start_minutes
+            state_to_observe[idx + 1, 3] = obs_unavail_end_minutes
 
         # Create a mask where 1 indicates valid values, 0 indicates NaN
         mask = np.where(np.isnan(state_to_observe), 0, 1)
-        # Replace NaN with the dummy value
+        # Replace NaN with a dummy value
         state_to_observe = np.nan_to_num(state_to_observe, nan=DUMMY_VALUE)
-
 
         # Flatten both state and mask
         state_flat = state_to_observe.flatten()
         mask_flat = mask.flatten()
-        
+
         # Use get_action_mask to generate the action mask
         action_mask = self.get_action_mask()
 
-        # Create the observation dictionary
+        # Return the observation dictionary without modifying internal structures
         obs_with_mask = {
-            'state': state_to_observe.flatten(),
+            'state': state_flat,
             'action_mask': action_mask
         }
         return obs_with_mask
-
 
     
     def fix_state(self, state):
