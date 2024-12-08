@@ -337,7 +337,6 @@ class AircraftDisruptionEnv(gym.Env):
         # Fix the state before processing the action
         self.fix_state(self.state)
 
-
         # Print the current state if in debug mode
         if DEBUG_MODE_PRINT_STATE:
             print_state_nicely_proactive(self.state)
@@ -376,6 +375,7 @@ class AircraftDisruptionEnv(gym.Env):
 
         # Process uncertainties before handling flight operations
         self.process_uncertainties()
+
 
         if len(pre_action_conflicts) == 0 and len(unresolved_uncertainties) == 0:
             # Handle the case when there are no conflicts
@@ -462,15 +462,15 @@ class AircraftDisruptionEnv(gym.Env):
                     # No start or end time, skip processing
                     continue
 
-                # # Apply random progression to probability
-                # random_variation = np.random.uniform(-0.05, 0.05)  # Random adjustment
-                # bias = 0.05 * (1 - prob) if prob > 0.5 else -0.05 * prob  # Bias toward extremes
-                # progression = random_variation + bias
-                # new_prob = prob + progression
+                # Apply random progression to probability
+                random_variation = np.random.uniform(-0.05, 0.05)  # Random adjustment
+                bias = 0.05 * (1 - prob) if prob > 0.5 else -0.05 * prob  # Bias toward extremes
+                progression = random_variation + bias
+                new_prob = prob + progression
 
-                # # Cap probabilities at [0.05, 0.95]
-                # new_prob = max(0.05, min(0.95, new_prob))
-                # self.unavailabilities_dict[aircraft_id]['Probability'] = new_prob
+                # Cap probabilities at [0.05, 0.95]
+                new_prob = max(0.05, min(0.95, new_prob))
+                self.unavailabilities_dict[aircraft_id]['Probability'] = new_prob
 
                 new_prob = prob
                 if self.env_type == "proactive":

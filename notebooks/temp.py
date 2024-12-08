@@ -4,7 +4,7 @@
 # %%
 import os
 import sys
-import warningsxw
+import warnings
 
 import datetime
 import math
@@ -47,11 +47,11 @@ sns.set(style="darkgrid", font_scale=1.5)
 # %%
 # In train_dqn_both_timesteps.ipynb:
 if 'MAX_TOTAL_TIMESTEPS' not in globals():
-    MAX_TOTAL_TIMESTEPS = 1000000
+    MAX_TOTAL_TIMESTEPS = 1000
 if 'TRAINING_FOLDERS_PATH' not in globals():
-    TRAINING_FOLDERS_PATH = "../data/Training/3ac-100-mixed/"
+    TRAINING_FOLDERS_PATH = "../data/Training/3ac-10-mixed/"
 if 'SEEDS' not in globals():
-    SEEDS = [0, 1, 2]
+    SEEDS = [0, 1]
 if 'brute_force_flag' not in globals():
     brute_force_flag = False
 
@@ -79,13 +79,15 @@ if EPSILON_TYPE == "linear":
     EPSILON_MIN = 0
 
 N_EPISODES = 50 # DOESNT MATTER
-cross_val_flag = False
-CROSS_VAL_INTERVAL = N_EPISODES/100
+cross_val_flag = True
+early_stopping_flag = False
+# CROSS_VAL_INTERVAL = N_EPISODES/100
+CROSS_VAL_INTERVAL = 1
 
 # TRAINING_FOLDERS_PATH = "../data/Locked/alpha/"
 # TRAINING_FOLDERS_PATH = "../data/Training/3ac-10/"
 # TRAINING_FOLDERS_PATH = "../data/Training/temp/"
-TESTING_FOLDERS_PATH = "../data/Training/3ac-10-deterministic/"
+TESTING_FOLDERS_PATH = "../data/Training/3ac-1-mixed/"
 
 
 stripped_scenario_folder = TRAINING_FOLDERS_PATH.split("/")[-2]
@@ -154,6 +156,7 @@ print(f"Results directory created at: {results_dir}")
 from scripts.logger import create_new_id, get_config_variables
 import src.config as config
 
+all_logs = {}
 # Training both agents: myopic and proactive
 
 def train_dqn_agent(env_type):
@@ -229,7 +232,6 @@ def train_dqn_agent(env_type):
     def cross_validate_on_test_data(model, current_episode, log_data):
         cross_val_data = {
             "episode": current_episode,
-            "total_timesteps": total_timesteps,
             "scenarios": [],
             "avg_test_reward": 0,
         }
@@ -337,13 +339,8 @@ def train_dqn_agent(env_type):
         # Compute average test reward
         avg_test_reward = total_test_reward / len(test_scenario_folders)
         cross_val_data["avg_test_reward"] = avg_test_reward
-        test_rewards.append(cross_val_data)  # Store cross-validation data
-        test_rewards.append({
-            "episode": current_episode,
-            "total_timesteps": total_timesteps,
-            "avg_test_reward": avg_test_reward
-        })
-        print(f"Cross-validation done at episode {current_episode}")
+        test_rewards.append((current_episode, avg_test_reward))
+        print(f"cross-val done at episode {current_episode}")
 
         # Store cross-validation data in log_data
         log_data['cross_validation'][current_episode] = cross_val_data
@@ -596,27 +593,33 @@ def train_dqn_agent(env_type):
             scenario_data["total_reward"] = total_reward
             episode_data["scenarios"][scenario_folder] = scenario_data
 
+
         # Perform cross-validation at specified intervals
         if cross_val_flag:
-            # Initialize best_test_reward and current_test_reward at first cross validation
             if (episode + 1) % CROSS_VAL_INTERVAL == 0:
                 current_test_reward = cross_validate_on_test_data(model, episode + 1, log_data)
-                if not hasattr(train_dqn_agent, 'best_test_reward'):
-                    train_dqn_agent.best_test_reward = current_test_reward
-                best_test_reward = train_dqn_agent.best_test_reward
-            
-                # Early stopping logic
-                if current_test_reward < best_test_reward:
-                    consecutive_drops += 1
-                    print(f"Performance drop {consecutive_drops}/5 (current: {current_test_reward:.2f}, best: {best_test_reward:.2f})")
-                    if consecutive_drops >= 500:
-                        print(f"Early stopping triggered at episode {episode + 1} due to 5 consecutive drops in test performance")
-                        break
-                else:
-                    consecutive_drops = 0
-                    train_dqn_agent.best_test_reward = current_test_reward
+
+                # Initialize best_test_reward if it's the first cross-validation
+                if best_test_reward == float('-inf'):
                     best_test_reward = current_test_reward
 
+                # Early stopping logic
+                if early_stopping_flag:
+                    if current_test_reward < best_test_reward:
+                        consecutive_drops += 1
+                        print(
+                            f"Performance drop {consecutive_drops}/5 "
+                            f"(current: {current_test_reward:.2f}, best: {best_test_reward:.2f})"
+                        )
+                        if consecutive_drops >= 500:
+                            print(
+                                f"Early stopping triggered at episode {episode + 1} "
+                                f"due to 500 consecutive drops in test performance"
+                            )
+                            break
+                    else:
+                        consecutive_drops = 0
+                        best_test_reward = current_test_reward
         # Calculate the average reward for this batch of episodes
         avg_reward_for_this_batch = 0
         for i in range(len(scenario_folders)):
@@ -673,7 +676,7 @@ def train_dqn_agent(env_type):
 
     finalize_training_log(training_id, training_summary, model_path)
 
-
+    all_logs[training_id] = log_data
     # Return collected data
     return rewards, test_rewards, total_timesteps, epsilon_values, good_rewards, action_sequences, model_path_and_name
 
@@ -682,8 +685,6 @@ def train_dqn_agent(env_type):
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-import random
-import torch as th
 
 # Define your seeds
 
@@ -692,90 +693,289 @@ all_myopic_runs = []
 all_proactive_runs = []
 all_myopic_steps_runs = []
 all_proactive_steps_runs = []
+all_myopic_test_runs = []
+all_proactive_test_runs = []
 
-# Modify the run_training_for_seed function to return test_rewards
 def run_training_for_seed(seed):
+    import random
+    import numpy as np
+    import torch as th
+
     random.seed(seed)
     np.random.seed(seed)
     if th.cuda.is_available():
         th.cuda.manual_seed_all(seed)
     th.manual_seed(seed)
 
-    # Train myopic agent
-    (rewards_myopic, test_rewards_myopic, total_timesteps_myopic,
-     epsilon_values_myopic, good_rewards_myopic, action_sequences_myopic,
-     model_path_and_name_myopic) = train_dqn_agent('myopic')
-
     # Train proactive agent
-    (rewards_proactive, test_rewards_proactive, total_timesteps_proactive,
-     epsilon_values_proactive, good_rewards_proactive, action_sequences_proactive,
+    (rewards_proactive, test_rewards_proactive, total_timesteps_proactive, 
+     epsilon_values_proactive, good_rewards_proactive, action_sequences_proactive, 
      model_path_and_name_proactive) = train_dqn_agent('proactive')
 
+    # Train myopic agent
+    (rewards_myopic, test_rewards_myopic, total_timesteps_myopic, 
+     epsilon_values_myopic, good_rewards_myopic, action_sequences_myopic, 
+     model_path_and_name_myopic) = train_dqn_agent('myopic')
+
+
+
+    # Return both training results and test results
+    # test_rewards_myopic and test_rewards_proactive are lists of (episode, avg_test_reward)
     return (rewards_myopic, test_rewards_myopic, rewards_proactive, test_rewards_proactive)
 
-# Lists to store the results from all seeds
-all_myopic_test_rewards_dfs = []
-all_proactive_test_rewards_dfs = []
 
-# Run training for each seed and collect test_rewards
+
+# Run training for each seed and store results
 for s in SEEDS:
     print(f"Running DQN training for seed {s}...")
-    (rewards_myopic, test_rewards_myopic, rewards_proactive, test_rewards_proactive) = run_training_for_seed(s)
+    (rewards_myopic, test_rewards_myopic, 
+     rewards_proactive, test_rewards_proactive) = run_training_for_seed(s)
 
-    # Convert test_rewards to DataFrames
-    df_myopic = pd.DataFrame(test_rewards_myopic)
-    df_proactive = pd.DataFrame(test_rewards_proactive)
+    # Extract episode rewards and steps for myopic
+    myopic_episode_rewards = [
+        rewards_myopic[e]["avg_reward"] for e in sorted(rewards_myopic.keys())
+        if "avg_reward" in rewards_myopic[e]
+    ]
+    myopic_episode_steps = [
+        rewards_myopic[e]["total_timesteps"] for e in sorted(rewards_myopic.keys())
+        if "total_timesteps" in rewards_myopic[e]
+    ]
 
-    # Set 'episode' as the index
-    df_myopic.set_index('episode', inplace=True)
-    df_proactive.set_index('episode', inplace=True)
+    # Extract episode rewards and steps for proactive
+    proactive_episode_rewards = [
+        rewards_proactive[e]["avg_reward"] for e in sorted(rewards_proactive.keys())
+        if "avg_reward" in rewards_proactive[e]
+    ]
+    proactive_episode_steps = [
+        rewards_proactive[e]["total_timesteps"] for e in sorted(rewards_proactive.keys())
+        if "total_timesteps" in rewards_proactive[e]
+    ]
 
-    # Append to the list of DataFrames
-    all_myopic_test_rewards_dfs.append(df_myopic)
-    all_proactive_test_rewards_dfs.append(df_proactive)
+    print(test_rewards_myopic)
 
-# Concatenate DataFrames over seeds for myopic agent
-myopic_test_rewards_df = pd.concat(all_myopic_test_rewards_dfs, axis=1, keys=SEEDS)
-proactive_test_rewards_df = pd.concat(all_proactive_test_rewards_dfs, axis=1, keys=SEEDS)
+    # Append these arrays to the main lists
+    all_myopic_runs.append(myopic_episode_rewards)
+    all_proactive_runs.append(proactive_episode_rewards)
+    all_myopic_steps_runs.append(myopic_episode_steps)
+    all_proactive_steps_runs.append(proactive_episode_steps)
+    
+    test_myopic_sorted = sorted(test_rewards_myopic, key=lambda x: x[0])   # sort by episode
+    test_proactive_sorted = sorted(test_rewards_proactive, key=lambda x: x[0])
+    
 
-# Extract avg_test_reward for each seed
-myopic_avg_test_rewards = myopic_test_rewards_df.xs('avg_test_reward', axis=1, level=1)
-proactive_avg_test_rewards = proactive_test_rewards_df.xs('avg_test_reward', axis=1, level=1)
+    # Extract arrays of episodes and test rewards
+    myopic_test_episodes = [ep for (ep, r) in test_myopic_sorted]
+    myopic_test_rewards = [r for (ep, r) in test_myopic_sorted]
 
-# Calculate mean and standard deviation across seeds
-myopic_mean = myopic_avg_test_rewards.mean(axis=1)
-myopic_std = myopic_avg_test_rewards.std(axis=1)
-proactive_mean = proactive_avg_test_rewards.mean(axis=1)
-proactive_std = proactive_avg_test_rewards.std(axis=1)
+    proactive_test_episodes = [ep for (ep, r) in test_proactive_sorted]
+    proactive_test_rewards = [r for (ep, r) in test_proactive_sorted]
 
-# Plotting the cross-validation test rewards
-plt.figure(figsize=(12, 6))
-plt.plot(myopic_mean.index, myopic_mean, label="Myopic", color='blue')
-plt.fill_between(myopic_mean.index,
-                 myopic_mean - myopic_std,
-                 myopic_mean + myopic_std,
+    # We assume each seed has the same cross_val schedule. If different, we will align later.
+    all_myopic_test_runs.append((myopic_test_episodes, myopic_test_rewards))
+    all_proactive_test_runs.append((proactive_test_episodes, proactive_test_rewards))
+
+
+
+
+
+# %%
+print(all_myopic_test_runs)
+
+# %%
+
+# Ensure all runs are trimmed to the same length
+# (In case different runs have different episode lengths)
+print(f"episode lengths:")
+for i in range(len(all_myopic_runs)):
+    print(f"Myopic seed {i}: {len(all_myopic_runs[i])}")
+for i in range(len(all_proactive_runs)):
+    print(f"Proactive seed {i}: {len(all_proactive_runs[i])}")
+
+min_length_myopic = min(len(run) for run in all_myopic_runs if len(run) > 0)
+min_length_proactive = min(len(run) for run in all_proactive_runs if len(run) > 0)
+
+all_myopic_runs = [run[:min_length_myopic] for run in all_myopic_runs]
+all_proactive_runs = [run[:min_length_proactive] for run in all_proactive_runs]
+all_myopic_steps_runs = [steps[:min_length_myopic] for steps in all_myopic_steps_runs]
+all_proactive_steps_runs = [steps[:min_length_proactive] for steps in all_proactive_steps_runs]
+
+# Convert to numpy arrays
+all_myopic_runs = np.array(all_myopic_runs)              # shape: (num_seeds, num_episodes)
+all_proactive_runs = np.array(all_proactive_runs)        # shape: (num_seeds, num_episodes)
+all_myopic_steps_runs = np.array(all_myopic_steps_runs)  # shape: (num_seeds, num_episodes)
+all_proactive_steps_runs = np.array(all_proactive_steps_runs)
+
+# Calculate mean and std across seeds
+myopic_mean = all_myopic_runs.mean(axis=0)
+myopic_std = all_myopic_runs.std(axis=0)
+proactive_mean = all_proactive_runs.mean(axis=0)
+proactive_std = all_proactive_runs.std(axis=0)
+
+myopic_steps_mean = all_myopic_steps_runs.mean(axis=0).astype(int)
+proactive_steps_mean = all_proactive_steps_runs.mean(axis=0).astype(int)
+
+
+# %%
+
+num_seeds_myopic = all_myopic_runs.shape[0]
+num_episodes_myopic = all_myopic_runs.shape[1] if num_seeds_myopic > 0 else 0
+num_seeds_proactive = all_proactive_runs.shape[0]
+num_episodes_proactive = all_proactive_runs.shape[1] if num_seeds_proactive > 0 else 0
+
+for i in range(num_seeds_myopic):
+    total_steps_myopic = all_myopic_steps_runs[i].sum()
+    print(f"For seed index {i}, Myopic: finished {num_episodes_myopic} episodes, performed {total_steps_myopic} timesteps.")
+
+for i in range(num_seeds_proactive):
+    total_steps_proactive = all_proactive_steps_runs[i].sum()
+    print(f"For seed index {i}, Proactive: finished {num_episodes_proactive} episodes, performed {total_steps_proactive} timesteps.")
+
+# %%
+print(len(test_rewards_myopic))
+print(len(test_rewards_myopic))
+print(len(test_rewards_myopic[0]))
+print(len(test_rewards_myopic[0]))
+
+print(all_myopic_test_runs)
+
+
+
+# %%
+
+# Define a smoothing function (optional)
+def smooth(data, window=10):
+    if window > 1 and len(data) >= window:
+        return np.convolve(data, np.ones(window)/window, mode='valid')
+    return data
+
+# Apply smoothing if desired
+smooth_window = 20
+myopic_mean_sm = smooth(myopic_mean, smooth_window)
+myopic_std_sm = smooth(myopic_std, smooth_window)
+myopic_steps_sm = myopic_steps_mean[:len(myopic_mean_sm)]
+
+proactive_mean_sm = smooth(proactive_mean, smooth_window)
+proactive_std_sm = smooth(proactive_std, smooth_window)
+proactive_steps_sm = proactive_steps_mean[:len(proactive_mean_sm)]
+
+# Plotting the results
+plt.figure(figsize=(12,6))
+plt.plot(myopic_steps_sm, myopic_mean_sm, label="Myopic", color='blue')
+plt.fill_between(myopic_steps_sm, 
+                 myopic_mean_sm - myopic_std_sm, 
+                 myopic_mean_sm + myopic_std_sm, 
                  alpha=0.2, color='blue')
 
-plt.plot(proactive_mean.index, proactive_mean, label="Proactive", color='orange')
-plt.fill_between(proactive_mean.index,
-                 proactive_mean - proactive_std,
-                 proactive_mean + proactive_std,
+plt.plot(proactive_steps_sm, proactive_mean_sm, label="Proactive", color='orange')
+plt.fill_between(proactive_steps_sm, 
+                 proactive_mean_sm - proactive_std_sm, 
+                 proactive_mean_sm + proactive_std_sm, 
                  alpha=0.2, color='orange')
 
-plt.xlabel("Episode")
-plt.ylabel("Cross-Validation Test Reward")
-plt.title(f"Cross-Validation Test Rewards over {len(SEEDS)} Seeds (DQN, {stripped_scenario_folder})")
+
+plt.xlabel("Environment Steps (Frames)")
+plt.ylabel("Episode Reward")
+plt.title(f"Averaged Episode Rewards over {len(SEEDS)} Seeds (DQN, {stripped_scenario_folder})")
 plt.legend(frameon=False)
 plt.grid(True)
+
 
 results_dir = "./results"
 os.makedirs(results_dir, exist_ok=True)
 
-plot_file = os.path.join(results_dir, f"cross_validation_test_rewards_{stripped_scenario_folder}.png")
+plot_file = os.path.join(results_dir, f"averaged_rewards_over_steps_{stripped_scenario_folder}.png")
 plt.savefig(plot_file)
 plt.show()
 
-print(f"Cross-validation test rewards plot saved to {plot_file}")
+print(f"Averaged reward vs steps plot saved to {plot_file}")
 
+
+# %%
+def smooth(data, window=10):
+    if window > 1 and len(data) >= window:
+        return np.convolve(data, np.ones(window)/window, mode='valid')
+    return data
+
+
+# ---------------------
+# Align test rewards across seeds for plotting
+# ---------------------
+# Let's ensure all seeds have the same test episodes for myopic
+common_myopic_episodes = set(all_myopic_test_runs[0][0])
+for (eps, rews) in all_myopic_test_runs[1:]:
+    common_myopic_episodes = common_myopic_episodes.intersection(eps)
+common_myopic_episodes = sorted(list(common_myopic_episodes))
+
+# Similarly for proactive
+common_proactive_episodes = set(all_proactive_test_runs[0][0])
+for (eps, rews) in all_proactive_test_runs[1:]:
+    common_proactive_episodes = common_proactive_episodes.intersection(eps)
+common_proactive_episodes = sorted(list(common_proactive_episodes))
+
+# Now extract aligned arrays of test rewards
+# shape: (#seeds, #common_test_points)
+myopic_test_matrix = []
+for (eps, rews) in all_myopic_test_runs:
+    # Create a mapping ep->reward for fast lookup
+    ep_to_rew = {e: r for e, r in zip(eps, rews)}
+    aligned_rews = [ep_to_rew[e] for e in common_myopic_episodes]
+    myopic_test_matrix.append(aligned_rews)
+
+proactive_test_matrix = []
+for (eps, rews) in all_proactive_test_runs:
+    ep_to_rew = {e: r for e, r in zip(eps, rews)}
+    aligned_rews = [ep_to_rew[e] for e in common_proactive_episodes]
+    proactive_test_matrix.append(aligned_rews)
+
+myopic_test_matrix = np.array(myopic_test_matrix)       # shape: (num_seeds, num_test_points)
+proactive_test_matrix = np.array(proactive_test_matrix) # shape: (num_seeds, num_test_points)
+
+# Compute mean and std across seeds
+myopic_test_mean = myopic_test_matrix.mean(axis=0)
+myopic_test_std = myopic_test_matrix.std(axis=0)
+
+proactive_test_mean = proactive_test_matrix.mean(axis=0)
+proactive_test_std = proactive_test_matrix.std(axis=0)
+
+# Apply smoothing
+myopic_test_mean_sm = smooth(myopic_test_mean, smooth_window)
+myopic_test_std_sm = smooth(myopic_test_std, smooth_window)
+myopic_episodes_sm = common_myopic_episodes[:len(myopic_test_mean_sm)]
+
+proactive_test_mean_sm = smooth(proactive_test_mean, smooth_window)
+proactive_test_std_sm = smooth(proactive_test_std, smooth_window)
+proactive_episodes_sm = common_proactive_episodes[:len(proactive_test_mean_sm)]
+
+# ---------------------
+# Plot aggregated test rewards
+# ---------------------
+print(myopic_test_mean)
+plt.figure(figsize=(12,6))
+
+# Plot Myopic test mean & std
+plt.plot(myopic_episodes_sm, myopic_test_mean_sm, label="Myopic Test Rewards", color='blue')
+plt.fill_between(myopic_episodes_sm,
+                 myopic_test_mean_sm - myopic_test_std_sm,
+                 myopic_test_mean_sm + myopic_test_std_sm,
+                 alpha=0.2, color='blue')
+
+# Plot Proactive test mean & std
+plt.plot(proactive_episodes_sm, proactive_test_mean_sm, label="Proactive Test Rewards", color='orange')
+plt.fill_between(proactive_episodes_sm,
+                 proactive_test_mean_sm - proactive_test_std_sm,
+                 proactive_test_mean_sm + proactive_test_std_sm,
+                 alpha=0.2, color='orange')
+
+plt.xlabel("Episode")
+plt.ylabel("Test Average Reward")
+plt.title(f"Cross-Validation Test Rewards Over Episodes (Mean ± Std Across {len(SEEDS)} Seeds)")
+plt.legend(frameon=False)
+plt.grid(True)
+
+test_plot_file = os.path.join(results_dir, f"averaged_test_rewards_over_episodes_{stripped_scenario_folder}.png")
+plt.savefig(test_plot_file)
+plt.show()
+
+print(f"Averaged test reward plot saved to {test_plot_file}")
 
 
