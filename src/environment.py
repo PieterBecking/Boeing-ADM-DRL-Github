@@ -18,7 +18,7 @@ class AircraftDisruptionEnv(gym.Env):
             rotations_dict (dict): Dictionary containing rotation information.
             alt_aircraft_dict (dict): Dictionary containing alternative aircraft information.
             config_dict (dict): Dictionary containing configuration information.
-            env_type (str): Type of environment ('myopic' or 'proactive').
+            env_type (str): Type of environment ('myopic' or 'proactive', 'reactive').
         """
         super(AircraftDisruptionEnv, self).__init__()
         
@@ -210,6 +210,13 @@ class AircraftDisruptionEnv(gym.Env):
 
             # In the proactive env, the info for unrealized breakdowns is also not shown
             if np.isnan(breakdown_probability) or breakdown_probability == 0.00:  # Added check for 0.00
+                breakdown_probability = np.nan  # Set to NaN if not 1.00
+                unavail_start_minutes = np.nan
+                unavail_end_minutes = np.nan
+
+
+            # In the reactive env, the info for unrealized breakdowns is also not shown
+            if self.env_type == 'reactive':  # Added check for 0.00
                 breakdown_probability = np.nan  # Set to NaN if not 1.00
                 unavail_start_minutes = np.nan
                 unavail_end_minutes = np.nan
