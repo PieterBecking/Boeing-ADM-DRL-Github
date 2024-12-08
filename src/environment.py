@@ -202,24 +202,24 @@ class AircraftDisruptionEnv(gym.Env):
                 'EndTime': unavail_end_minutes
             }
 
-            # In the myopic env, the info for uncertain breakdowns is not shown
-            if breakdown_probability != 1.0 and self.env_type == 'myopic':
-                breakdown_probability = np.nan  # Set to NaN if not 1.00
-                unavail_start_minutes = np.nan
-                unavail_end_minutes = np.nan
+            # # In the myopic env, the info for uncertain breakdowns is not shown
+            # if breakdown_probability != 1.0 and self.env_type == 'myopic':
+            #     breakdown_probability = np.nan  # Set to NaN if not 1.00
+            #     unavail_start_minutes = np.nan
+            #     unavail_end_minutes = np.nan
 
-            # In the proactive env, the info for unrealized breakdowns is also not shown
-            if np.isnan(breakdown_probability) or breakdown_probability == 0.00:  # Added check for 0.00
-                breakdown_probability = np.nan  # Set to NaN if not 1.00
-                unavail_start_minutes = np.nan
-                unavail_end_minutes = np.nan
+            # # In the proactive env, the info for unrealized breakdowns is also not shown
+            # if np.isnan(breakdown_probability) or breakdown_probability == 0.00:  # Added check for 0.00
+            #     breakdown_probability = np.nan  # Set to NaN if not 1.00
+            #     unavail_start_minutes = np.nan
+            #     unavail_end_minutes = np.nan
 
 
-            # In the reactive env, the info for unrealized breakdowns is also not shown
-            if self.env_type == 'reactive':  # Added check for 0.00
-                breakdown_probability = np.nan  # Set to NaN if not 1.00
-                unavail_start_minutes = np.nan
-                unavail_end_minutes = np.nan
+            # # In the reactive env, the info for unrealized breakdowns is also not shown
+            # if self.env_type == 'reactive':  # Added check for 0.00
+            #     breakdown_probability = np.nan  # Set to NaN if not 1.00
+            #     unavail_start_minutes = np.nan
+            #     unavail_end_minutes = np.nan
 
             # Store probability and unavailability times
             state[idx + 1, 1] = breakdown_probability
@@ -284,12 +284,53 @@ class AircraftDisruptionEnv(gym.Env):
         Returns:
             dict: A dictionary containing the processed state and action mask.
         """
+        state_to_observe = state.copy()
+
+        for idx, aircraft_id in enumerate(self.aircraft_ids):
+            breakdown_probability = state_to_observe[idx + 1, 1]
+            unavail_start_minutes = state_to_observe[idx + 1, 2]
+            unavail_end_minutes = state_to_observe[idx + 1, 3]
+
+            # Store the unavailability information in the unavailabilities dictionary
+            self.unavailabilities_dict[aircraft_id] = {
+                'Probability': breakdown_probability,
+                'StartTime': unavail_start_minutes,
+                'EndTime': unavail_end_minutes
+            }
+
+            # In the myopic env, the info for uncertain breakdowns is not shown
+            if breakdown_probability != 1.0 and self.env_type == 'myopic':
+                breakdown_probability = np.nan  # Set to NaN if not 1.00
+                unavail_start_minutes = np.nan
+                unavail_end_minutes = np.nan
+
+            # In the proactive env, the info for unrealized breakdowns is also not shown
+            if np.isnan(breakdown_probability) or breakdown_probability == 0.00:  # Added check for 0.00
+                breakdown_probability = np.nan  # Set to NaN if not 1.00
+                unavail_start_minutes = np.nan
+                unavail_end_minutes = np.nan
+
+
+            # In the reactive env, the info for unrealized breakdowns is also not shown
+            if self.env_type == 'reactive':  # Added check for 0.00
+                breakdown_probability = np.nan  # Set to NaN if not 1.00
+                unavail_start_minutes = np.nan
+                unavail_end_minutes = np.nan
+
+            # Store probability and unavailability times
+            state_to_observe[idx + 1, 1] = breakdown_probability
+            state_to_observe[idx + 1, 2] = unavail_start_minutes
+            state_to_observe[idx + 1, 3] = unavail_end_minutes
+
+
         # Create a mask where 1 indicates valid values, 0 indicates NaN
-        mask = np.where(np.isnan(state), 0, 1)
+        mask = np.where(np.isnan(state_to_observe), 0, 1)
         # Replace NaN with the dummy value
-        state = np.nan_to_num(state, nan=DUMMY_VALUE)
+        state_to_observe = np.nan_to_num(state_to_observe, nan=DUMMY_VALUE)
+
+
         # Flatten both state and mask
-        state_flat = state.flatten()
+        state_flat = state_to_observe.flatten()
         mask_flat = mask.flatten()
         
         # Use get_action_mask to generate the action mask
@@ -297,7 +338,7 @@ class AircraftDisruptionEnv(gym.Env):
 
         # Create the observation dictionary
         obs_with_mask = {
-            'state': state.flatten(),
+            'state': state_to_observe.flatten(),
             'action_mask': action_mask
         }
         return obs_with_mask
