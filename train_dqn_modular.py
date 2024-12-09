@@ -1,0 +1,765 @@
+import os
+import sys
+import warnings
+import datetime
+import math
+import numpy as np
+import pandas as pd
+import platform
+import re
+import subprocess
+import torch as th
+import pickle
+import gymnasium as gym
+import matplotlib.pyplot as plt
+from datetime import datetime
+from scripts.utils import *
+from scripts.visualizations import *
+from src.config import *
+from stable_baselines3 import DQN
+from stable_baselines3.common.evaluation import evaluate_policy
+from stable_baselines3.common.logger import configure
+from stable_baselines3.common.utils import polyak_update, set_random_seed
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
+from scripts.utils import NumpyEncoder
+from scripts.logger import *
+import json
+import seaborn as sns
+sns.set(style="darkgrid")
+import time
+
+def run_train_dqn_both_timesteps(
+    MAX_TOTAL_TIMESTEPS,
+    SEEDS,
+    brute_force_flag,
+    cross_val_flag,
+    early_stopping_flag,
+    CROSS_VAL_INTERVAL,
+    printing_intermediate_results,
+    TRAINING_FOLDERS_PATH,
+    stripped_scenario_folder,
+    save_folder,
+    save_results_big_run
+):
+    # The following code is exactly as in train_dqn_both_timesteps.ipynb,
+    # just wrapped inside this function.
+
+    # Check and set default values if not present in globals
+    # In the original code, these checks are done. Here we trust we get correct parameters from main.
+    # But to maintain identical logic, we keep the same if-statements:
+    if 'MAX_TOTAL_TIMESTEPS' not in globals():
+        MAX_TOTAL_TIMESTEPS = 10000
+    if 'TRAINING_FOLDERS_PATH' not in globals():
+        TRAINING_FOLDERS_PATH = "data/Training/6ac-100-mixed-low/"
+    if 'SEEDS' not in globals():
+        SEEDS = [0]
+    if 'brute_force_flag' not in globals():
+        brute_force_flag = False
+    if 'save_folder' not in globals():
+        save_folder = "big-run-5"
+
+    print(f"Training on {stripped_scenario_folder}")
+    save_results_big_run = f"{save_folder}/{stripped_scenario_folder}"
+
+    # Constants and Training Settings
+    LEARNING_RATE = 0.0001
+    GAMMA = 0.99
+    BUFFER_SIZE = 100000
+    BATCH_SIZE = 128
+    TARGET_UPDATE_INTERVAL = 1000
+    NEURAL_NET_STRUCTURE = dict(net_arch=[256, 256])
+    LEARNING_STARTS = 10000
+    TRAIN_FREQ = 4
+
+    EPSILON_START = 1.0
+    EPSILON_MIN = 0.025
+    PERCENTAGE_MIN = 95
+    EPSILON_TYPE = "exponential"
+    if EPSILON_TYPE == "linear":
+        EPSILON_MIN = 0
+
+    N_EPISODES = 50 # DOESNT MATTER
+
+    # Overwrite cross_val_flag and CROSS_VAL_INTERVAL from arguments if needed (the code originally sets it)
+    # We keep identical logic, so we set CROSS_VAL_INTERVAL as in the original code:
+    cross_val_flag = cross_val_flag
+    CROSS_VAL_INTERVAL = N_EPISODES/100
+
+    TESTING_FOLDERS_PATH = "../data/Training/6ac-10-mixed-low/"
+
+    # extract number of scenarios in training and testing folders
+    num_scenarios_training = len(os.listdir(TRAINING_FOLDERS_PATH))
+
+    # Based on parameters, calculate EPSILON_DECAY_RATE as in original code
+    EPSILON_DECAY_RATE = calculate_epsilon_decay_rate(
+        MAX_TOTAL_TIMESTEPS, EPSILON_START, EPSILON_MIN, PERCENTAGE_MIN, EPSILON_TYPE
+    )
+    print("EPSILON DECAY RATE: ", EPSILON_DECAY_RATE)
+
+    # Initialize device
+    device = initialize_device()
+
+    # Check device capabilities
+    check_device_capabilities()
+
+    # Get device-specific information
+    device_info = get_device_info(device)
+    print(f"Device info: {device_info}")
+
+    # Verify training folders and gather training data
+    training_folders = verify_training_folders(TRAINING_FOLDERS_PATH)
+
+    # Calculate training days and model naming
+    num_days_trained_on = calculate_training_days(N_EPISODES, training_folders)
+    print(f"Training on {num_days_trained_on} days of data "
+          f"({N_EPISODES} episodes of {len(training_folders)} scenarios)")
+
+    formatted_days = format_days(num_days_trained_on)
+    MODEL_SAVE_PATH = f'../trained_models/dqn/'
+
+    # Create results directory
+    results_dir = create_results_directory(append_to_name='dqn')
+    print(f"Results directory created at: {results_dir}")
+
+    from scripts.logger import create_new_id, get_config_variables
+    import src.config as config
+
+    all_logs = {}
+
+    def train_dqn_agent(env_type):
+        log_data = {}  # Main dictionary to store all logs
+
+        config_variables = get_config_variables(config)
+
+        # Generate unique ID for training
+        training_id = create_new_id("training")
+        runtime_start_in_seconds = time.time()
+
+        if env_type == "myopic":
+            model_path = f"../trained_models/dqn/myopic-{training_id}.zip"
+            print(f"Models will be saved to: {model_path}")
+            model_path_and_name = model_path
+        elif env_type == "proactive":
+            model_path = f"../trained_models/dqn/proactive-{training_id}.zip"
+            print(f"Models will be saved to: {model_path}")
+            model_path_and_name = model_path
+        elif env_type == "reactive":
+            model_path = f"../trained_models/dqn/reactive-{training_id}.zip"
+            print(f"Models will be saved to: {model_path}")
+            model_path_and_name = model_path
+
+        training_metadata = {
+            "myopic_or_proactive": env_type,
+            "model_type": "dqn",
+            "training_id": training_id,
+            "MODEL_SAVE_PATH": model_path,
+            "N_EPISODES": N_EPISODES,
+            "num_scenarios_training": num_scenarios_training,
+            "results_dir": results_dir,
+            "CROSS_VAL_FLAG": cross_val_flag,
+            "CROSS_VAL_INTERVAL": CROSS_VAL_INTERVAL,
+            **config_variables,
+            "LEARNING_RATE": LEARNING_RATE,
+            "GAMMA": GAMMA,
+            "BUFFER_SIZE": BUFFER_SIZE,
+            "BATCH_SIZE": BATCH_SIZE,
+            "TARGET_UPDATE_INTERVAL": TARGET_UPDATE_INTERVAL,
+            "EPSILON_START": EPSILON_START,
+            "EPSILON_MIN": EPSILON_MIN,
+            "EPSILON_DECAY_RATE": EPSILON_DECAY_RATE,
+            "LEARNING_STARTS": LEARNING_STARTS,
+            "TRAIN_FREQ": TRAIN_FREQ,
+            "NEURAL_NET_STRUCTURE": NEURAL_NET_STRUCTURE,
+            "device_info": str(get_device_info(device)),
+            "TRAINING_FOLDERS_PATH": TRAINING_FOLDERS_PATH,
+            "TESTING_FOLDERS_PATH": TESTING_FOLDERS_PATH,
+            "runtime_start": datetime.utcnow().isoformat() + "Z",
+            "runtime_start_in_seconds": runtime_start_in_seconds,
+        }
+
+        log_data['metadata'] = training_metadata
+        log_data['episodes'] = {}
+        log_data['cross_validation'] = {}
+
+        best_reward_avg = float('-inf')
+        # Initialize variables
+        rewards = {}
+        good_rewards = {}
+        test_rewards = []
+        epsilon_values = []
+        total_timesteps = 0  # Added to track total timesteps
+        consecutive_drops = 0  # Track consecutive performance drops
+        best_test_reward = float('-inf')  # Track best test performance
+        action_sequences = {
+            os.path.join(TRAINING_FOLDERS_PATH, folder): {
+                "best_actions": [],
+                "best_reward": float('-inf'),
+                "worst_actions": [],
+                "worst_reward": float('inf')
+            }
+            for folder in training_folders
+        }
+
+        def cross_validate_on_test_data(model, current_episode, log_data):
+            cross_val_data = {
+                "episode": current_episode,
+                "scenarios": [],
+                "avg_test_reward": 0,
+            }
+
+            test_scenario_folders = [
+                os.path.join(TESTING_FOLDERS_PATH, folder)
+                for folder in os.listdir(TESTING_FOLDERS_PATH)
+                if os.path.isdir(os.path.join(TESTING_FOLDERS_PATH, folder))
+            ]
+            total_test_reward = 0
+            for test_scenario_folder in test_scenario_folders:
+                scenario_data = {
+                    "scenario_folder": test_scenario_folder,
+                    "total_reward": 0,
+                    "steps": []
+                }
+                # Load data
+                data_dict = load_scenario_data(test_scenario_folder)
+                aircraft_dict = data_dict['aircraft']
+                flights_dict = data_dict['flights']
+                rotations_dict = data_dict['rotations']
+                alt_aircraft_dict = data_dict['alt_aircraft']
+                config_dict = data_dict['config']
+
+                from src.environment import AircraftDisruptionEnv
+                env = AircraftDisruptionEnv(
+                    aircraft_dict,
+                    flights_dict,
+                    rotations_dict,
+                    alt_aircraft_dict,
+                    config_dict,
+                    env_type=env_type
+                )
+                model.set_env(env)  # Update the model's environment with the new instance
+
+                obs, _ = env.reset()
+
+                done_flag = False
+                total_reward_local = 0
+                timesteps_local = 0
+
+                while not done_flag:
+                    # Get the action mask from the environment
+                    action_mask = obs['action_mask']
+
+                    # Convert observation to float32
+                    obs = {key: np.array(value, dtype=np.float32) for key, value in obs.items()}
+
+                    # Preprocess observation and get Q-values
+                    obs_tensor = model.policy.obs_to_tensor(obs)[0]
+                    q_values = model.policy.q_net(obs_tensor).detach().cpu().numpy().squeeze()
+
+                    # Apply the action mask (set invalid actions to -np.inf)
+                    masked_q_values = q_values.copy()
+                    masked_q_values[action_mask == 0] = -np.inf
+
+                    # Select the action with the highest masked Q-value
+                    action = np.argmax(masked_q_values)
+
+                    # Take the selected action in the environment
+                    result = env.step(action)
+
+                    obs_next, reward, terminated, truncated, info = result
+
+                    done_flag = terminated or truncated
+                    total_reward_local += reward
+                    obs = obs_next
+
+                    scenario_data["steps"].append({
+                        "step_number": timesteps_local + 1,
+                        "action": action,
+                        "flight_action": env.map_index_to_action(action)[0],
+                        "aircraft_action": env.map_index_to_action(action)[1],
+                        "reward": reward,
+                        "total_timestep": total_timesteps,
+                        "time_in_scenario": timesteps_local,
+                        "epsilon": "1.0 at cross-validation",
+                        "action_reason": "exploitation at cross-validation",
+                        "action_mask": action_mask,
+                        "action_mask_sum": np.sum(action_mask),
+                        "len_action_mask": len(action_mask),
+                        "masked_q_values": masked_q_values,
+                        "q_values": q_values,
+                        "info_after_step": env.info_after_step,
+                    })
+
+                    timesteps_local += 1
+                    if done_flag:
+                        break
+
+                total_test_reward += total_reward_local
+                scenario_data["total_reward"] = total_reward_local
+                cross_val_data["scenarios"].append(scenario_data)
+
+            avg_test_reward = total_test_reward / len(test_scenario_folders)
+            cross_val_data["avg_test_reward"] = avg_test_reward
+            test_rewards.append((avg_test_reward))
+            print(f"cross-val done at episode {current_episode}")
+
+            log_data['cross_validation'][current_episode] = cross_val_data
+
+            return avg_test_reward
+
+        scenario_folders = [
+            os.path.join(TRAINING_FOLDERS_PATH, folder)
+            for folder in os.listdir(TRAINING_FOLDERS_PATH)
+            if os.path.isdir(os.path.join(TRAINING_FOLDERS_PATH, folder))
+        ]
+
+        epsilon = EPSILON_START
+        total_timesteps = 0
+
+        # Initialize the DQN
+        dummy_scenario_folder = scenario_folders[0]
+        data_dict = load_scenario_data(dummy_scenario_folder)
+        aircraft_dict = data_dict['aircraft']
+        flights_dict = data_dict['flights']
+        rotations_dict = data_dict['rotations']
+        alt_aircraft_dict = data_dict['alt_aircraft']
+        config_dict = data_dict['config']
+
+        from src.environment import AircraftDisruptionEnv
+        env = AircraftDisruptionEnv(
+            aircraft_dict,
+            flights_dict,
+            rotations_dict,
+            alt_aircraft_dict,
+            config_dict,
+            env_type=env_type
+        )
+
+        model = DQN(
+            policy='MultiInputPolicy',
+            env=env,
+            learning_rate=LEARNING_RATE,
+            gamma=GAMMA,
+            buffer_size=BUFFER_SIZE,
+            learning_starts=LEARNING_STARTS,
+            batch_size=BATCH_SIZE,
+            target_update_interval=TARGET_UPDATE_INTERVAL,
+            verbose=0,
+            policy_kwargs=NEURAL_NET_STRUCTURE,
+            device=device
+        )
+
+        logger = configure()
+        model._logger = logger
+
+        episode = 0
+        while total_timesteps < MAX_TOTAL_TIMESTEPS:
+            rewards[episode] = {}
+            action_sequences[episode] = {}
+            episode_data = {
+                "episode_number": episode + 1,
+                "epsilon_start": epsilon,
+                "scenarios": {},
+            }
+
+            for scenario_folder in scenario_folders:
+                scenario_data = {
+                    "scenario_folder": scenario_folder,
+                    "steps": [],
+                    "total_reward": 0,
+                }
+                rewards[episode][scenario_folder] = {}
+                action_sequences[episode][scenario_folder] = []
+                best_reward_local = float('-inf')
+                best_action_sequence_local = []
+                data_dict = load_scenario_data(scenario_folder)
+                aircraft_dict = data_dict['aircraft']
+                flights_dict = data_dict['flights']
+                rotations_dict = data_dict['rotations']
+                alt_aircraft_dict = data_dict['alt_aircraft']
+                config_dict = data_dict['config']
+
+                env = AircraftDisruptionEnv(
+                    aircraft_dict,
+                    flights_dict,
+                    rotations_dict,
+                    alt_aircraft_dict,
+                    config_dict,
+                    env_type=env_type
+                )
+                model.set_env(env)
+
+                obs, _ = env.reset()
+                done_flag = False
+                total_reward_local = 0
+                timesteps_local = 0
+                action_sequence_local = []
+
+                while not done_flag:
+                    num_cancelled_flights_before_step = len(env.cancelled_flights)
+                    num_delayed_flights_before_step = len(env.environment_delayed_flights)
+                    num_penalized_delays_before_step = len(env.penalized_delays)
+                    num_penalized_cancelled_before_step = len(env.penalized_cancelled_flights)
+
+                    model.exploration_rate = epsilon
+
+                    action_mask = obs['action_mask']
+                    obs = {key: np.array(value, dtype=np.float32) for key, value in obs.items()}
+
+                    obs_tensor = model.policy.obs_to_tensor(obs)[0]
+                    q_values = model.policy.q_net(obs_tensor).detach().cpu().numpy().squeeze()
+
+                    masked_q_values = q_values.copy()
+                    masked_q_values[action_mask == 0] = -np.inf
+
+                    current_seed = int(time.time() * 1e9) % (2**32 - 1)
+                    np.random.seed(current_seed)
+
+                    action_reason = "None"
+                    if np.random.rand() < epsilon or brute_force_flag:
+                        valid_actions = np.where(action_mask == 1)[0]
+                        action = np.random.choice(valid_actions)
+                        action_reason = "exploration"
+                    else:
+                        action = np.argmax(masked_q_values)
+                        action_reason = "exploitation"
+
+                    result = env.step(action)
+                    obs_next, reward, terminated, truncated, info = result
+
+                    rewards[episode][scenario_folder][timesteps_local] = reward
+                    action_sequences[episode][scenario_folder].append(action)
+
+                    done_flag = terminated or truncated
+                    action_sequence_local.append(action)
+
+                    model.replay_buffer.add(
+                        obs=obs,
+                        next_obs=obs_next,
+                        action=action,
+                        reward=reward,
+                        done=done_flag,
+                        infos=[info]
+                    )
+
+                    obs = obs_next
+
+                    epsilon = max(EPSILON_MIN, epsilon * (1 - EPSILON_DECAY_RATE))
+                    epsilon_values.append((episode + 1, epsilon))
+
+                    timesteps_local += 1
+                    total_timesteps += 1
+
+                    if total_timesteps > model.learning_starts and total_timesteps % TRAIN_FREQ == 0:
+                        model.train(gradient_steps=1, batch_size=BATCH_SIZE)
+
+                    if total_timesteps % model.target_update_interval == 0:
+                        polyak_update(model.q_net.parameters(), model.q_net_target.parameters(), model.tau)
+                        polyak_update(model.batch_norm_stats, model.batch_norm_stats_target, 1.0)
+
+                    num_cancelled_flights_after_step = len(env.cancelled_flights)
+                    num_delayed_flights_after_step = len(env.environment_delayed_flights)
+                    num_penalized_delays_after_step = len(env.penalized_delays)
+                    num_penalized_cancelled_after_step = len(env.penalized_cancelled_flights)
+
+                    impact_of_action = {
+                        "num_cancelled_flights": num_cancelled_flights_after_step - num_cancelled_flights_before_step,
+                        "num_delayed_flights": num_delayed_flights_after_step - num_delayed_flights_before_step,
+                        "num_penalized_delays": num_penalized_delays_after_step - num_penalized_delays_before_step,
+                        "num_penalized_cancelled": num_penalized_cancelled_after_step - num_penalized_cancelled_before_step,
+                    }
+
+                    scenario_data["steps"].append({
+                        "step_number": timesteps_local,
+                        "action": action,
+                        "flight_action": env.map_index_to_action(action)[0],
+                        "aircraft_action": env.map_index_to_action(action)[1],
+                        "reward": reward,
+                        "total_timestep": total_timesteps,
+                        "time_in_scenario": timesteps_local,
+                        "epsilon": epsilon,
+                        "action_reason": action_reason,
+                        "impact_of_action": impact_of_action,
+                        "done_flag": done_flag,
+                        "action_mask_sum": np.sum(action_mask),
+                        "len_action_mask": len(action_mask),
+                        "info_after_step": env.info_after_step,
+                        "masked_q_values": masked_q_values,
+                        "q_values": q_values,
+                        "action_mask": action_mask,
+                    })
+
+                    if done_flag:
+                        break
+
+                total_reward_local = sum(rewards[episode][scenario_folder].values())
+                rewards[episode][scenario_folder]["total"] = total_reward_local
+                action_sequences[episode][scenario_folder] = action_sequence_local
+
+                scenario_data["total_reward"] = total_reward_local
+                episode_data["scenarios"][scenario_folder] = scenario_data
+
+            # Perform cross-validation if enabled
+            if cross_val_flag:
+                if (episode + 1) % CROSS_VAL_INTERVAL == 0:
+                    current_test_reward = cross_validate_on_test_data(model, episode + 1, log_data)
+                    if not hasattr(train_dqn_agent, 'best_test_reward'):
+                        train_dqn_agent.best_test_reward = current_test_reward
+                    best_test_reward_local = train_dqn_agent.best_test_reward
+
+                    # Early stopping logic
+                    if current_test_reward < best_test_reward_local:
+                        consecutive_drops += 1
+                        print(f"Performance drop {consecutive_drops}/5 (current: {current_test_reward:.2f}, best: {best_test_reward_local:.2f})")
+                        if consecutive_drops >= 500:
+                            print(f"Early stopping triggered at episode {episode + 1} due to 5 consecutive drops in test performance")
+                            break
+                    else:
+                        consecutive_drops = 0
+                        train_dqn_agent.best_test_reward = current_test_reward
+                        best_test_reward_local = current_test_reward
+
+            # Calculate the average reward for this batch of episodes
+            avg_reward_for_this_batch = 0
+            for i in range(len(scenario_folders)):
+                avg_reward_for_this_batch += rewards[episode][scenario_folders[i]]["total"]
+            avg_reward_for_this_batch /= len(scenario_folders)
+
+            rewards[episode]["avg_reward"] = avg_reward_for_this_batch
+            rewards[episode]["total_timesteps"] = total_timesteps
+
+            print(f"({total_timesteps}/{MAX_TOTAL_TIMESTEPS}) {env_type} - episode {episode + 1} - epsilon {epsilon:.2f} - reward this episode: {avg_reward_for_this_batch:.2f}")
+
+            episode_data["avg_reward"] = avg_reward_for_this_batch
+            log_data['episodes'][episode + 1] = episode_data
+            episode += 1
+
+        # Save the model after training
+        if env_type == "myopic":
+            model.save(f"../trained_models/dqn/myopic-{training_id}.zip")
+        elif env_type == "proactive":
+            model.save(f"../trained_models/dqn/proactive-{training_id}.zip")
+        elif env_type == "reactive":
+            model.save(f"../trained_models/dqn/reactive-{training_id}.zip")
+
+        runtime_end_in_seconds = time.time()
+        runtime_in_seconds = runtime_end_in_seconds - runtime_start_in_seconds
+        actual_total_timesteps = total_timesteps
+
+        # Return collected data
+        return rewards, test_rewards, total_timesteps, epsilon_values, good_rewards, action_sequences, model_path_and_name
+
+    # Run training for each seed and store results
+    all_myopic_runs = []
+    all_proactive_runs = []
+    all_myopic_steps_runs = []
+    all_proactive_steps_runs = []
+    all_reactive_runs = []
+    all_reactive_steps_runs = []
+    all_test_rewards_myopic = []
+    all_test_rewards_proactive = []
+    all_test_rewards_reactive = []
+
+    def run_training_for_seed(seed):
+        import random
+        import numpy as np
+        import torch as th
+
+        random.seed(seed)
+        np.random.seed(seed)
+        if th.cuda.is_available():
+            th.cuda.manual_seed_all(seed)
+        th.manual_seed(seed)
+
+        # Train myopic agent
+        (rewards_myopic, test_rewards_myopic, total_timesteps_myopic,
+         epsilon_values_myopic, good_rewards_myopic, action_sequences_myopic,
+         model_path_and_name_myopic) = train_dqn_agent('myopic')
+
+        # Train proactive agent
+        (rewards_proactive, test_rewards_proactive, total_timesteps_proactive,
+         epsilon_values_proactive, good_rewards_proactive, action_sequences_proactive,
+         model_path_and_name_proactive) = train_dqn_agent('proactive')
+
+        # Train reactive agent
+        (rewards_reactive, test_rewards_reactive, total_timesteps_reactive,
+         epsilon_values_reactive, good_rewards_reactive, action_sequences_reactive,
+         model_path_and_name_reactive) = train_dqn_agent('reactive')
+
+        return (rewards_myopic, rewards_proactive, rewards_reactive,
+                test_rewards_myopic, test_rewards_proactive, test_rewards_reactive)
+
+    for s in SEEDS:
+        print(f"Running DQN training for seed {s}...")
+        rewards_myopic, rewards_proactive, rewards_reactive, \
+            test_rewards_myopic, test_rewards_proactive, test_rewards_reactive = run_training_for_seed(s)
+
+        myopic_episode_rewards = [
+            rewards_myopic[e]["avg_reward"] for e in sorted(rewards_myopic.keys())
+            if "avg_reward" in rewards_myopic[e]
+        ]
+        myopic_episode_steps = [
+            rewards_myopic[e]["total_timesteps"] for e in sorted(rewards_myopic.keys())
+            if "total_timesteps" in rewards_myopic[e]
+        ]
+
+        proactive_episode_rewards = [
+            rewards_proactive[e]["avg_reward"] for e in sorted(rewards_proactive.keys())
+            if "avg_reward" in rewards_proactive[e]
+        ]
+        proactive_episode_steps = [
+            rewards_proactive[e]["total_timesteps"] for e in sorted(rewards_proactive.keys())
+            if "total_timesteps" in rewards_proactive[e]
+        ]
+
+        reactive_episode_rewards = [
+            rewards_reactive[e]["avg_reward"] for e in sorted(rewards_reactive.keys())
+            if "avg_reward" in rewards_reactive[e]
+        ]
+        reactive_episode_steps = [
+            rewards_reactive[e]["total_timesteps"] for e in sorted(rewards_reactive.keys())
+            if "total_timesteps" in rewards_reactive[e]
+        ]
+
+        all_myopic_runs.append(myopic_episode_rewards)
+        all_proactive_runs.append(proactive_episode_rewards)
+        all_myopic_steps_runs.append(myopic_episode_steps)
+        all_proactive_steps_runs.append(proactive_episode_steps)
+        all_reactive_runs.append(reactive_episode_rewards)
+        all_reactive_steps_runs.append(reactive_episode_steps)
+        all_test_rewards_myopic.append(test_rewards_myopic)
+        all_test_rewards_proactive.append(test_rewards_proactive)
+        all_test_rewards_reactive.append(test_rewards_reactive)
+
+    os.makedirs(f"{save_results_big_run}/numpy", exist_ok=True)
+    os.makedirs(f"{save_results_big_run}/plots", exist_ok=True)
+    np.save(f'{save_results_big_run}/numpy/all_myopic_runs.npy', all_myopic_runs)
+    np.save(f'{save_results_big_run}/numpy/all_proactive_runs.npy', all_proactive_runs) 
+    np.save(f'{save_results_big_run}/numpy/all_reactive_runs.npy', all_reactive_runs)
+    np.save(f'{save_results_big_run}/numpy/all_myopic_steps_runs.npy', all_myopic_steps_runs)
+    np.save(f'{save_results_big_run}/numpy/all_proactive_steps_runs.npy', all_proactive_steps_runs)
+    np.save(f'{save_results_big_run}/numpy/all_reactive_steps_runs.npy', all_reactive_steps_runs)
+    np.save(f'{save_results_big_run}/numpy/all_test_rewards_myopic.npy', all_test_rewards_myopic)
+    np.save(f'{save_results_big_run}/numpy/all_test_rewards_proactive.npy', all_test_rewards_proactive)
+    np.save(f'{save_results_big_run}/numpy/all_test_rewards_reactive.npy', all_test_rewards_reactive)
+
+    print(f"episode lengths:")
+    for i in range(len(all_myopic_runs)):
+        print(f"Myopic seed {i}: {len(all_myopic_runs[i])}")
+    for i in range(len(all_proactive_runs)):
+        print(f"Proactive seed {i}: {len(all_proactive_runs[i])}")
+    for i in range(len(all_reactive_runs)):
+        print(f"Reactive seed {i}: {len(all_reactive_runs[i])}")
+
+    min_length_myopic = min(len(run) for run in all_myopic_runs if len(run) > 0)
+    min_length_proactive = min(len(run) for run in all_proactive_runs if len(run) > 0)
+    min_length_reactive = min(len(run) for run in all_reactive_runs if len(run) > 0)
+
+    all_myopic_runs = [run[:min_length_myopic] for run in all_myopic_runs]
+    all_proactive_runs = [run[:min_length_proactive] for run in all_proactive_runs]
+    all_myopic_steps_runs = [steps[:min_length_myopic] for steps in all_myopic_steps_runs]
+    all_proactive_steps_runs = [steps[:min_length_proactive] for steps in all_proactive_steps_runs]
+    all_reactive_runs = [run[:min_length_reactive] for run in all_reactive_runs]
+    all_reactive_steps_runs = [steps[:min_length_reactive] for steps in all_reactive_steps_runs]
+
+    all_myopic_runs = np.array(all_myopic_runs)
+    all_proactive_runs = np.array(all_proactive_runs)
+    all_myopic_steps_runs = np.array(all_myopic_steps_runs)
+    all_proactive_steps_runs = np.array(all_proactive_steps_runs)
+    all_reactive_runs = np.array(all_reactive_runs)
+    all_reactive_steps_runs = np.array(all_reactive_steps_runs)
+
+    myopic_mean = all_myopic_runs.mean(axis=0)
+    myopic_std = all_myopic_runs.std(axis=0)
+    proactive_mean = all_proactive_runs.mean(axis=0)
+    proactive_std = all_proactive_runs.std(axis=0)
+    reactive_mean = all_reactive_runs.mean(axis=0)
+    reactive_std = all_reactive_runs.std(axis=0)
+
+    myopic_steps_mean = all_myopic_steps_runs.mean(axis=0).astype(int)
+    proactive_steps_mean = all_proactive_steps_runs.mean(axis=0).astype(int)
+    reactive_steps_mean = all_reactive_steps_runs.mean(axis=0).astype(int)
+
+    num_seeds_myopic = all_myopic_runs.shape[0]
+    num_episodes_myopic = all_myopic_runs.shape[1] if num_seeds_myopic > 0 else 0
+    num_seeds_proactive = all_proactive_runs.shape[0]
+    num_episodes_proactive = all_proactive_runs.shape[1] if num_seeds_proactive > 0 else 0
+    num_seeds_reactive = all_reactive_runs.shape[0]
+    num_episodes_reactive = all_reactive_runs.shape[1] if num_seeds_reactive > 0 else 0
+
+    for i in range(num_seeds_myopic):
+        total_steps_myopic = all_myopic_steps_runs[i].sum()
+        print(f"For seed index {i}, Myopic: finished {num_episodes_myopic} episodes, performed {total_steps_myopic} timesteps.")
+
+    for i in range(num_seeds_proactive):
+        total_steps_proactive = all_proactive_steps_runs[i].sum()
+        print(f"For seed index {i}, Proactive: finished {num_episodes_proactive} episodes, performed {total_steps_proactive} timesteps.")
+
+    for i in range(num_seeds_reactive):
+        total_steps_reactive = all_reactive_steps_runs[i].sum()
+        print(f"For seed index {i}, Reactive: finished {num_episodes_reactive} episodes, performed {total_steps_reactive} timesteps.")
+
+    def smooth(data, window=10):
+        if window > 1 and len(data) >= window:
+            return np.convolve(data, np.ones(window)/window, mode='valid')
+        return data
+
+    smooth_window = 4
+    myopic_mean_sm = smooth(myopic_mean, smooth_window)
+    myopic_std_sm = smooth(myopic_std, smooth_window)
+    myopic_steps_sm = myopic_steps_mean[:len(myopic_mean_sm)]
+
+    proactive_mean_sm = smooth(proactive_mean, smooth_window)
+    proactive_std_sm = smooth(proactive_std, smooth_window)
+    proactive_steps_sm = proactive_steps_mean[:len(proactive_mean_sm)]
+
+    reactive_mean_sm = smooth(reactive_mean, smooth_window)
+    reactive_std_sm = smooth(reactive_std, smooth_window)
+    reactive_steps_sm = reactive_steps_mean[:len(reactive_mean_sm)]
+
+    plt.figure(figsize=(12,6))
+    plt.plot(myopic_steps_sm, myopic_mean_sm, label="Myopic", color='blue')
+    plt.fill_between(myopic_steps_sm, 
+                     myopic_mean_sm - myopic_std_sm, 
+                     myopic_mean_sm + myopic_std_sm, 
+                     alpha=0.2, color='blue')
+
+    plt.plot(proactive_steps_sm, proactive_mean_sm, label="Proactive", color='orange')
+    plt.fill_between(proactive_steps_sm, 
+                     proactive_mean_sm - proactive_std_sm, 
+                     proactive_mean_sm + proactive_std_sm, 
+                     alpha=0.2, color='orange')
+
+    plt.plot(reactive_steps_sm, reactive_mean_sm, label="Reactive", color='green')
+    plt.fill_between(reactive_steps_sm, 
+                     reactive_mean_sm - reactive_std_sm, 
+                     reactive_mean_sm + reactive_std_sm, 
+                     alpha=0.2, color='green')
+
+    plt.xlabel("Environment Steps (Frames)")
+    plt.ylabel("Episode Reward")
+    plt.title(f"Averaged Episode Rewards over {len(SEEDS)} Seeds (DQN, {stripped_scenario_folder})")
+    plt.legend(frameon=False)
+    plt.grid(True)
+
+    plots_dir = f"{save_results_big_run}/plots"
+    os.makedirs(plots_dir, exist_ok=True)
+    current_time = datetime.now()
+    seconds_str = str(int(current_time.timestamp()))[-4:]
+    os.makedirs(plots_dir, exist_ok=True)
+
+    plot_file = os.path.join(plots_dir, f"averaged_rewards_over_steps_{stripped_scenario_folder}.png")
+    plt.savefig(plot_file)
+    plt.show()
+    print(f"Averaged reward vs steps plot saved to {plot_file}")
+
+    if cross_val_flag:
+        plt.figure(figsize=(12,6))
+        plt.plot(all_test_rewards_myopic[0], label="Myopic", color='blue')
+        plt.plot(all_test_rewards_proactive[0], label="Proactive", color='orange')
+        plt.plot(all_test_rewards_reactive[0], label="Reactive", color='green')
+        plt.xlabel("Episode")
+        plt.ylabel("Test Reward")
+        plt.title(f"Test Rewards over Episodes (DQN, {stripped_scenario_folder})")
+        plt.legend(frameon=False)
+        plt.grid(True)
+        plt.show()
