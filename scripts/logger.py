@@ -8,7 +8,7 @@ import numpy as np
 
 def create_new_id(logs_type):
     # Load the ids from the json file
-    with open('../logs/ids.json', 'r') as f:
+    with open('logs/ids.json', 'r') as f:
         ids = json.load(f)
 
     # Get the latest id
@@ -22,7 +22,7 @@ def create_new_id(logs_type):
 
     # Update the ids in the json file with finished set to false
     ids[new_id] = {"type": logs_type, "finished": False}
-    with open('../logs/ids.json', 'w') as f:
+    with open('logs/ids.json', 'w') as f:
         json.dump(ids, f)
 
     return new_id
