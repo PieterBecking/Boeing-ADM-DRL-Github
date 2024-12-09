@@ -20,13 +20,13 @@ all_folders = [
     "../data/Training/6ac-100-mixed-high/",
     "../data/Training/6ac-100-stochastic-low/",
     "../data/Training/6ac-100-stochastic-medium/",
-    "../data/Training/6ac-100-stochastic-high/",
+    "data/Training/6ac-100-stochastic-high/",
 ]
 
 all_folders_temp = [
-    "../data/Training/6ac-100-mixed-low/",
-    "../data/Training/6ac-100-mixed-medium/",
-    "../data/Training/6ac-100-mixed-high/",
+    "data/Training/6ac-100-mixed-low/",
+    "data/Training/6ac-100-mixed-medium/",
+    "data/Training/6ac-100-mixed-high/",
 ]
 
 
@@ -54,6 +54,7 @@ config_df['CROSS_VAL_INTERVAL'] = CROSS_VAL_INTERVAL
 config_df['printing_intermediate_results'] = printing_intermediate_results
 config_df.to_csv(f"{save_folder}/config.csv", index=False)
 
+TESTING_FOLDERS_PATH = "none"
 
 step = 0
 for training_folder in all_folders_temp:
@@ -79,7 +80,8 @@ for training_folder in all_folders_temp:
         TRAINING_FOLDERS_PATH=TRAINING_FOLDERS_PATH,
         stripped_scenario_folder=stripped_scenario_folder,
         save_folder=save_folder,
-        save_results_big_run=save_results_big_run
+        save_results_big_run=save_results_big_run,
+        TESTING_FOLDERS_PATH=TESTING_FOLDERS_PATH
     )
 
     print("\n\n--- PPO ---\n\n")

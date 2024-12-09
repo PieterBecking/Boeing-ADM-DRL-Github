@@ -28,6 +28,8 @@ import seaborn as sns
 sns.set(style="darkgrid")
 import time
 
+
+
 def run_train_dqn_both_timesteps(
     MAX_TOTAL_TIMESTEPS,
     SEEDS,
@@ -39,7 +41,8 @@ def run_train_dqn_both_timesteps(
     TRAINING_FOLDERS_PATH,
     stripped_scenario_folder,
     save_folder,
-    save_results_big_run
+    save_results_big_run,
+    TESTING_FOLDERS_PATH
 ):
     # The following code is exactly as in train_dqn_both_timesteps.ipynb,
     # just wrapped inside this function.
@@ -47,16 +50,16 @@ def run_train_dqn_both_timesteps(
     # Check and set default values if not present in globals
     # In the original code, these checks are done. Here we trust we get correct parameters from main.
     # But to maintain identical logic, we keep the same if-statements:
-    if 'MAX_TOTAL_TIMESTEPS' not in globals():
-        MAX_TOTAL_TIMESTEPS = 10000
-    if 'TRAINING_FOLDERS_PATH' not in globals():
-        TRAINING_FOLDERS_PATH = "data/Training/6ac-100-mixed-low/"
-    if 'SEEDS' not in globals():
-        SEEDS = [0]
-    if 'brute_force_flag' not in globals():
-        brute_force_flag = False
-    if 'save_folder' not in globals():
-        save_folder = "big-run-5"
+    # if 'MAX_TOTAL_TIMESTEPS' not in globals():
+    #     MAX_TOTAL_TIMESTEPS = 10000
+    # if 'TRAINING_FOLDERS_PATH' not in globals():
+    #     TRAINING_FOLDERS_PATH = "data/Training/6ac-100-mixed-low/"
+    # if 'SEEDS' not in globals():
+    #     SEEDS = [0]
+    # if 'brute_force_flag' not in globals():
+    #     brute_force_flag = False
+    # if 'save_folder' not in globals():
+    #     save_folder = "big-run-5"
 
     print(f"Training on {stripped_scenario_folder}")
     save_results_big_run = f"{save_folder}/{stripped_scenario_folder}"
@@ -80,12 +83,12 @@ def run_train_dqn_both_timesteps(
 
     N_EPISODES = 50 # DOESNT MATTER
 
-    # Overwrite cross_val_flag and CROSS_VAL_INTERVAL from arguments if needed (the code originally sets it)
-    # We keep identical logic, so we set CROSS_VAL_INTERVAL as in the original code:
-    cross_val_flag = cross_val_flag
-    CROSS_VAL_INTERVAL = N_EPISODES/100
+    # # Overwrite cross_val_flag and CROSS_VAL_INTERVAL from arguments if needed (the code originally sets it)
+    # # We keep identical logic, so we set CROSS_VAL_INTERVAL as in the original code:
+    # cross_val_flag = cross_val_flag
+    # CROSS_VAL_INTERVAL = N_EPISODES/100
 
-    TESTING_FOLDERS_PATH = "../data/Training/6ac-10-mixed-low/"
+    # TESTING_FOLDERS_PATH = "../data/Training/6ac-10-mixed-low/"
 
     # extract number of scenarios in training and testing folders
     num_scenarios_training = len(os.listdir(TRAINING_FOLDERS_PATH))
@@ -125,8 +128,7 @@ def run_train_dqn_both_timesteps(
     import src.config as config
 
     all_logs = {}
-
-    def train_dqn_agent(env_type):
+    def train_dqn_agent(env_type, seed):
         log_data = {}  # Main dictionary to store all logs
 
         config_variables = get_config_variables(config)
@@ -135,18 +137,14 @@ def run_train_dqn_both_timesteps(
         training_id = create_new_id("training")
         runtime_start_in_seconds = time.time()
 
-        if env_type == "myopic":
-            model_path = f"../trained_models/dqn/myopic-{training_id}.zip"
-            print(f"Models will be saved to: {model_path}")
-            model_path_and_name = model_path
-        elif env_type == "proactive":
-            model_path = f"../trained_models/dqn/proactive-{training_id}.zip"
-            print(f"Models will be saved to: {model_path}")
-            model_path_and_name = model_path
-        elif env_type == "reactive":
-            model_path = f"../trained_models/dqn/reactive-{training_id}.zip"
-            print(f"Models will be saved to: {model_path}")
-            model_path_and_name = model_path
+        # Construct model_path with required directory structure
+        model_save_dir = f"trained_models/dqn/{stripped_scenario_folder}/{seed}/{training_id}"
+        os.makedirs(model_save_dir, exist_ok=True)
+
+        model_path = f"{model_save_dir}/{env_type}-{training_id}.zip"
+
+        print(f"Models will be saved to: {model_path}")
+
 
         training_metadata = {
             "myopic_or_proactive": env_type,
@@ -176,6 +174,7 @@ def run_train_dqn_both_timesteps(
             "runtime_start": datetime.utcnow().isoformat() + "Z",
             "runtime_start_in_seconds": runtime_start_in_seconds,
         }
+
 
         log_data['metadata'] = training_metadata
         log_data['episodes'] = {}
@@ -315,7 +314,7 @@ def run_train_dqn_both_timesteps(
         epsilon = EPSILON_START
         total_timesteps = 0
 
-        # Initialize the DQN
+        # Initialize the DQN (no changes here)
         dummy_scenario_folder = scenario_folders[0]
         data_dict = load_scenario_data(dummy_scenario_folder)
         aircraft_dict = data_dict['aircraft']
@@ -533,20 +532,18 @@ def run_train_dqn_both_timesteps(
             log_data['episodes'][episode + 1] = episode_data
             episode += 1
 
-        # Save the model after training
-        if env_type == "myopic":
-            model.save(f"../trained_models/dqn/myopic-{training_id}.zip")
-        elif env_type == "proactive":
-            model.save(f"../trained_models/dqn/proactive-{training_id}.zip")
-        elif env_type == "reactive":
-            model.save(f"../trained_models/dqn/reactive-{training_id}.zip")
+        model.save(model_path)
+        runtime_end_in_seconds = time.time()
+        runtime_in_seconds = runtime_end_in_seconds - runtime_start_in_seconds
+        actual_total_timesteps = total_timesteps
+
 
         runtime_end_in_seconds = time.time()
         runtime_in_seconds = runtime_end_in_seconds - runtime_start_in_seconds
         actual_total_timesteps = total_timesteps
 
         # Return collected data
-        return rewards, test_rewards, total_timesteps, epsilon_values, good_rewards, action_sequences, model_path_and_name
+        return rewards, test_rewards, total_timesteps, epsilon_values, good_rewards, action_sequences, model_path
 
     # Run training for each seed and store results
     all_myopic_runs = []
@@ -570,20 +567,18 @@ def run_train_dqn_both_timesteps(
             th.cuda.manual_seed_all(seed)
         th.manual_seed(seed)
 
-        # Train myopic agent
+        # Pass seed to the train_dqn_agent call
         (rewards_myopic, test_rewards_myopic, total_timesteps_myopic,
          epsilon_values_myopic, good_rewards_myopic, action_sequences_myopic,
-         model_path_and_name_myopic) = train_dqn_agent('myopic')
+         model_path_and_name_myopic) = train_dqn_agent('myopic', seed)
 
-        # Train proactive agent
         (rewards_proactive, test_rewards_proactive, total_timesteps_proactive,
          epsilon_values_proactive, good_rewards_proactive, action_sequences_proactive,
-         model_path_and_name_proactive) = train_dqn_agent('proactive')
+         model_path_and_name_proactive) = train_dqn_agent('proactive', seed)
 
-        # Train reactive agent
         (rewards_reactive, test_rewards_reactive, total_timesteps_reactive,
          epsilon_values_reactive, good_rewards_reactive, action_sequences_reactive,
-         model_path_and_name_reactive) = train_dqn_agent('reactive')
+         model_path_and_name_reactive) = train_dqn_agent('reactive', seed)
 
         return (rewards_myopic, rewards_proactive, rewards_reactive,
                 test_rewards_myopic, test_rewards_proactive, test_rewards_reactive)
@@ -632,15 +627,6 @@ def run_train_dqn_both_timesteps(
 
     os.makedirs(f"{save_results_big_run}/numpy", exist_ok=True)
     os.makedirs(f"{save_results_big_run}/plots", exist_ok=True)
-    np.save(f'{save_results_big_run}/numpy/all_myopic_runs.npy', all_myopic_runs)
-    np.save(f'{save_results_big_run}/numpy/all_proactive_runs.npy', all_proactive_runs) 
-    np.save(f'{save_results_big_run}/numpy/all_reactive_runs.npy', all_reactive_runs)
-    np.save(f'{save_results_big_run}/numpy/all_myopic_steps_runs.npy', all_myopic_steps_runs)
-    np.save(f'{save_results_big_run}/numpy/all_proactive_steps_runs.npy', all_proactive_steps_runs)
-    np.save(f'{save_results_big_run}/numpy/all_reactive_steps_runs.npy', all_reactive_steps_runs)
-    np.save(f'{save_results_big_run}/numpy/all_test_rewards_myopic.npy', all_test_rewards_myopic)
-    np.save(f'{save_results_big_run}/numpy/all_test_rewards_proactive.npy', all_test_rewards_proactive)
-    np.save(f'{save_results_big_run}/numpy/all_test_rewards_reactive.npy', all_test_rewards_reactive)
 
     print(f"episode lengths:")
     for i in range(len(all_myopic_runs)):
@@ -667,6 +653,17 @@ def run_train_dqn_both_timesteps(
     all_proactive_steps_runs = np.array(all_proactive_steps_runs)
     all_reactive_runs = np.array(all_reactive_runs)
     all_reactive_steps_runs = np.array(all_reactive_steps_runs)
+
+    np.save(f'{save_results_big_run}/numpy/all_myopic_runs.npy', all_myopic_runs)
+    np.save(f'{save_results_big_run}/numpy/all_proactive_runs.npy', all_proactive_runs) 
+    np.save(f'{save_results_big_run}/numpy/all_reactive_runs.npy', all_reactive_runs)
+    np.save(f'{save_results_big_run}/numpy/all_myopic_steps_runs.npy', all_myopic_steps_runs)
+    np.save(f'{save_results_big_run}/numpy/all_proactive_steps_runs.npy', all_proactive_steps_runs)
+    np.save(f'{save_results_big_run}/numpy/all_reactive_steps_runs.npy', all_reactive_steps_runs)
+    np.save(f'{save_results_big_run}/numpy/all_test_rewards_myopic.npy', all_test_rewards_myopic)
+    np.save(f'{save_results_big_run}/numpy/all_test_rewards_proactive.npy', all_test_rewards_proactive)
+    np.save(f'{save_results_big_run}/numpy/all_test_rewards_reactive.npy', all_test_rewards_reactive)
+
 
     myopic_mean = all_myopic_runs.mean(axis=0)
     myopic_std = all_myopic_runs.std(axis=0)
@@ -749,7 +746,7 @@ def run_train_dqn_both_timesteps(
 
     plot_file = os.path.join(plots_dir, f"averaged_rewards_over_steps_{stripped_scenario_folder}.png")
     plt.savefig(plot_file)
-    plt.show()
+    # plt.show()
     print(f"Averaged reward vs steps plot saved to {plot_file}")
 
     if cross_val_flag:
@@ -762,4 +759,4 @@ def run_train_dqn_both_timesteps(
         plt.title(f"Test Rewards over Episodes (DQN, {stripped_scenario_folder})")
         plt.legend(frameon=False)
         plt.grid(True)
-        plt.show()
+        # plt.show()
