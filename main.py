@@ -50,8 +50,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Common configuration
-    MAX_TOTAL_TIMESTEPS = 1000
-    SEEDS = [42]
+    MAX_TOTAL_TIMESTEPS = 100000
+    SEEDS = [100,103]
     brute_force_flag = False
     cross_val_flag = False
     early_stopping_flag = False
@@ -81,8 +81,12 @@ if __name__ == "__main__":
         # Controller mode: Spawn multiple subprocesses
         all_folders_temp = [
             # "data/Training/6ac-100-stochastic-low/",
-            "data/Training/6ac-100-stochastic-medium/",
+            # "data/Training/6ac-100-stochastic-medium/",
             # "data/Training/6ac-100-stochastic-high/",
+            # "data/Training/6ac-100-mixed-low/",
+            "data/Training/6ac-1000-mixed-medium/",
+            # "data/Training/6ac-100-mixed-high/",
+            "data/Training/6ac-1000-deterministic-na/",
         ]
 
         # Save config only once
