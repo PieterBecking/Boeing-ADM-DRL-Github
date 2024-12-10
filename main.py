@@ -51,13 +51,13 @@ if __name__ == "__main__":
 
     # Common configuration
     MAX_TOTAL_TIMESTEPS = 1000000
-    SEEDS = [42, 43, 44]
+    SEEDS = [42]
     brute_force_flag = False
     cross_val_flag = False
     early_stopping_flag = False
     CROSS_VAL_INTERVAL = 10000
     printing_intermediate_results = True
-    save_folder = "2-abc-big-run"
+    save_folder = "4-abc-big-run"
     TESTING_FOLDERS_PATH = "none"
 
     if not os.path.exists(save_folder):
@@ -80,9 +80,9 @@ if __name__ == "__main__":
     else:
         # Controller mode: Spawn multiple subprocesses
         all_folders_temp = [
-            "data/Training/6ac-100-stochastic-low/",
+            # "data/Training/6ac-100-stochastic-low/",
             "data/Training/6ac-100-stochastic-medium/",
-            "data/Training/6ac-100-stochastic-high/",
+            # "data/Training/6ac-100-stochastic-high/",
         ]
 
         # Save config only once

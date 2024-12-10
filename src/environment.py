@@ -429,7 +429,43 @@ class AircraftDisruptionEnv(gym.Env):
         # Update the processed state after processing uncertainties
         processed_state = self.process_observation(self.state)
 
+        terminated = self.check_termination_criteria()
+        if DEBUG_MODE_STOPPING_CRITERIA:
+            print(f"checked and terminated: {terminated}")
+
+
         return processed_state, reward, terminated, truncated, info
+
+
+    def check_termination_criteria(self):
+        """
+        Checks if the stopping criteria are met:
+
+        Stopping criteria:
+        1. There are no uncertainties in the system anymore.
+           (All probabilities are either np.nan, 0.0, or 1.0.)
+        2. There is no overlap of breakdowns (Probability == 1.0) and flights.
+
+        Returns:
+            bool: True if both criteria are met, False otherwise.
+        """
+        # Check that all probabilities are either nan, 0.0, or 1.0
+        for aircraft_id in self.aircraft_ids:
+            prob = self.unavailabilities_dict[aircraft_id]['Probability']
+            if not (np.isnan(prob) or prob == 0.0 or prob == 1.0):
+                if DEBUG_MODE_STOPPING_CRITERIA:
+                    print(f"    prob: {prob} is not nan, 0.0, or 1.0, for aircraft {aircraft_id}, so termination = False")
+                return False
+
+        # Check that there is no overlap between flights and breakdowns with prob == 1.0
+        # get_current_conflicts() only returns conflicts for probability == 1.0 breakdowns.
+        if len(self.get_current_conflicts_with_prob_1()) > 0:
+            if DEBUG_MODE_STOPPING_CRITERIA:
+                print(f"    get_current_conflicts_with_prob_1() returns {self.get_current_conflicts_with_prob_1()}, so termination = False")
+            return False
+
+        return True
+
 
     def extract_action_value(self, action):
         """Extracts the flight and aircraft action values from the flattened action.
@@ -1087,7 +1123,6 @@ class AircraftDisruptionEnv(gym.Env):
         self.flights_dict[flight_id]['ArrDate'] = arr_time.strftime('%d/%m/%y')
         self.flights_dict[flight_id]['ArrTime'] = arr_time.strftime('%H:%M')
 
-
     def _calculate_reward(self, resolved_conflicts, remaining_conflicts, flight_action, aircraft_action, original_flight_action_departure_time, terminated):
         """Calculates the reward based on the current state of the environment.
 
@@ -1102,7 +1137,7 @@ class AircraftDisruptionEnv(gym.Env):
             float: The calculated reward for the action.
         """
         reward = 0
-        conflict_resolution_reward = 0
+        # conflict_resolution_reward = 0
         delay_penalty_total = 0
         delay_penalty_minutes = 0
         cancel_penalty = 0
@@ -1115,38 +1150,38 @@ class AircraftDisruptionEnv(gym.Env):
             print("")
             print(f"Calculating reward for action: flight {flight_action}, aircraft {aircraft_action}")
 
-        # 1. **Conflict Resolution Reward**
-        resolved_conflicts_non_cancellation = {
-            conflict for conflict in resolved_conflicts if conflict[1] not in self.cancelled_flights
-        }
+        # # 1. **Conflict Resolution Reward**
+        # resolved_conflicts_non_cancellation = {
+        #     conflict for conflict in resolved_conflicts if conflict[1] not in self.cancelled_flights
+        # }
 
 
-        if DEBUG_MODE_REWARD_RESOLVED_CONFLICTS:
-            print(f"Resolved conflicts: {resolved_conflicts}")
-            print(f"Resolved conflicts non-cancellation: {resolved_conflicts_non_cancellation}")
-            print(f"Flights eligible: {self.eligible_flights_for_resolved_bonus}")
+        # if DEBUG_MODE_REWARD_RESOLVED_CONFLICTS:
+        #     print(f"Resolved conflicts: {resolved_conflicts}")
+        #     print(f"Resolved conflicts non-cancellation: {resolved_conflicts_non_cancellation}")
+        #     print(f"Flights eligible: {self.eligible_flights_for_resolved_bonus}")
 
-        # Resolved conflicts: {('A320#3', 10.0, 557.0, 840.0)}
-        # Resolved conflicts non-cancellation: {('A320#3', 10.0, 557.0, 840.0)}
-        # Resolved flights eligible: {('A320#3', 8.0), ('A320#3', 9.0), ('A320#3', 10.0)}
+        # # Resolved conflicts: {('A320#3', 10.0, 557.0, 840.0)}
+        # # Resolved conflicts non-cancellation: {('A320#3', 10.0, 557.0, 840.0)}
+        # # Resolved flights eligible: {('A320#3', 8.0), ('A320#3', 9.0), ('A320#3', 10.0)}
 
-        # Extract only the (aircraft_id, flight_id) pairs from resolved conflicts
-        resolved_conflicts_non_cancellation_ids = set(
-            (aircraft_id, flight_id) for (aircraft_id, flight_id, dep_time, arr_time) in resolved_conflicts_non_cancellation
-        )
+        # # Extract only the (aircraft_id, flight_id) pairs from resolved conflicts
+        # resolved_conflicts_non_cancellation_ids = set(
+        #     (aircraft_id, flight_id) for (aircraft_id, flight_id, dep_time, arr_time) in resolved_conflicts_non_cancellation
+        # )
 
-        # Filter conflicts to include only those in the eligible list
-        resolved_conflicts_eligible = resolved_conflicts_non_cancellation_ids.intersection(self.eligible_flights_for_resolved_bonus)
+        # # Filter conflicts to include only those in the eligible list
+        # resolved_conflicts_eligible = resolved_conflicts_non_cancellation_ids.intersection(self.eligible_flights_for_resolved_bonus)
 
-        # Calculate the reward based on eligible conflicts
-        conflict_resolution_reward = RESOLVED_CONFLICT_REWARD * len(resolved_conflicts_eligible)
-        reward += conflict_resolution_reward
+        # # Calculate the reward based on eligible conflicts
+        # conflict_resolution_reward = RESOLVED_CONFLICT_REWARD * len(resolved_conflicts_eligible)
+        # reward += conflict_resolution_reward
 
-        # Remove rewarded conflicts from the eligible list
-        self.eligible_flights_for_resolved_bonus -= resolved_conflicts_eligible
+        # # Remove rewarded conflicts from the eligible list
+        # self.eligible_flights_for_resolved_bonus -= resolved_conflicts_eligible
 
-        if DEBUG_MODE_REWARD:
-            print(f"  +{conflict_resolution_reward} for resolving {len(resolved_conflicts_eligible)} eligible conflicts (excluding cancellations)")
+        # if DEBUG_MODE_REWARD:
+        #     print(f"  +{conflict_resolution_reward} for resolving {len(resolved_conflicts_eligible)} eligible conflicts (excluding cancellations)")
 
         # 2. **Delay Penalty**
         delay_penalty_minutes = sum(
@@ -1232,19 +1267,35 @@ class AircraftDisruptionEnv(gym.Env):
         # if DEBUG_MODE_REWARD:
         #     print(f"Updated penalized delays after reward calculation: {self.penalized_delays}")
 
-        # 8. **Termination Reward**
+        # 8. 
         if terminated:
-            time_since_start = (self.current_datetime - self.start_datetime).total_seconds() / 60
-            termination_reward = TERMINATION_REWARD - time_since_start
-            reward += termination_reward
+            # time_since_start = (self.current_datetime - self.start_datetime).total_seconds() / 60
+            # termination_reward = TERMINATION_REWARD - time_since_start
+            # reward += termination_reward
+
+            # if DEBUG_MODE_REWARD:
+            #     print(f"  -{termination_reward} penalty for time since start: {time_since_start} minutes")
+
+            # Only count conflicts for flights that are NOT cancelled
+            final_resolved_count = 0
+            resolved_flights = []
+            for (aircraft_id, flight_id) in self.initial_conflict_combinations:
+                # Only count if probability is 1.00 AND the flight is not cancelled
+                if self.unavailabilities_dict[aircraft_id]['Probability'] == 1.00 and flight_id not in self.cancelled_flights:
+                    final_resolved_count += 1
+                    resolved_flights.append(flight_id)
+
+            final_conflict_resolution_reward = final_resolved_count * RESOLVED_CONFLICT_REWARD
+            reward += final_conflict_resolution_reward
 
             if DEBUG_MODE_REWARD:
-                print(f"  +{termination_reward} termination reward ({TERMINATION_REWARD} - {time_since_start})")
+                print(f"  +{final_conflict_resolution_reward} final reward for resolving {final_resolved_count} real (non-cancelled) conflicts at scenario end: {resolved_flights}")
+
 
         # 9. **Calculate and print total under the sum line**
         # The total reward will be on the first row, the 4th value
         self.state[0, 4] = reward
-        self.state[0, 5] = conflict_resolution_reward
+        # self.state[0, 5] = final_conflict_resolution_reward
         self.state[0, 6] = delay_penalty_total
         self.state[0, 7] = cancel_penalty
         self.state[0, 8] = inaction_penalty
@@ -1275,9 +1326,7 @@ class AircraftDisruptionEnv(gym.Env):
 
             # Conflict Metrics
             "resolved_conflicts_count": len(resolved_conflicts),
-            "resolved_conflicts_non_cancellation_count": len(resolved_conflicts_non_cancellation),
             "remaining_conflicts_count": len(remaining_conflicts),
-            "conflict_resolution_reward": conflict_resolution_reward,
 
             # Delay Metrics
             "delay_penalty_minutes": delay_penalty_minutes,
@@ -1306,6 +1355,7 @@ class AircraftDisruptionEnv(gym.Env):
             "aircraft_action": aircraft_action,
             "original_departure_time": original_flight_action_departure_time,
         }
+
 
         return reward
 
@@ -1369,6 +1419,8 @@ class AircraftDisruptionEnv(gym.Env):
         #                 print(f"Aircraft {aircraft_id} has an uncertain breakdown scheduled at {breakdown_start} with probability {breakdown_probability:.2f}")
 
         self.state = self._get_initial_state()
+
+        self.initial_conflict_combinations = self.get_initial_conflicts()
 
         self.swapped_flights = []  # Reset the swapped flights list
         self.environment_delayed_flights = {}  # Reset the delayed flights list
@@ -1477,6 +1529,53 @@ class AircraftDisruptionEnv(gym.Env):
                             current_conflicts.add(conflict_identifier)
 
         return current_conflicts
+    
+
+    def get_current_conflicts_with_prob_1(self):
+        """Retrieves the current conflicts in the environment.
+
+        This function checks for conflicts between flights and unavailability periods,
+        considering only unavailabilities with probability 1.0.
+        It excludes cancelled flights which are not considered conflicts.
+
+        Returns:
+            set: A set of conflicts currently present in the environment.
+        """
+        current_conflicts_with_prob_1 = set()
+
+        for idx, aircraft_id in enumerate(self.aircraft_ids):
+            if idx >= self.max_aircraft:
+                break
+
+            breakdown_probability = self.unavailabilities_dict[aircraft_id]['Probability']
+            if breakdown_probability != 1.0:  # Only consider unavailability with probability 1.00
+                continue  # Skip if probability is not 1.00
+
+            unavail_start = self.unavailabilities_dict[aircraft_id]['StartTime']
+            unavail_end = self.unavailabilities_dict[aircraft_id]['EndTime']
+
+            if not np.isnan(unavail_start) and not np.isnan(unavail_end):
+                # Check for conflicts between flights and unavailability periods
+                for j in range(4, self.columns_state_space - 2, 3):
+                    flight_id = self.state[idx + 1, j]
+                    flight_dep = self.state[idx + 1, j + 1]
+                    flight_arr = self.state[idx + 1, j + 2]
+
+                    if not np.isnan(flight_dep) and not np.isnan(flight_arr):
+                        # Check if the flight's departure is in the past (relative to current time)
+                        current_time_minutes = (self.current_datetime - self.earliest_datetime).total_seconds() / 60
+                        if flight_dep < current_time_minutes:
+                            continue  # Skip past flights
+
+                        if flight_id in self.cancelled_flights:
+                            continue  # Skip cancelled flights
+
+                        # Check for overlaps with unavailability periods with prob = 1.00
+                        if flight_dep < unavail_end and flight_arr > unavail_start:
+                            conflict_identifier = (aircraft_id, flight_id, flight_dep, flight_arr)
+                            current_conflicts_with_prob_1.add(conflict_identifier)
+
+        return current_conflicts_with_prob_1
 
     def check_flight_disruption_overlaps(self):
         """Checks if there are any overlaps between flights and disruptions (certain or uncertain).
@@ -1518,6 +1617,32 @@ class AircraftDisruptionEnv(gym.Env):
                         return True  # Found an overlap
 
         return False  # No overlaps found
+
+    def termination_criteria_met(self):
+        """
+        Checks if the stopping criteria are met.
+
+        Stopping criteria:
+        - There are no uncertainties in the system anymore, i.e., for all aircraft:
+          Probability is either NaN, exactly 0.0, or exactly 1.0.
+        - AND there is no overlap of BREAKDOWNS (with Probability == 1.00) and flights.
+
+        Returns:
+            bool: True if the stopping criteria are met, False otherwise.
+        """
+        # Check if all probabilities are either nan, 0.0, or 1.0
+        for aircraft_id in self.aircraft_ids:
+            prob = self.unavailabilities_dict[aircraft_id]['Probability']
+            if not (np.isnan(prob) or prob == 0.0 or prob == 1.0):
+                return False
+
+        # Check if there is no overlap of breakdowns (prob == 1.00) and flights
+        # If check_flight_disruption_overlaps() returns False, that means no overlap.
+        if self.check_flight_disruption_overlaps():
+            return False
+
+        return True
+
 
     def _is_done(self):
         """Checks if the episode is finished.
