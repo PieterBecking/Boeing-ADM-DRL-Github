@@ -50,7 +50,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Common configuration
-    MAX_TOTAL_TIMESTEPS = 1000000
+    MAX_TOTAL_TIMESTEPS = 1000
     SEEDS = [42]
     brute_force_flag = False
     cross_val_flag = False
