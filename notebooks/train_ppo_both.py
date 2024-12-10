@@ -205,9 +205,7 @@ def train_ppo_agent(env_type):
     model.set_logger(logger)
 
     def log_rewards(_locals, _globals):
-        # Here you can log episode metrics if needed.
-        # The actual per-episode logging is done after training by
-        # checking the global lists.
+
         return True
 
     # Run the training loop for a fixed number of timesteps
@@ -219,33 +217,6 @@ def train_ppo_agent(env_type):
         model.save(f"{MODEL_SAVE_PATH}proactive_{MODEL_SAVE_NAME_PROACTIVE}")
 
     return [], 0  # We return empty arrays here since we log after training
-
-# start_time = datetime.now()
-# results_myopic = train_ppo_agent('myopic')
-# results_proactive = train_ppo_agent('proactive')
-# rewards_myopic, total_timesteps_myopic = results_myopic
-# rewards_proactive, total_timesteps_proactive = results_proactive
-
-# Now, rewards_myopic and rewards_proactive are empty because we changed the logic.
-# # The actual results are in episode_rewards_myopic and episode_rewards_proactive.
-
-# myopic_rewards_file = os.path.join(results_dir, "episode_rewards_myopic.pkl")
-# with open(myopic_rewards_file, "wb") as file:
-#     pickle.dump(episode_rewards_myopic, file)
-# print(f"Myopic episode-level rewards saved to {myopic_rewards_file}")
-
-# proactive_rewards_file = os.path.join(results_dir, "episode_rewards_proactive.pkl")
-# with open(proactive_rewards_file, "wb") as file:
-#     pickle.dump(episode_rewards_proactive, file)
-# print(f"Proactive episode-level rewards saved to {proactive_rewards_file}")
-
-# end_time = datetime.now()
-# runtime = (end_time - start_time).total_seconds()
-# print(f"Total training time: {runtime} seconds")
-
-# print("Myopic per-episode rewards:", episode_rewards_myopic)
-# print("Proactive per-episode rewards:", episode_rewards_proactive)
-
 
 # In[2]:
 

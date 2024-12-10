@@ -279,11 +279,7 @@ class AircraftDisruptionEnv(gym.Env):
         """Processes the observation by applying env_type-specific masking.
         Does NOT modify internal state or unavailabilities_dict.
         Returns an observation suitable for the agent."""
-        # Make a copy of the state for observation
         state_to_observe = state.copy()
-
-        # We do not modify self.unavailabilities_dict here anymore
-        # Keep the internal logic and data intact, only mask the observation.
 
         for idx, aircraft_id in enumerate(self.aircraft_ids):
             # Get the real, internal probability and times from the state

@@ -108,10 +108,6 @@ def train_dqn(env_type, training_parameters, TRAINING_FOLDERS_PATH):
     step_rewards = {}
     episode_rewards = []
 
-    # Training loop
-    # Note: Either loop for N_EPISODES or until MAX_TOTAL_TIMESTEPS is reached.
-    # The original code used both conditions. We will mimic that behavior:
-    # run until total_timesteps < MAX_TOTAL_TIMESTEPS
     episode = 0
     while total_timesteps < MAX_TOTAL_TIMESTEPS and episode < N_EPISODES:
 
@@ -119,8 +115,6 @@ def train_dqn(env_type, training_parameters, TRAINING_FOLDERS_PATH):
         step_rewards[episode] = []
         episode_total_reward = 0
 
-        # Cycle through all scenario folders
-        # (If you wish to do per-episode with random scenario each time, adjust accordingly)
         for scenario_folder in scenario_folders:
             # Load the data for this scenario
             data_dict = load_scenario_data(scenario_folder)
@@ -218,11 +212,5 @@ def train_dqn(env_type, training_parameters, TRAINING_FOLDERS_PATH):
         "episode_rewards": episode_rewards,
         "step_rewards": step_rewards
     }
-
-    # If needed, you can save the results to JSON here or return them directly
-    # Convert results to serializable format before saving
-    # results_serializable = convert_to_serializable(results)
-    # with open("rewards_log.json", "w") as f:
-    #     json.dump(results_serializable, f, indent=4)
 
     return results

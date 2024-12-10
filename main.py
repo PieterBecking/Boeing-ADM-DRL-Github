@@ -45,19 +45,20 @@ def run_for_single_folder(training_folder, MAX_TOTAL_TIMESTEPS, SEEDS, brute_for
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # This argument is optional. If given, we run for a single folder.
     parser.add_argument("--training_folder", type=str, help="Path to a single training folder")
     args = parser.parse_args()
 
     # Common configuration
-    MAX_TOTAL_TIMESTEPS = 100000
-    SEEDS = [100,103]
+    MAX_TOTAL_TIMESTEPS = 6000000
+    SEEDS = [100]
     brute_force_flag = False
     cross_val_flag = False
     early_stopping_flag = False
     CROSS_VAL_INTERVAL = 10000
     printing_intermediate_results = True
-    save_folder = "4-abc-big-run"
+    save_folder = "6-big-run"
+
+
     TESTING_FOLDERS_PATH = "none"
 
     if not os.path.exists(save_folder):
@@ -80,13 +81,13 @@ if __name__ == "__main__":
     else:
         # Controller mode: Spawn multiple subprocesses
         all_folders_temp = [
-            # "data/Training/6ac-100-stochastic-low/",
-            # "data/Training/6ac-100-stochastic-medium/",
-            # "data/Training/6ac-100-stochastic-high/",
-            # "data/Training/6ac-100-mixed-low/",
-            "data/Training/6ac-1000-mixed-medium/",
-            # "data/Training/6ac-100-mixed-high/",
-            "data/Training/6ac-1000-deterministic-na/",
+            "data/Training/6ac-100-stochastic-low/",
+            "data/Training/6ac-100-stochastic-medium/",
+            "data/Training/6ac-100-stochastic-high/",
+            "data/Training/6ac-100-mixed-low/",
+            "data/Training/6ac-100-mixed-medium/",
+            "data/Training/6ac-100-mixed-high/",
+            "data/Training/6ac-100-deterministic-na/",
         ]
 
         # Save config only once

@@ -686,8 +686,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
-# Define your seeds
-
 # Lists to store the results from all seeds
 all_myopic_runs = []
 all_proactive_runs = []
@@ -770,7 +768,6 @@ for s in SEEDS:
     proactive_test_episodes = [ep for (ep, r) in test_proactive_sorted]
     proactive_test_rewards = [r for (ep, r) in test_proactive_sorted]
 
-    # We assume each seed has the same cross_val schedule. If different, we will align later.
     all_myopic_test_runs.append((myopic_test_episodes, myopic_test_rewards))
     all_proactive_test_runs.append((proactive_test_episodes, proactive_test_rewards))
 

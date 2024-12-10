@@ -8,11 +8,9 @@ import numpy as np
 from filelock import FileLock
 
 def create_new_id(id_type):
-    file_path = "ids.json"  # Adjust path if needed
+    file_path = "ids.json"  
     lock_path = file_path + ".lock"
 
-    # Make sure the directory for the file exists if you need it somewhere else
-    # os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
     with FileLock(lock_path):
         # If file doesn't exist, create it with an empty list
@@ -28,8 +26,6 @@ def create_new_id(id_type):
                 # If the file is corrupted or empty, re-init with empty list
                 ids = []
 
-        # Generate a new ID (this is just an example; use your own logic)
-        # For example: a timestamp-based or incrementing ID
         new_id = f"{id_type}_{len(ids) + 1}"
 
         # Append the new ID and write back to file
