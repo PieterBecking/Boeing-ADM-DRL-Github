@@ -839,7 +839,7 @@ print(all_myopic_test_runs)
 
 # %%
 
-# Define a smoothing function (optional)
+# Define a smoothing function
 def smooth(data, window=10):
     if window > 1 and len(data) >= window:
         return np.convolve(data, np.ones(window)/window, mode='valid')

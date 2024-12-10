@@ -291,7 +291,7 @@ def run_train_dqn_both_timesteps(
         epsilon = EPSILON_START
         total_timesteps = 0
 
-        # Initialize the DQN (no changes here)
+        # Initialize the DQN
         dummy_scenario_folder = scenario_folders[0]
         data_dict = load_scenario_data(dummy_scenario_folder)
         aircraft_dict = data_dict['aircraft']

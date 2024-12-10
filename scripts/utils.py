@@ -236,7 +236,7 @@ def plot_state_nicely_proactive(state, max_flights, output_path='state_table.png
     table = ax.table(cellText=data_rows, colLabels=headers, loc='center')
     table.auto_set_font_size(False)
     table.set_fontsize(10)
-    table.scale(1, 1.5)  # Adjust if needed
+    table.scale(1, 1.5)
     
     # Add title with info row data
     time_str = f"Current Time: {int(info_row[0]) if not np.isnan(info_row[0]) else '-'} | " \
