@@ -33,6 +33,8 @@ def create_new_id(id_type):
         with open(file_path, "w") as f:
             json.dump(ids, f, indent=2)
 
+    print(f"New ID created: {new_id}")
+
     return new_id
 
 def log_scenario_folder(logs_id, scenario_folder_path, inputs, outputs):
