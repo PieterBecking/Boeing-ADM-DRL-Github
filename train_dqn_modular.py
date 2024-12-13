@@ -33,7 +33,7 @@ import subprocess
 
 def run_train_dqn_both_timesteps(
     MAX_TOTAL_TIMESTEPS,
-    SEEDS,
+    single_seed,
     brute_force_flag,
     cross_val_flag,
     early_stopping_flag,
@@ -116,7 +116,7 @@ def run_train_dqn_both_timesteps(
         runtime_start_in_seconds = time.time()
 
         # Construct model_path with required directory structure
-        model_save_dir = f"trained_models/dqn/{stripped_scenario_folder}/{seed}/{training_id}"
+        model_save_dir = f"trained_models/dqn/{stripped_scenario_folder}/{seed}/"
         os.makedirs(model_save_dir, exist_ok=True)
 
         model_path = f"{model_save_dir}/{env_type}-{training_id}.zip"
@@ -561,189 +561,4 @@ def run_train_dqn_both_timesteps(
         return (rewards_myopic, rewards_proactive, rewards_reactive,
                 test_rewards_myopic, test_rewards_proactive, test_rewards_reactive)
 
-    for s in SEEDS:
-        print(f"Running DQN training for seed {s}...")
-        rewards_myopic, rewards_proactive, rewards_reactive, \
-            test_rewards_myopic, test_rewards_proactive, test_rewards_reactive = run_training_for_seed(s)
-
-        myopic_episode_rewards = [
-            rewards_myopic[e]["avg_reward"] for e in sorted(rewards_myopic.keys())
-            if "avg_reward" in rewards_myopic[e]
-        ]
-        myopic_episode_steps = [
-            rewards_myopic[e]["total_timesteps"] for e in sorted(rewards_myopic.keys())
-            if "total_timesteps" in rewards_myopic[e]
-        ]
-
-        proactive_episode_rewards = [
-            rewards_proactive[e]["avg_reward"] for e in sorted(rewards_proactive.keys())
-            if "avg_reward" in rewards_proactive[e]
-        ]
-        proactive_episode_steps = [
-            rewards_proactive[e]["total_timesteps"] for e in sorted(rewards_proactive.keys())
-            if "total_timesteps" in rewards_proactive[e]
-        ]
-
-        reactive_episode_rewards = [
-            rewards_reactive[e]["avg_reward"] for e in sorted(rewards_reactive.keys())
-            if "avg_reward" in rewards_reactive[e]
-        ]
-        reactive_episode_steps = [
-            rewards_reactive[e]["total_timesteps"] for e in sorted(rewards_reactive.keys())
-            if "total_timesteps" in rewards_reactive[e]
-        ]
-
-        all_myopic_runs.append(myopic_episode_rewards)
-        all_proactive_runs.append(proactive_episode_rewards)
-        all_myopic_steps_runs.append(myopic_episode_steps)
-        all_proactive_steps_runs.append(proactive_episode_steps)
-        all_reactive_runs.append(reactive_episode_rewards)
-        all_reactive_steps_runs.append(reactive_episode_steps)
-        all_test_rewards_myopic.append(test_rewards_myopic)
-        all_test_rewards_proactive.append(test_rewards_proactive)
-        all_test_rewards_reactive.append(test_rewards_reactive)
-
-    os.makedirs(f"{save_results_big_run}/numpy", exist_ok=True)
-    os.makedirs(f"{save_results_big_run}/plots", exist_ok=True)
-
-    print(f"episode lengths:")
-    for i in range(len(all_proactive_runs)):
-        print(f"Proactive-U seed {i}: {len(all_proactive_runs[i])}")
-    for i in range(len(all_myopic_runs)):
-        print(f"Proactive-N seed {i}: {len(all_myopic_runs[i])}")
-    for i in range(len(all_reactive_runs)):
-        print(f"Reactive seed {i}: {len(all_reactive_runs[i])}")
-
-    min_length_myopic = min(len(run) for run in all_myopic_runs if len(run) > 0)
-    min_length_proactive = min(len(run) for run in all_proactive_runs if len(run) > 0)
-    min_length_reactive = min(len(run) for run in all_reactive_runs if len(run) > 0)
-
-    all_myopic_runs = [run[:min_length_myopic] for run in all_myopic_runs]
-    all_proactive_runs = [run[:min_length_proactive] for run in all_proactive_runs]
-    all_myopic_steps_runs = [steps[:min_length_myopic] for steps in all_myopic_steps_runs]
-    all_proactive_steps_runs = [steps[:min_length_proactive] for steps in all_proactive_steps_runs]
-    all_reactive_runs = [run[:min_length_reactive] for run in all_reactive_runs]
-    all_reactive_steps_runs = [steps[:min_length_reactive] for steps in all_reactive_steps_runs]
-
-    all_myopic_runs = np.array(all_myopic_runs)
-    all_proactive_runs = np.array(all_proactive_runs)
-    all_myopic_steps_runs = np.array(all_myopic_steps_runs)
-    all_proactive_steps_runs = np.array(all_proactive_steps_runs)
-    all_reactive_runs = np.array(all_reactive_runs)
-    all_reactive_steps_runs = np.array(all_reactive_steps_runs)
-
-    np.save(f'{save_results_big_run}/numpy/all_myopic_runs.npy', all_myopic_runs)
-    np.save(f'{save_results_big_run}/numpy/all_proactive_runs.npy', all_proactive_runs) 
-    np.save(f'{save_results_big_run}/numpy/all_reactive_runs.npy', all_reactive_runs)
-    np.save(f'{save_results_big_run}/numpy/all_myopic_steps_runs.npy', all_myopic_steps_runs)
-    np.save(f'{save_results_big_run}/numpy/all_proactive_steps_runs.npy', all_proactive_steps_runs)
-    np.save(f'{save_results_big_run}/numpy/all_reactive_steps_runs.npy', all_reactive_steps_runs)
-    np.save(f'{save_results_big_run}/numpy/all_test_rewards_myopic.npy', all_test_rewards_myopic)
-    np.save(f'{save_results_big_run}/numpy/all_test_rewards_proactive.npy', all_test_rewards_proactive)
-    np.save(f'{save_results_big_run}/numpy/all_test_rewards_reactive.npy', all_test_rewards_reactive)
-
-
-    myopic_mean = all_myopic_runs.mean(axis=0)
-    myopic_std = all_myopic_runs.std(axis=0)
-    proactive_mean = all_proactive_runs.mean(axis=0)
-    proactive_std = all_proactive_runs.std(axis=0)
-    reactive_mean = all_reactive_runs.mean(axis=0)
-    reactive_std = all_reactive_runs.std(axis=0)
-
-    myopic_steps_mean = all_myopic_steps_runs.mean(axis=0).astype(int)
-    proactive_steps_mean = all_proactive_steps_runs.mean(axis=0).astype(int)
-    reactive_steps_mean = all_reactive_steps_runs.mean(axis=0).astype(int)
-
-    num_seeds_myopic = all_myopic_runs.shape[0]
-    num_episodes_myopic = all_myopic_runs.shape[1] if num_seeds_myopic > 0 else 0
-    num_seeds_proactive = all_proactive_runs.shape[0]
-    num_episodes_proactive = all_proactive_runs.shape[1] if num_seeds_proactive > 0 else 0
-    num_seeds_reactive = all_reactive_runs.shape[0]
-    num_episodes_reactive = all_reactive_runs.shape[1] if num_seeds_reactive > 0 else 0
-
-    for i in range(num_seeds_proactive):
-        total_steps_proactive = all_proactive_steps_runs[i].sum()
-        print(f"For seed index {i}, Proactive-U: finished {num_episodes_proactive} episodes, performed {total_steps_proactive} timesteps.")
-
-    for i in range(num_seeds_myopic):
-        total_steps_myopic = all_myopic_steps_runs[i].sum()
-        print(f"For seed index {i}, Proactive-N: finished {num_episodes_myopic} episodes, performed {total_steps_myopic} timesteps.")
-
-
-    for i in range(num_seeds_reactive):
-        total_steps_reactive = all_reactive_steps_runs[i].sum()
-        print(f"For seed index {i}, Reactive: finished {num_episodes_reactive} episodes, performed {total_steps_reactive} timesteps.")
-
-    def smooth(data, window=10):
-        if window > 1 and len(data) >= window:
-            return np.convolve(data, np.ones(window)/window, mode='valid')
-        return data
-
-    smooth_window = 1
-    myopic_mean_sm = smooth(myopic_mean, smooth_window)
-    myopic_std_sm = smooth(myopic_std, smooth_window)
-    myopic_steps_sm = myopic_steps_mean[:len(myopic_mean_sm)]
-
-    proactive_mean_sm = smooth(proactive_mean, smooth_window)
-    proactive_std_sm = smooth(proactive_std, smooth_window)
-    proactive_steps_sm = proactive_steps_mean[:len(proactive_mean_sm)]
-
-    reactive_mean_sm = smooth(reactive_mean, smooth_window)
-    reactive_std_sm = smooth(reactive_std, smooth_window)
-    reactive_steps_sm = reactive_steps_mean[:len(reactive_mean_sm)]
-
-    plt.figure(figsize=(12,6))
-
-    plt.plot(proactive_steps_sm, proactive_mean_sm, label="DQN Proactive-U", color='orange')
-    plt.fill_between(proactive_steps_sm, 
-                     proactive_mean_sm - proactive_std_sm, 
-                     proactive_mean_sm + proactive_std_sm, 
-                     alpha=0.2, color='orange')
-
-    plt.plot(myopic_steps_sm, myopic_mean_sm, label="DQN Proactive-N", color='blue')
-    plt.fill_between(myopic_steps_sm, 
-                     myopic_mean_sm - myopic_std_sm, 
-                     myopic_mean_sm + myopic_std_sm, 
-                     alpha=0.2, color='blue')
-
-
-    plt.plot(reactive_steps_sm, reactive_mean_sm, label="DQN Reactive", color='green')
-    plt.fill_between(reactive_steps_sm, 
-                     reactive_mean_sm - reactive_std_sm, 
-                     reactive_mean_sm + reactive_std_sm, 
-                     alpha=0.2, color='green')
-
-    plt.xlabel("Environment Steps (Frames)")
-    plt.ylabel("Episode Reward")
-    if len(SEEDS) > 1:  
-        plt.title(f"Episode Rewards over {len(SEEDS)} Seeds ({stripped_scenario_folder})")
-    else:
-        plt.title(f"Episode Rewards ({stripped_scenario_folder})")
-    plt.legend(frameon=False)
-    plt.grid(True)
-
-    plots_dir = f"{save_results_big_run}/plots"
-    os.makedirs(plots_dir, exist_ok=True)
-    current_time = datetime.now()
-    seconds_str = str(int(current_time.timestamp()))[-4:]
-    os.makedirs(plots_dir, exist_ok=True)
-
-    plot_file = os.path.join(plots_dir, f"averaged_rewards_over_steps_{stripped_scenario_folder}.png")
-    plt.savefig(plot_file)
-    # plt.show()
-    print(f"Averaged reward vs steps plot saved to {plot_file}")
-
-    if cross_val_flag:
-        plt.figure(figsize=(12,6))
-        plt.plot(all_test_rewards_proactive[0], label="DQN Proactive-U", color='orange')
-        plt.plot(all_test_rewards_myopic[0], label="DQN Proactive-N", color='blue')
-        plt.plot(all_test_rewards_reactive[0], label="DQN Reactive", color='green')
-        plt.xlabel("Episode")
-        plt.ylabel("Test Reward")
-        if len(SEEDS) > 1:
-            plt.title(f"Test Rewards over Episodes (DQN, {stripped_scenario_folder})")
-        else:
-            plt.title(f"Test Rewards ({stripped_scenario_folder})")
-        plt.legend(frameon=False)
-        plt.grid(True)
-        # plt.show()
+    return run_training_for_seed(single_seed)
