@@ -9,6 +9,7 @@ data/Testing*/
 
 # add the action sequences folder
 results/*/action_sequences/
+data/temp/
 
 # add the reward plots per scenario
 results/*/plots/reward-plots-per-scenario/

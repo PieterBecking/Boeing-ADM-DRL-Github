@@ -5,28 +5,37 @@ import os
 from datetime import datetime
 from scripts.utils import NumpyEncoder
 import numpy as np
+from filelock import FileLock
 
-def create_new_id(logs_type):
-    # Load the ids from the json file
-    with open('logs/ids.json', 'r') as f:
-        ids = json.load(f)
+def create_new_id(id_type):
+    file_path = "ids.json"  
+    lock_path = file_path + ".lock"
 
-    # Get the latest id
-    try:
-        latest_id = max(ids.keys())
-    except ValueError:
-        latest_id = "0000"
 
-    # Increment the latest id by 1
-    new_id = str(int(latest_id) + 1).zfill(4)
+    with FileLock(lock_path):
+        # If file doesn't exist, create it with an empty list
+        if not os.path.exists(file_path):
+            with open(file_path, "w") as f:
+                json.dump([], f)
 
-    # Update the ids in the json file with finished set to false
-    ids[new_id] = {"type": logs_type, "finished": False}
-    with open('logs/ids.json', 'w') as f:
-        json.dump(ids, f)
+        # Attempt to read existing data
+        with open(file_path, "r") as f:
+            try:
+                ids = json.load(f)
+            except json.JSONDecodeError:
+                # If the file is corrupted or empty, re-init with empty list
+                ids = []
+
+        new_id = f"{id_type}_{len(ids) + 1}"
+
+        # Append the new ID and write back to file
+        ids.append(new_id)
+        with open(file_path, "w") as f:
+            json.dump(ids, f, indent=2)
+
+    print(f"New ID created: {new_id}")
 
     return new_id
-
 
 def log_scenario_folder(logs_id, scenario_folder_path, inputs, outputs):
     """
