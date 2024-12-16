@@ -236,7 +236,7 @@ def plot_state_nicely_proactive(state, max_flights, output_path='state_table.png
     table = ax.table(cellText=data_rows, colLabels=headers, loc='center')
     table.auto_set_font_size(False)
     table.set_fontsize(10)
-    table.scale(1, 1.5)  # Adjust if needed
+    table.scale(1, 1.5)
     
     # Add title with info row data
     time_str = f"Current Time: {int(info_row[0]) if not np.isnan(info_row[0]) else '-'} | " \
@@ -246,19 +246,6 @@ def plot_state_nicely_proactive(state, max_flights, output_path='state_table.png
     # Save the figure to a PNG file
     plt.savefig(output_path, bbox_inches='tight')
     plt.close(fig)
-
-if __name__ == "__main__":
-    # Example usage:
-    # Dummy data: first row is info_row, subsequent rows are state rows
-    # Replace this with your actual 'state' array.
-    example_state = np.array([
-        [10, 50],  # info_row: current time, time until end
-        [1, 0.95, 0, 100, 1, 0, 10, 10, 20],  # Row 1: AC=1, Prob=0.95, Start=0, End=100, F1=1, Dep1=0, Arr1=10, F2=10, Dep2=20
-        [2, 0.80, 5, 90, np.nan, np.nan, np.nan, 20, 30, 40]  # Row 2 with some missing values
-    ], dtype=float)
-    
-    plot_state_nicely_proactive(example_state, MAX_FLIGHTS_PER_AIRCRAFT)
-    print("Table image saved as state_table.png")
 
 # Print state
 def print_state_nicely_proactive(state):

@@ -9,6 +9,7 @@ from stable_baselines3.common.evaluation import evaluate_policy
 from src.config import *
 import matplotlib.patches as patches
 from scripts.utils import *
+import re  # Make sure to import re at the top
 
 # StatePlotter class for visualizing the state of the environment
 class StatePlotter:
@@ -30,8 +31,15 @@ class StatePlotter:
         self.offset_delayed_flight = offset_delayed_flight
         self.offset_marker_minutes = offset_marker_minutes
 
-        aircraft_id_to_idx = {aircraft_id: idx + 1 for idx, aircraft_id in enumerate(aircraft_dict.keys())}
-        self.aircraft_id_to_idx = aircraft_id_to_idx
+        # Define the sorting key function
+        def extract_sort_key(aircraft_id):
+            letters = ''.join(re.findall(r'[A-Za-z]+', aircraft_id))
+            numbers = tuple(int(num) for num in re.findall(r'\d+', aircraft_id))
+            return (letters, ) + numbers
+
+        # Sort aircraft IDs using the custom sort key
+        sorted_aircraft_ids = sorted(self.aircraft_dict.keys(), key=extract_sort_key)
+        self.aircraft_id_to_idx = {aircraft_id: idx + 1 for idx, aircraft_id in enumerate(sorted_aircraft_ids)}
         
         # Calculate the earliest and latest datetimes
         self.earliest_datetime = min(
@@ -52,8 +60,15 @@ class StatePlotter:
             flight_id, new_aircraft_id = swap
             updated_rotations_dict[flight_id]['Aircraft'] = new_aircraft_id
 
+        # Define the sorting key function
+        def extract_sort_key(aircraft_id):
+            letters = ''.join(re.findall(r'[A-Za-z]+', aircraft_id))
+            numbers = tuple(int(num) for num in re.findall(r'\d+', aircraft_id))
+            return (letters, ) + numbers
+
+        # Collect and sort aircraft IDs using the custom sort key
         all_aircraft_ids = set([rotation_info['Aircraft'] for rotation_info in updated_rotations_dict.values()]).union(set(self.aircraft_dict.keys()))
-        aircraft_ids = sorted(list(all_aircraft_ids), reverse=False)
+        aircraft_ids = sorted(all_aircraft_ids, key=extract_sort_key)
         aircraft_indices = {aircraft_id: index + 1 for index, aircraft_id in enumerate(aircraft_ids)}
 
         fig, ax = plt.subplots(figsize=(14, 8))
@@ -139,7 +154,7 @@ class StatePlotter:
             return data_units_per_pixel * pixels
 
         # Compute rectangle height in data units corresponding to 60 pixels (doubled from 30)
-        rect_height = get_height_in_data_units(ax, 60)
+        rect_height = get_height_in_data_units(ax, 150)
         # Handle alt_aircraft_dict unavailabilities, including uncertain ones with probability < 1.0
         if self.alt_aircraft_dict:
             for aircraft_id, unavailability_info in self.alt_aircraft_dict.items():
@@ -196,7 +211,7 @@ class StatePlotter:
 
                     # Plot the probability below the rectangle
                     x_position = unavail_start + (unavail_end - unavail_start) / 2
-                    y_position = y_offset - rect_height / 2 - get_height_in_data_units(ax, 10)  # Adjust offset as needed
+                    y_position = y_offset - rect_height / 2 - get_height_in_data_units(ax, 10) +0.2  # Adjust offset as needed
                     ax.text(x_position, y_position + 0.1, f"{probability:.2f}", ha='center', va='top', fontsize=9)
 
         # Add transparent rectangles for each aircraft at start of recovery period
@@ -243,7 +258,7 @@ class StatePlotter:
         plt.xticks(rotation=45)
         plt.tight_layout()
 
-        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.legend(bbox_to_anchor=(0.5, -0.1), loc='upper center', ncol=3)
         if show_plot:
             plt.show()
         else:

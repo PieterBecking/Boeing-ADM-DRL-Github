@@ -1,22 +1,23 @@
-# Use an official Python base image
-FROM python:3.11-slim
+FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
 
-# Set working directory
 WORKDIR /app
 
-# Copy the entire project (excluding .venv)
-COPY . /app
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y python3-pip python3-dev git wget && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Upgrade pip
+RUN pip3 install --no-cache-dir --upgrade pip
 
-# Install Jupyter if needed
-RUN pip install jupyter
+# Copy requirements and install them
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt
 
-# Expose Jupyter Notebook port (optional)
-EXPOSE 8888
+# Copy all project files into the container
+COPY . .
 
-# Set the command to run your notebook
-CMD ["jupyter", "notebook", "--ip=0.0.0.0", "--port=8888", "--allow-root"]
+ENV PYTHONUNBUFFERED=1
 
-ENV PYTHONPATH=/app
+# Default command - runs the main.py script
+CMD ["python3", "main.py"]
