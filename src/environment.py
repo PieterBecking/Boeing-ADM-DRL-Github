@@ -974,6 +974,18 @@ class AircraftDisruptionEnv(gym.Env):
                 # Conflict detected
                 # Decide whether to delay new flight or existing flight
 
+                # Get original departure times for comparison
+                original_new_dep_time = parse_time_with_day_offset(
+                    self.flights_dict[flight_id]['DepTime'], self.start_datetime
+                )
+                original_existing_dep_time = parse_time_with_day_offset(
+                    self.flights_dict[existing_flight_id]['DepTime'], self.start_datetime
+                )
+
+                # Convert to minutes from earliest_datetime for comparison
+                new_flight_original_dep_minutes = (original_new_dep_time - self.earliest_datetime).total_seconds() / 60
+                existing_flight_original_dep_minutes = (original_existing_dep_time - self.earliest_datetime).total_seconds() / 60
+
                 # Compute the minimum delays required
                 delay_new_flight = existing_arr_time + MIN_TURN_TIME - dep_time
                 delay_existing_flight = arr_time + MIN_TURN_TIME - existing_dep_time
@@ -981,7 +993,8 @@ class AircraftDisruptionEnv(gym.Env):
                 delay_new_flight = max(0, delay_new_flight)
                 delay_existing_flight = max(0, delay_existing_flight)
 
-                if delay_new_flight <= delay_existing_flight:
+                # Delay the flight with the later original departure time
+                if new_flight_original_dep_minutes >= existing_flight_original_dep_minutes:
                     # Delay new flight
                     dep_time += delay_new_flight
                     dep_time = max(dep_time, original_dep_minutes)  # Ensure not earlier than original dep time
@@ -990,37 +1003,15 @@ class AircraftDisruptionEnv(gym.Env):
                     # Update delay tracking
                     total_delay = dep_time - original_dep_minutes
                     self.environment_delayed_flights[flight_id] = self.environment_delayed_flights.get(flight_id, 0) + total_delay
-
-                    # Debugging: Print the delayed departure and arrival times
-                    if DEBUG_MODE_SCHEDULING:
-                        print(f"Delayed departure time for flight {flight_id} to {dep_time} minutes due to conflict.")
-                        print(f"Delayed arrival time for flight {flight_id} to {arr_time} minutes.")
                 else:
-                    # Delay existing flight
-                    if existing_flight_id in delayed_flights:
-                        # To avoid infinite loop, delay new flight
-                        dep_time += delay_new_flight
-                        dep_time = max(dep_time, original_dep_minutes)  # Ensure not earlier than original dep time
-                        arr_time = dep_time + flight_duration
-
-                        # Update delay tracking
-                        total_delay = dep_time - original_dep_minutes
-                        self.environment_delayed_flights[flight_id] = self.environment_delayed_flights.get(flight_id, 0) + total_delay
-
-                        # Debugging: Print the delayed departure and arrival times
-                        if DEBUG_MODE_SCHEDULING:
-                            print(f"Delayed departure time for flight {flight_id} to {dep_time} minutes due to conflict with existing flight.")
-                            print(f"Delayed arrival time for flight {flight_id} to {arr_time} minutes.")
-                    else:
+                    # Delay existing flight if it hasn't been delayed before
+                    if existing_flight_id not in delayed_flights:
                         delayed_flights.add(existing_flight_id)
                         new_dep_time = existing_dep_time + delay_existing_flight
                         new_arr_time = existing_arr_time + delay_existing_flight
+                        
                         # Ensure existing flight is not scheduled earlier than original departure
-                        original_existing_dep_time = parse_time_with_day_offset(
-                            self.flights_dict[existing_flight_id]['DepTime'], self.start_datetime
-                        )
-                        original_existing_dep_minutes = (original_existing_dep_time - self.earliest_datetime).total_seconds() / 60
-                        new_dep_time = max(new_dep_time, original_existing_dep_minutes)
+                        new_dep_time = max(new_dep_time, existing_flight_original_dep_minutes)
                         new_arr_time = new_dep_time + (existing_arr_time - existing_dep_time)
 
                         delay_existing = new_dep_time - existing_dep_time
@@ -1032,10 +1023,20 @@ class AircraftDisruptionEnv(gym.Env):
                                 self.state[aircraft_idx, k + 1] = new_dep_time
                                 self.state[aircraft_idx, k + 2] = new_arr_time
                                 break
+                                
                         # Update flights_dict for existing flight
                         self.update_flight_times(existing_flight_id, new_dep_time, new_arr_time)
                         # Recursively resolve conflicts for existing flight
                         self.schedule_flight_on_aircraft(aircraft_id, existing_flight_id, new_dep_time, current_aircraft_id, new_arr_time, delayed_flights)
+                    else:
+                        # If existing flight was already delayed, delay the new flight instead
+                        dep_time += delay_new_flight
+                        dep_time = max(dep_time, original_dep_minutes)  # Ensure not earlier than original dep time
+                        arr_time = dep_time + flight_duration
+
+                        # Update delay tracking
+                        total_delay = dep_time - original_dep_minutes
+                        self.environment_delayed_flights[flight_id] = self.environment_delayed_flights.get(flight_id, 0) + total_delay
 
         # Now, update the flight's times in the state
         for j in range(4, self.columns_state_space - 2, 3):
