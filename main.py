@@ -253,8 +253,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Common configuration
-    MAX_TOTAL_TIMESTEPS = 100000
-    SEEDS = [23, 24, 25] 
+    MAX_TOTAL_TIMESTEPS = 5000000
+    SEEDS = [23] 
     brute_force_flag = False
     cross_val_flag = False
     early_stopping_flag = False
