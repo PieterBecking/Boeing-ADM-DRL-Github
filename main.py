@@ -253,14 +253,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Common configuration
-    MAX_TOTAL_TIMESTEPS = 2500
+    MAX_TOTAL_TIMESTEPS = 10000000
     SEEDS = [23, 24, 25] 
     brute_force_flag = False
     cross_val_flag = False
     early_stopping_flag = False
     CROSS_VAL_INTERVAL = 10000
     printing_intermediate_results = True
-    save_folder = "6f-config2-big-run"
+    save_folder = "1-huge-run"
     TESTING_FOLDERS_PATH = "none"
 
     if not os.path.exists(save_folder):
