@@ -253,7 +253,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Common configuration
-    MAX_TOTAL_TIMESTEPS = 10000000
+    MAX_TOTAL_TIMESTEPS = 100000
     SEEDS = [23, 24, 25] 
     brute_force_flag = False
     cross_val_flag = False
@@ -349,6 +349,4 @@ if __name__ == "__main__":
                 TESTING_FOLDERS_PATH=TESTING_FOLDERS_PATH
             )
     else:
-        # If only training_folder is provided without seed, handle that if needed
-        # (Not strictly required by your setup)
         pass
