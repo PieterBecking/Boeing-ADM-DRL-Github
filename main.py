@@ -260,7 +260,7 @@ if __name__ == "__main__":
     early_stopping_flag = False
     CROSS_VAL_INTERVAL = 10000
     printing_intermediate_results = True
-    save_folder = "1-huge-run"
+    save_folder = "2-huge-run"
     TESTING_FOLDERS_PATH = "none"
 
     if not os.path.exists(save_folder):

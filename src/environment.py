@@ -126,6 +126,12 @@ class AircraftDisruptionEnv(gym.Env):
         # Initialize eligible flights for conflict resolution bonus
         self.eligible_flights_for_resolved_bonus = self.get_initial_conflicts()
 
+        self.scenario_wide_delay_minutes = 0
+        self.scenario_wide_cancelled_flights = 0
+        self.scenario_wide_steps = 0
+        self.scenario_wide_resolved_conflicts = 0
+        self.scenario_wide_solution_slack = 0
+
     def _get_initial_state(self):
         """Initializes the state matrix for the environment.
         
@@ -411,7 +417,7 @@ class AircraftDisruptionEnv(gym.Env):
 
         # Process uncertainties before handling flight operations
         self.process_uncertainties()
-
+        self.scenario_wide_steps += 1
 
         if len(pre_action_conflicts) == 0 and len(unresolved_uncertainties) == 0:
             # Handle the case when there are no conflicts
@@ -1300,6 +1306,7 @@ class AircraftDisruptionEnv(gym.Env):
                 additional_delay = new_delay - previous_delay
                 # print(f"    *Flight ID: {flight_id}, New Delay: {new_delay}, Previous Delay: {previous_delay}, Additional Delay to Penalize: {additional_delay}")
 
+        self.scenario_wide_delay_minutes += delay_penalty_minutes
         delay_penalty_total = min(delay_penalty_minutes * DELAY_MINUTE_PENALTY, MAX_DELAY_PENALTY)
         
         # More debugging statements for total penalty
@@ -1319,6 +1326,7 @@ class AircraftDisruptionEnv(gym.Env):
         cancellation_penalty_count = len(new_cancellations)
         cancel_penalty = cancellation_penalty_count * CANCELLED_FLIGHT_PENALTY
         reward -= cancel_penalty
+        self.scenario_wide_cancelled_flights += cancellation_penalty_count
 
         if DEBUG_MODE_REWARD:
             print(f"  -{cancel_penalty} penalty for {cancellation_penalty_count} new cancelled flights: {new_cancellations}")
@@ -1368,12 +1376,6 @@ class AircraftDisruptionEnv(gym.Env):
 
         # 8. 
         if terminated:
-            # time_since_start = (self.current_datetime - self.start_datetime).total_seconds() / 60
-            # termination_reward = TERMINATION_REWARD - time_since_start
-            # reward += termination_reward
-
-            # if DEBUG_MODE_REWARD:
-            #     print(f"  -{termination_reward} penalty for time since start: {time_since_start} minutes")
 
             # Only count conflicts for flights that are NOT cancelled
             final_resolved_count = 0
@@ -1386,6 +1388,65 @@ class AircraftDisruptionEnv(gym.Env):
 
             final_conflict_resolution_reward = final_resolved_count * RESOLVED_CONFLICT_REWARD
             reward += final_conflict_resolution_reward
+            self.scenario_wide_resolved_conflicts += final_resolved_count
+
+
+            # Calculate the scenario_wide_solution_slack using the updated flight schedules in self.flights_dict and self.rotations_dict
+
+            # Extract all flights and their departure/arrival times from self.flights_dict
+            all_dep_times = []
+            all_arr_times = []
+
+            for f_id, f_info in self.flights_dict.items():
+                # Parse updated departure and arrival times as datetimes
+                dep_dt = parse_time_with_day_offset(f_info['DepTime'], self.start_datetime)
+                arr_dt = parse_time_with_day_offset(f_info['ArrTime'], self.start_datetime)
+                all_dep_times.append(dep_dt)
+                all_arr_times.append(arr_dt)
+
+            if len(all_dep_times) == 0:
+                # No flights means scenario slack = 0
+                self.scenario_wide_solution_slack = 0.0
+            else:
+                earliest_dep = min(all_dep_times)
+                latest_arr = max(all_arr_times)
+                horizon = max(int((latest_arr - earliest_dep).total_seconds() / 60), 1)  # in minutes
+
+                # Organize flights by aircraft using rotations_dict to find which aircraft a flight belongs to
+                aircraft_flights = {ac: [] for ac in self.aircraft_ids}
+                for f_id, f_info in self.flights_dict.items():
+                    # Only consider flights that still have an assigned aircraft in rotations_dict
+                    if f_id not in self.rotations_dict:
+                        # If a flight is missing in rotations_dict, it may have been cancelled or removed.
+                        # Cancelled flights do not contribute to slack.
+                        continue
+
+                    ac_id = self.rotations_dict[f_id]['Aircraft']
+
+                    dep_dt = parse_time_with_day_offset(f_info['DepTime'], self.start_datetime)
+                    arr_dt = parse_time_with_day_offset(f_info['ArrTime'], self.start_datetime)
+                    flight_duration = int((arr_dt - dep_dt).total_seconds() / 60)
+
+                    if ac_id in aircraft_flights:
+                        aircraft_flights[ac_id].append(flight_duration)
+                    else:
+                        # If the aircraft_id is not in aircraft_flights keys (should not happen), skip.
+                        continue
+
+                # Calculate slack per aircraft
+                aircraft_slacks = []
+                for ac_id in self.aircraft_ids:
+                    if len(aircraft_flights[ac_id]) == 0:
+                        # No flights for this aircraft
+                        ac_slack = 0.0
+                    else:
+                        total_flight_time = sum(aircraft_flights[ac_id])
+                        ac_slack = total_flight_time / horizon
+                    aircraft_slacks.append(ac_slack)
+
+                # Scenario-wide solution slack is the average slack across all aircraft
+                self.scenario_wide_solution_slack = sum(aircraft_slacks) / len(aircraft_slacks) if aircraft_slacks else 0.0
+
 
             if DEBUG_MODE_REWARD:
                 print(f"  +{final_conflict_resolution_reward} final reward for resolving {final_resolved_count} real (non-cancelled) conflicts at scenario end: {resolved_flights}")
