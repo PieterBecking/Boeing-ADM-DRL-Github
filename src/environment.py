@@ -620,6 +620,7 @@ class AircraftDisruptionEnv(gym.Env):
         This function updates the current datetime, checks if the episode is terminated,
         updates the state, and returns the appropriate outputs.
         """
+        # print("*** HANDLING NO CONFLICTS")
 
         # store the departure time of the flight that is being acted upon (before the action is taken)
         if flight_action != 0:
@@ -635,7 +636,9 @@ class AircraftDisruptionEnv(gym.Env):
                     print(f"Episode ended: {reason}")
                 processed_state = self.process_observation(self.state)
                 truncated = False
-                reward = 0  # Assuming zero reward when episode ends without conflicts
+                # print("*** 1")
+                reward = self._calculate_reward(set(), set(), flight_action, aircraft_action, original_flight_action_departure_time, terminated)
+                # print("*** doing this")
                 return processed_state, reward, terminated, truncated, {}
 
         self.current_datetime = next_datetime
@@ -649,11 +652,12 @@ class AircraftDisruptionEnv(gym.Env):
 
         # Call _calculate_reward even when there are no conflicts
         done = terminated or truncated
+        
+        # print("*** 2")
         reward = self._calculate_reward(set(), set(), flight_action, aircraft_action, original_flight_action_departure_time, done)
 
 
         processed_state = self.process_observation(self.state)
-        reward = 0  # Assuming zero reward when there are no conflicts
 
         if terminated:
             if DEBUG_MODE_STOPPING_CRITERIA:
@@ -692,6 +696,8 @@ class AircraftDisruptionEnv(gym.Env):
         else:
             original_flight_action_departure_time = None
 
+        terminated = self.check_termination_criteria()
+
         if flight_action == 0:
             # No action taken
             # Proceed to next timestep
@@ -705,6 +711,7 @@ class AircraftDisruptionEnv(gym.Env):
             terminated, reason = self._is_done()
             truncated = False
             done = terminated or truncated
+            # print("*** 3")
             reward = self._calculate_reward(resolved_conflicts, post_action_conflicts, flight_action, aircraft_action, original_flight_action_departure_time, done)
 
             if terminated:
@@ -730,6 +737,7 @@ class AircraftDisruptionEnv(gym.Env):
             terminated, reason = self._is_done()
             truncated = False
             done = terminated or truncated
+            # print("*** 4")
             reward = self._calculate_reward(resolved_conflicts, post_action_conflicts, flight_action, aircraft_action, original_flight_action_departure_time, done)
 
             if terminated:
@@ -758,6 +766,7 @@ class AircraftDisruptionEnv(gym.Env):
                 truncated = False
 
                 done = terminated or truncated
+                # print("*** 5")
                 reward = self._calculate_reward(pre_action_conflicts, pre_action_conflicts, flight_action, aircraft_action, original_flight_action_departure_time, done)
 
                 processed_state = self.process_observation(self.state)
@@ -822,15 +831,21 @@ class AircraftDisruptionEnv(gym.Env):
             resolved_conflicts = pre_action_conflicts - post_action_conflicts
 
             terminated, reason = self._is_done()
+            terminated = self.check_termination_criteria()
             truncated = False
             done = terminated or truncated
-            reward = self._calculate_reward(resolved_conflicts, post_action_conflicts, flight_action, aircraft_action, original_flight_action_departure_time, done)
+            # print("*** done = ", done)
+            # print("*** terminated = ", terminated)
+            # print("*** 6")
+            reward = self._calculate_reward(resolved_conflicts, post_action_conflicts, flight_action, aircraft_action, original_flight_action_departure_time, terminated=done)
 
             if terminated:
+                # print("*** 6 - but with terminated = ", terminated)
                 if DEBUG_MODE_STOPPING_CRITERIA:
                     print(f"Episode ended: {reason}")
 
             processed_state = self.process_observation(self.state)
+            # print("*** returning: ", processed_state, reward, terminated, truncated, {})
             return processed_state, reward, terminated, truncated, {}
 
     def schedule_flight_on_aircraft(self, aircraft_id, flight_id, dep_time, current_aircraft_id, arr_time=None, delayed_flights=None, secondary=False):
@@ -1241,6 +1256,8 @@ class AircraftDisruptionEnv(gym.Env):
         Returns:
             float: The calculated reward for the action.
         """
+
+        # print("*** calling _calculate_reward with terminated = ", terminated)
         reward = 0
         # conflict_resolution_reward = 0
         delay_penalty_total = 0
@@ -1390,6 +1407,9 @@ class AircraftDisruptionEnv(gym.Env):
             reward += final_conflict_resolution_reward
             self.scenario_wide_resolved_conflicts += final_resolved_count
 
+            if DEBUG_MODE_REWARD:
+                print(f"  +{final_conflict_resolution_reward} final reward for resolving {final_resolved_count} real (non-cancelled) conflicts at scenario end: {resolved_flights}")
+
 
             # Calculate the scenario_wide_solution_slack using the updated flight schedules in self.flights_dict and self.rotations_dict
 
@@ -1448,8 +1468,6 @@ class AircraftDisruptionEnv(gym.Env):
                 self.scenario_wide_solution_slack = sum(aircraft_slacks) / len(aircraft_slacks) if aircraft_slacks else 0.0
 
 
-            if DEBUG_MODE_REWARD:
-                print(f"  +{final_conflict_resolution_reward} final reward for resolving {final_resolved_count} real (non-cancelled) conflicts at scenario end: {resolved_flights}")
 
 
         # 9. **Calculate and print total under the sum line**

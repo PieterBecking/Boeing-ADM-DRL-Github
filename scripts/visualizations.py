@@ -252,7 +252,7 @@ class StatePlotter:
         plt.ylabel('Aircraft')
         title = f'Aircraft Rotations and Unavailability {title_appendix.title()}'
         if reward_and_action:
-            title += f' (Reward: {reward_and_action[0]:.2f}, Action: {reward_and_action[1]}, Total Reward: {reward_and_action[2]:.2f})'
+            title += f' (Reward: {reward_and_action[0]:.2f}, Action: (flight: {reward_and_action[1][0]}, aircraft: {reward_and_action[1][1]}), Total Reward: {reward_and_action[2]:.2f})'
         plt.title(title)
         plt.grid(True)
         plt.xticks(rotation=45)

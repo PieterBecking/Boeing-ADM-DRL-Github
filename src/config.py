@@ -36,7 +36,6 @@ TERMINATION_REWARD = 500                  # Reward for terminating the episode
 # Environment Settings
 MIN_TURN_TIME = 0  # Minimum gap between flights for the same aircraft
 MIN_BREAKDOWN_PROBABILITY = 0
-
 # Logging and Debug Settings
 DEBUG_MODE = False # Turn on/off debug mode
 DEBUG_MODE_TRAINING = False  # Turn on/off debug mode for training
