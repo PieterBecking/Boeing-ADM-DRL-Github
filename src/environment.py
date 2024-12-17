@@ -133,7 +133,11 @@ class AircraftDisruptionEnv(gym.Env):
         self.scenario_wide_resolved_conflicts = 0
         self.scenario_wide_solution_slack = 0
         self.scenario_wide_tail_swaps = 0
-        self.scenario_wide_actual_disrupted_flights = 0
+        self.scenario_wide_initial_disrupted_flights_list = self.get_current_conflicts()
+        self.scenario_wide_actual_disrupted_flights = len(self.get_current_conflicts())
+        print(f"*********scenario_wide_actual_disrupted_flights: {self.scenario_wide_actual_disrupted_flights}")
+        print(f"*********scenario_wide_initial_disrupted_flights_list: {self.scenario_wide_initial_disrupted_flights_list}")
+
 
     def _get_initial_state(self):
         """Initializes the state matrix for the environment.
@@ -438,7 +442,7 @@ class AircraftDisruptionEnv(gym.Env):
         if DEBUG_MODE_STOPPING_CRITERIA:
             print(f"checked and terminated: {terminated}")
 
-
+        print(f"*** scenario_wide_actual_disrupted_flights: {self.scenario_wide_actual_disrupted_flights}")
         return processed_state, reward, terminated, truncated, info
 
 
@@ -581,10 +585,25 @@ class AircraftDisruptionEnv(gym.Env):
                         self.state[idx + 1, 2] = start_minutes  # Update start time
                         self.state[idx + 1, 3] = end_minutes
                         self.unavailabilities_dict[aircraft_id]['Probability'] = 1.00
+
                     else:
                         if DEBUG_MODE_BREAKDOWN:
                             print(f"Breakdown not occurring for aircraft {aircraft_id}")
                         
+                        # Count affected flights for this aircraft in the initial disrupted flights list
+                        affected_flights = 0
+                        for conflict in self.scenario_wide_initial_disrupted_flights_list:
+                            # Extract just the flight ID and aircraft ID from the conflict tuple
+                            if isinstance(conflict, tuple):
+                                conflict_aircraft_id = conflict[0]  # First element is aircraft ID
+                                if conflict_aircraft_id == aircraft_id:
+                                    affected_flights += 1
+                        
+                        # Subtract the count of affected flights from the total
+                        self.scenario_wide_actual_disrupted_flights -= affected_flights
+                        if DEBUG_MODE:
+                            print(f"*** Subtracting {affected_flights} from scenario_wide_actual_disrupted_flights for aircraft {aircraft_id}")
+
                         # make the prop, start, end all np.nan for both env types
                         self.state[idx + 1, 1] = np.nan
                         self.state[idx + 1, 2] = np.nan
@@ -1674,7 +1693,7 @@ class AircraftDisruptionEnv(gym.Env):
         """Retrieves the current conflicts in the environment.
 
         This function checks for conflicts between flights and unavailability periods,
-        considering only unavailabilities with probability 1.0.
+        considering only unavailabilities with probability 
         It excludes cancelled flights which are not considered conflicts.
 
         Returns:
@@ -1687,8 +1706,8 @@ class AircraftDisruptionEnv(gym.Env):
                 break
 
             breakdown_probability = self.unavailabilities_dict[aircraft_id]['Probability']
-            if breakdown_probability == 0.0:  # Only consider unavailability with probability 1.00
-                continue  # Skip if probability is not 1.00
+            if breakdown_probability == 0.0:  # Only consider unavailability with probability 
+                continue  # Skip if probability is not 0.0
 
             unavail_start = self.unavailabilities_dict[aircraft_id]['StartTime']
             unavail_end = self.unavailabilities_dict[aircraft_id]['EndTime']
@@ -1709,7 +1728,7 @@ class AircraftDisruptionEnv(gym.Env):
                         if flight_id in self.cancelled_flights:
                             continue  # Skip cancelled flights
 
-                        # Check for overlaps with unavailability periods with prob = 1.00
+                        # Check for overlaps with unavailability periods with prob 
                         if flight_dep < unavail_end and flight_arr > unavail_start:
                             conflict_identifier = (aircraft_id, flight_id, flight_dep, flight_arr)
                             current_conflicts.add(conflict_identifier)
@@ -1930,25 +1949,25 @@ class AircraftDisruptionEnv(gym.Env):
         if self.env_type == 'reactive':
             has_current_conflicts = False
             current_time_minutes = (self.current_datetime - self.earliest_datetime).total_seconds() / 60
-            print(f"*** called")
+            # print(f"*** called")
             # Check each aircraft for current conflicts
 
             for idx, aircraft_id in enumerate(self.aircraft_ids):
                 breakdown_prob = self.state[idx + 1, 1]
                 if breakdown_prob == 1.0:
-                    print(f"*** aircraft {idx} has breakdown")
+                    # print(f"*** aircraft {idx} has breakdown")
                     unavail_start = self.state[idx + 1, 2]
                     unavail_end = self.state[idx + 1, 3]
 
                     current_time_minutes = (self.current_datetime - self.start_datetime).total_seconds() / 60
                     if current_time_minutes + self.timestep_minutes > unavail_start:
-                        print(f"*** current_time_minutes: {current_time_minutes}")
-                        print(f"*** unavail_start: {unavail_start}")
-                        print(f"*** unavail_end: {unavail_end}")
-                        print(f"*** current_time_minutes + self.timestep_minutes: {current_time_minutes + self.timestep_minutes}")
+                        # print(f"*** current_time_minutes: {current_time_minutes}")
+                        # print(f"*** unavail_start: {unavail_start}")
+                        # print(f"*** unavail_end: {unavail_end}")
+                        # print(f"*** current_time_minutes + self.timestep_minutes: {current_time_minutes + self.timestep_minutes}")
                         if not np.isnan(unavail_start) and not np.isnan(unavail_end):
                             if unavail_start <= current_time_minutes <= unavail_end:
-                                print(f"*** unavail_start <= current_time_minutes <= unavail_end")
+                                # print(f"*** unavail_start <= current_time_minutes <= unavail_end")
                                 has_current_conflicts = True
                             break
             
