@@ -154,7 +154,8 @@ def run_train_dqn_both_timesteps(
         }
 
 
-        log_data['metadata'] = training_metadata
+        # log_data['metadata'] = {training_metadata}
+        log_data['metadata'] = {}
         log_data['episodes'] = {}
         log_data['cross_validation'] = {}
 
@@ -279,7 +280,8 @@ def run_train_dqn_both_timesteps(
             test_rewards.append((avg_test_reward))
             print(f"cross-val done at episode {current_episode}")
 
-            log_data['cross_validation'][current_episode] = cross_val_data
+            # log_data['cross_validation'][current_episode] = cross_val_data
+            log_data['cross_validation'] = {}
 
             return avg_test_reward
 
@@ -507,7 +509,8 @@ def run_train_dqn_both_timesteps(
             print(f"({total_timesteps}/{MAX_TOTAL_TIMESTEPS}) {env_type} - episode {episode + 1} - epsilon {epsilon:.2f} - reward this episode: {avg_reward_for_this_batch:.2f}")
 
             episode_data["avg_reward"] = avg_reward_for_this_batch
-            log_data['episodes'][episode + 1] = episode_data
+            # log_data['episodes'][episode + 1] = episode_data
+            log_data['episodes'] = {}
             episode += 1
 
         model.save(model_path)

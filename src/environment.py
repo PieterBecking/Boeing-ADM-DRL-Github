@@ -942,7 +942,7 @@ class AircraftDisruptionEnv(gym.Env):
                     continue  # Skip the same flight
                 # Check overlap condition: If the new flight overlaps with an existing one
                 if dep_time < existing_arr_time + MIN_TURN_TIME and arr_time + MIN_TURN_TIME > existing_dep_time:
-                    print(f"***Conflict detected between flights {flight_id} and {existing_flight_id}")
+                    # print(f"***Conflict detected between flights {flight_id} and {existing_flight_id}")
 
                     # Retrieve original departure times
                     original_new_dep_time = parse_time_with_day_offset(
@@ -969,7 +969,7 @@ class AircraftDisruptionEnv(gym.Env):
 
                         total_delay = dep_time - original_dep_minutes
                         self.environment_delayed_flights[flight_id] = self.environment_delayed_flights.get(flight_id, 0) + total_delay
-                        print(f"***Delayed new flight {flight_id} by {delay_new_flight} minutes")
+                        # print(f"***Delayed new flight {flight_id} by {delay_new_flight} minutes")
                         self.something_happened = True
 
                     else:
@@ -994,7 +994,7 @@ class AircraftDisruptionEnv(gym.Env):
                             self.update_flight_times(existing_flight_id, new_dep_time, new_arr_time)
 
                             # Recursively resolve conflicts for the existing flight
-                            print(f"***Recursively resolving conflicts for existing flight {existing_flight_id}")
+                            # print(f"***Recursively resolving conflicts for existing flight {existing_flight_id}")
                             self.schedule_flight_on_aircraft(
                                 aircraft_id, 
                                 existing_flight_id, 
@@ -1010,12 +1010,12 @@ class AircraftDisruptionEnv(gym.Env):
                             arr_time = dep_time + flight_duration
 
                             total_delay = dep_time - original_dep_minutes
-                            print(f"***Delayed new flight {flight_id} by {delay_new_flight} minutes")
+                            # print(f"***Delayed new flight {flight_id} by {delay_new_flight} minutes")
                             self.environment_delayed_flights[flight_id] = self.environment_delayed_flights.get(flight_id, 0) + total_delay
                         
                         self.something_happened = True
                 else:
-                    print(f"***No conflict detected between flights {flight_id} and {existing_flight_id}")
+                    # print(f"***No conflict detected between flights {flight_id} and {existing_flight_id}")
                     self.something_happened = False
             return
 
@@ -1069,7 +1069,7 @@ class AircraftDisruptionEnv(gym.Env):
             if existing_flight_id == flight_id:
                 continue  # Skip the same flight
             if dep_time < existing_arr_time + MIN_TURN_TIME and arr_time + MIN_TURN_TIME > existing_dep_time:
-                print(f"***Conflict detected between flights {flight_id} and {existing_flight_id}")
+                # print(f"***Conflict detected between flights {flight_id} and {existing_flight_id}")
                 # Conflict detected
                 # Decide whether to delay new flight or existing flight
 
@@ -1102,7 +1102,7 @@ class AircraftDisruptionEnv(gym.Env):
                     # Update delay tracking
                     total_delay = dep_time - original_dep_minutes
                     self.environment_delayed_flights[flight_id] = self.environment_delayed_flights.get(flight_id, 0) + total_delay
-                    print(f"***Delayed new flight {flight_id} by {delay_new_flight} minutes")
+                    # print(f"***Delayed new flight {flight_id} by {delay_new_flight} minutes")
                 else:
                     # Delay existing flight if it hasn't been delayed before
                     if existing_flight_id not in delayed_flights:
@@ -1127,7 +1127,7 @@ class AircraftDisruptionEnv(gym.Env):
                         # Update flights_dict for existing flight
                         self.update_flight_times(existing_flight_id, new_dep_time, new_arr_time)
                         # Recursively resolve conflicts for existing flight
-                        print(f"***Recursively resolving conflicts for existing flight {existing_flight_id}")
+                        # print(f"***Recursively resolving conflicts for existing flight {existing_flight_id}")
                         self.schedule_flight_on_aircraft(aircraft_id, existing_flight_id, new_dep_time, current_aircraft_id, new_arr_time, delayed_flights, secondary=True)
                     else:
                         # If existing flight was already delayed, delay the new flight instead
@@ -1137,7 +1137,7 @@ class AircraftDisruptionEnv(gym.Env):
 
                         # Update delay tracking
                         total_delay = dep_time - original_dep_minutes
-                        print(f"***Delayed new flight {flight_id} by {delay_new_flight} minutes")
+                        # print(f"***Delayed new flight {flight_id} by {delay_new_flight} minutes")
                         self.environment_delayed_flights[flight_id] = self.environment_delayed_flights.get(flight_id, 0) + total_delay
 
         # Now, update the flight's times in the state
