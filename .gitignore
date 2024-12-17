@@ -26,7 +26,7 @@ results/*/plots/reward-plots-per-scenario/
 !/results/dqn/_*
 
 # Ignore all files in the trained_models directory
-/trained_models/dqn/*
+# /trained_models/dqn/*
 /trained_models/a2c/*
 /trained_models/ppo/*
 
