@@ -135,8 +135,8 @@ class AircraftDisruptionEnv(gym.Env):
         self.scenario_wide_tail_swaps = 0
         self.scenario_wide_initial_disrupted_flights_list = self.get_current_conflicts()
         self.scenario_wide_actual_disrupted_flights = len(self.get_current_conflicts())
-        print(f"*********scenario_wide_actual_disrupted_flights: {self.scenario_wide_actual_disrupted_flights}")
-        print(f"*********scenario_wide_initial_disrupted_flights_list: {self.scenario_wide_initial_disrupted_flights_list}")
+        # print(f"*********scenario_wide_actual_disrupted_flights: {self.scenario_wide_actual_disrupted_flights}")
+        # print(f"*********scenario_wide_initial_disrupted_flights_list: {self.scenario_wide_initial_disrupted_flights_list}")
 
 
     def _get_initial_state(self):
@@ -442,7 +442,6 @@ class AircraftDisruptionEnv(gym.Env):
         if DEBUG_MODE_STOPPING_CRITERIA:
             print(f"checked and terminated: {terminated}")
 
-        print(f"*** scenario_wide_actual_disrupted_flights: {self.scenario_wide_actual_disrupted_flights}")
         return processed_state, reward, terminated, truncated, info
 
 
@@ -601,8 +600,6 @@ class AircraftDisruptionEnv(gym.Env):
                         
                         # Subtract the count of affected flights from the total
                         self.scenario_wide_actual_disrupted_flights -= affected_flights
-                        if DEBUG_MODE:
-                            print(f"*** Subtracting {affected_flights} from scenario_wide_actual_disrupted_flights for aircraft {aircraft_id}")
 
                         # make the prop, start, end all np.nan for both env types
                         self.state[idx + 1, 1] = np.nan

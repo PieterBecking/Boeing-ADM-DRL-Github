@@ -513,6 +513,10 @@ def create_data_scenario(
     }
 
     outputs = {
+        "recovery_start_date": recovery_start_date,
+        "recovery_start_time": recovery_start_time,
+        "recovery_end_date": recovery_end_date,
+        "recovery_end_time": recovery_end_time,
         "total_aircraft": len(aircraft_ids),
         "total_flights": len(flights_dict),
         "disrupted_aircraft": amount_aircraft_disrupted,
