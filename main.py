@@ -411,7 +411,7 @@ if __name__ == "__main__":
 
     # Common configuration
     MAX_TOTAL_TIMESTEPS = 5000000
-    SEEDS = [73] 
+    SEEDS = [1023, 1024, 1025, 1026, 1027] 
     brute_force_flag = False
     cross_val_flag = True
     early_stopping_flag = False
