@@ -410,14 +410,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Common configuration
-    MAX_TOTAL_TIMESTEPS = 1000000
-    SEEDS = [72] 
+    MAX_TOTAL_TIMESTEPS = 5000000
+    SEEDS = [73] 
     brute_force_flag = False
     cross_val_flag = True
     early_stopping_flag = False
-    CROSS_VAL_INTERVAL = 20
+    CROSS_VAL_INTERVAL = 10
     printing_intermediate_results = False
-    save_folder = "06-novel-run"
+    save_folder = "07-novel-run"
     TESTING_FOLDERS_PATH = "data/Testing/6ac-700-diverse/"
 
     if not os.path.exists(save_folder):
