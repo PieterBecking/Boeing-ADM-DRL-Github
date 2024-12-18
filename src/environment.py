@@ -2062,6 +2062,8 @@ class AircraftDisruptionOptimizer(AircraftDisruptionEnv):
         
         # Track action history
         self.action_history = []
+
+        self.scenario_wide_reward_total = 0
         
 
     def solve(self):
@@ -2075,26 +2077,26 @@ class AircraftDisruptionOptimizer(AircraftDisruptionEnv):
         
         while not terminated:
             step_count += 1
-            print(f"\nStep {step_count}:")
+            # print(f"\nStep {step_count}:")
             
             # Get current conflicts
             conflicts = self.get_current_conflicts()
-            print(f"Current conflicts: {conflicts}")
+            # print(f"Current conflicts: {conflicts}")
             
             if not conflicts:
                 # No conflicts - take no action
                 action = self.map_action_to_index(0, 0)  # No-op action
-                print("No conflicts - taking no-op action (0, 0)")
+                # print("No conflicts - taking no-op action (0, 0)")
             else:
                 # Choose the best action for the current state using valid action mask
                 action = self.select_best_action()
                 flight_action, aircraft_action = self.map_index_to_action(action)
-                print(f"Selected action: index={action} (flight={flight_action}, aircraft={aircraft_action})")
+                # print(f"Selected action: index={action} (flight={flight_action}, aircraft={aircraft_action})")
             
             # Take the action in the environment
             observation, reward, terminated, truncated, info = self.step(action)
             total_reward += reward
-            print(f"Action result: reward={reward}, terminated={terminated}")
+            # print(f"Action result: reward={reward}, terminated={terminated}")
             
             # Record action history
             flight_action, aircraft_action = self.map_index_to_action(action)
@@ -2111,14 +2113,16 @@ class AircraftDisruptionOptimizer(AircraftDisruptionEnv):
             self.update_solution(info)
         
         # Print action history summary
-        print("\nAction History Summary:")
-        print("----------------------")
-        print(f"{'Step':>4} | {'Flight':>6} | {'Aircraft':>8} | {'Reward':>8} | {'Conflicts':>9}")
-        print("-" * 45)
-        for entry in self.action_history:
-            print(f"{entry['step']:4d} | {entry['flight']:6} | {entry['aircraft']:8} | {entry['reward']:8.1f} | {entry['conflicts']:9d}")
-        print("-" * 45)
-        print(f"Total Reward: {total_reward:.1f}")
+        # print("\nAction History Summary:")
+        # print("----------------------")
+        # print(f"{'Step':>4} | {'Flight':>6} | {'Aircraft':>8} | {'Reward':>8} | {'Conflicts':>9}")
+        # print("-" * 45)
+        # for entry in self.action_history:
+        #     print(f"{entry['step']:4d} | {entry['flight']:6} | {entry['aircraft']:8} | {entry['reward']:8.1f} | {entry['conflicts']:9d}")
+        # print("-" * 45)
+        # print(f"Total Reward: {total_reward:.1f}")
+
+        self.scenario_wide_reward_total = total_reward
         
         # Finalize solution
         self.solution["objective_value"] = -total_reward  # Convert reward to cost
@@ -2151,13 +2155,13 @@ class AircraftDisruptionOptimizer(AircraftDisruptionEnv):
                             break
         
         if not has_current_conflicts:
-            print("\nNo current conflicts with probability 1.0 - taking no-op action (0, 0)")
+            # print("\nNo current conflicts with probability 1.0 - taking no-op action (0, 0)")
             return self.map_action_to_index(0, 0)
         
         # Get valid actions using the environment's action mask
         action_mask = self.get_action_mask()
         valid_actions = np.where(action_mask == 1)[0]
-        print(f"\nEvaluating {len(valid_actions)} valid actions:")
+        # print(f"\nEvaluating {len(valid_actions)} valid actions:")
         
         # Try each valid action and evaluate its impact
         for action in valid_actions:
@@ -2168,21 +2172,21 @@ class AircraftDisruptionOptimizer(AircraftDisruptionEnv):
             # Take the action in the copied environment
             _, reward, _, _, _ = env_copy.step(action)
             
-            print(f"  Action {action} (flight={flight_action}, aircraft={aircraft_action}): reward={reward}")
+            # print(f"  Action {action} (flight={flight_action}, aircraft={aircraft_action}): reward={reward}")
             
             # Update best action if this one has better reward
             if reward > best_score:
                 best_score = reward
                 best_action = action
-                print(f"    -> New best action (reward={reward})")
+                # print(f"    -> New best action (reward={reward})")
         
         # If no good action found, take no action (should be included in valid_actions)
         if best_action is None:
             best_action = self.map_action_to_index(0, 0)
-            print("No good action found, defaulting to no-op action (0, 0)")
+            # print("No good action found, defaulting to no-op action (0, 0)")
         else:
             flight_action, aircraft_action = self.map_index_to_action(best_action)
-            print(f"\nChosen best action: index={best_action} (flight={flight_action}, aircraft={aircraft_action}) with reward={best_score}")
+            # print(f"\nChosen best action: index={best_action} (flight={flight_action}, aircraft={aircraft_action}) with reward={best_score}")
         
         return best_action
 
@@ -2205,4 +2209,3 @@ class AircraftDisruptionOptimizer(AircraftDisruptionEnv):
         if self.environment_delayed_flights:
             self.solution['delays'] = {k: v for k, v in self.environment_delayed_flights.items()}
             self.solution['total_delay_minutes'] = sum(self.environment_delayed_flights.values())
-            

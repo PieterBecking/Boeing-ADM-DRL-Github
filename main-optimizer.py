@@ -5,7 +5,6 @@ from scripts.visualizations import StatePlotter
 from datetime import datetime
 
 def main():
-    # Example usage
     scenario_folder = "data/Training/6ac-700-diverse/mixed_high_Scenario_004"
     
     # Load scenario data first
@@ -40,17 +39,6 @@ def main():
         end_datetime=end_datetime
     )
 
-    # Plot initial state before optimization
-    print("\nGenerating initial state visualization...")
-    state_plotter.plot_state(
-        flights_dict,
-        swapped_flights=[],
-        environment_delayed_flights=set(),
-        cancelled_flights=set(),
-        current_datetime=start_datetime,
-        title_appendix="Initial State",
-        show_plot=True
-    )
     
     # Solve the problem step by step
     print("Solving optimization problem step by step...")
@@ -97,18 +85,16 @@ def main():
             flight_info = updated_flights_dict[flight_id]
             # Note: The actual delay application is handled by the plot_state function
             flight_info['Delay'] = delay
-    
-    # Generate visualization
-    print("\nGenerating optimization solution visualization...")
-    state_plotter.plot_state(
-        updated_flights_dict,
-        swapped_flights,
-        environment_delayed_flights,
-        cancelled_flights,
-        current_datetime=end_datetime,  # Use end of recovery period as current time
-        title_appendix="Optimizer Solution",
-        show_plot=True
-    )
+
+    scenario_wide_delay_minutes = optimizer.scenario_wide_delay_minutes
+    print(f"Scenario wide delay minutes: {scenario_wide_delay_minutes}")
+
+    scenario_wide_resolved_conflicts = optimizer.scenario_wide_resolved_conflicts
+    print(f"Scenario wide resolved conflicts: {scenario_wide_resolved_conflicts}")
+
+    scenario_wide_cancelled_flights = optimizer.scenario_wide_cancelled_flights
+    print(f"Scenario wide cancelled flights: {scenario_wide_cancelled_flights}")
+
 
 if __name__ == "__main__":
     main()
