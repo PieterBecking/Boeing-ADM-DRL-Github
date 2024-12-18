@@ -83,7 +83,8 @@ class StatePlotter:
             'Disruption End': False,
             'Delay of Flight': False,
             'Uncertain Breakdown': False,
-            'Zero Probability': False
+            'Zero Probability': False,
+            'Current Action Flight': False
         }
 
         earliest_time = self.earliest_datetime
@@ -108,9 +109,15 @@ class StatePlotter:
                 delayed = flight_id in environment_delayed_flights
                 cancelled = flight_id in cancelled_flights
                 
+                # Add check for current action flight
+                is_current_action = reward_and_action and flight_id == reward_and_action[1][0]
+                
                 if cancelled:
                     plot_color = 'red'
                     plot_label = 'Cancelled Flight'
+                elif is_current_action:
+                    plot_color = 'green'
+                    plot_label = 'Current Action Flight'
                 elif swapped:
                     plot_color = 'green'
                     plot_label = 'Swapped Flight'
