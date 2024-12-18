@@ -112,7 +112,7 @@ def run_train_dqn_both_timesteps(
         config_variables = get_config_variables(config)
 
         # Generate unique ID for training
-        training_id = create_new_id("training")
+        training_id = create_new_id("training").split("_")[1]
         runtime_start_in_seconds = time.time()
 
         # Construct model_path with required directory structure

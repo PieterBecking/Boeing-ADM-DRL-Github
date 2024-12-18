@@ -1935,79 +1935,57 @@ class AircraftDisruptionEnv(gym.Env):
         return list(range(len(self.aircraft_ids) + 1))  # 0 to len(aircraft_ids)
 
     def get_action_mask(self):
-        # Get valid actions first
         valid_flight_actions = self.get_valid_flight_actions()
         valid_aircraft_actions = self.get_valid_aircraft_actions()
 
-        # Prepare the action_mask with default zeros
         action_mask = np.zeros(self.action_space.n, dtype=np.uint8)
-
-        # Get current conflicts and also check probabilities for uncertain scenarios
-        current_conflicts = self.get_current_conflicts()
-        # Extract flight ids from current_conflicts
-        conflict_flights = {c[1] for c in current_conflicts}  # (aircraft_id, flight_id, dep, arr) -> flight_id
-
-        # A flight is uncertain if it's assigned to an aircraft with a breakdown probability not in {0.0,1.0} and not np.nan.
-        uncertain_flights = set()
-        for flight_id, flight_info in self.flights_dict.items():
-            if flight_id in self.rotations_dict:
-                assigned_ac = self.rotations_dict[flight_id]['Aircraft']
-                prob = self.unavailabilities_dict[assigned_ac]['Probability']
-                if not (np.isnan(prob) or prob == 0.0 or prob == 1.0):
-                    uncertain_flights.add(flight_id)
 
         for flight_action in valid_flight_actions:
             for aircraft_action in valid_aircraft_actions:
-                # If no-action (0,0) then allow
-                if flight_action == 0 and aircraft_action == 0:
-                    index = self.map_action_to_index(flight_action, aircraft_action)
-                    if index < self.action_space.n:
-                        action_mask[index] = 1
-                    continue
+                if flight_action == 0:
+                    # Only allow (flight_action=0, aircraft_action=0)
+                    if aircraft_action != 0:
+                        continue
+                index = self.map_action_to_index(flight_action, aircraft_action)
+                if index < self.action_space.n:
+                    action_mask[index] = 1
 
-                # If flight_action == 0 but aircraft_action != 0, do not allow
-                if flight_action == 0 and aircraft_action != 0:
-                    continue
+        # For reactive environment, only allow 0,0 action if no current conflicts with prob==1.00
+        if self.env_type == 'reactive':
+            has_current_conflicts = False
+            current_time_minutes = (self.current_datetime - self.earliest_datetime).total_seconds() / 60
+            # print(f"*** called")
+            # Check each aircraft for current conflicts
 
-                # If flight_action != 0:
-                flight_id = flight_action
-                # Check if flight_id is still in rotations_dict (not cancelled)
-                if flight_id not in self.rotations_dict:
-                    continue
+            for idx, aircraft_id in enumerate(self.aircraft_ids):
+                breakdown_prob = self.state[idx + 1, 1]
+                if breakdown_prob == 1.0:
+                    # print(f"*** aircraft {idx} has breakdown")
+                    unavail_start = self.state[idx + 1, 2]
+                    unavail_end = self.state[idx + 1, 3]
 
-                chosen_aircraft_id = None
-                if aircraft_action > 0:
-                    chosen_aircraft_id = self.aircraft_ids[aircraft_action - 1]
+                    current_time_minutes = (self.current_datetime - self.start_datetime).total_seconds() / 60
+                    if current_time_minutes + self.timestep_minutes > unavail_start:
+                        # print(f"*** current_time_minutes: {current_time_minutes}")
+                        # print(f"*** unavail_start: {unavail_start}")
+                        # print(f"*** unavail_end: {unavail_end}")
+                        # print(f"*** current_time_minutes + self.timestep_minutes: {current_time_minutes + self.timestep_minutes}")
+                        if not np.isnan(unavail_start) and not np.isnan(unavail_end):
+                            if unavail_start <= current_time_minutes <= unavail_end:
+                                # print(f"*** unavail_start <= current_time_minutes <= unavail_end")
+                                has_current_conflicts = True
+                            break
+            
+            if not has_current_conflicts:
+                # Reset mask to all zeros except for 0,0 action
+                action_mask[:] = 0
+                action_mask[0] = 1  # Only allow 0,0 action
 
-                current_ac = self.rotations_dict[flight_id]['Aircraft']
-
-                # If chosen aircraft is 0, that means cancel flight - always allowed
-                if aircraft_action == 0:
-                    index = self.map_action_to_index(flight_action, aircraft_action)
-                    if index < self.action_space.n:
-                        action_mask[index] = 1
-                    continue
-
-                # If chosen aircraft is not the same as the current one, it's a tail swap - always allowed
-                if chosen_aircraft_id != current_ac:
-                    index = self.map_action_to_index(flight_action, aircraft_action)
-                    if index < self.action_space.n:
-                        action_mask[index] = 1
-                    continue
-
-                # If chosen aircraft is the same as the current one:
-                # Check if the flight is in conflict or uncertain scenario
-                # If flight is in current_conflicts or uncertain_flights, allow action
-                # Otherwise, disallow because it makes no difference
-                if flight_id in conflict_flights or flight_id in uncertain_flights:
-                    # There's some conflict or uncertainty for this flight, allow action
-                    index = self.map_action_to_index(flight_action, aircraft_action)
-                    if index < self.action_space.n:
-                        action_mask[index] = 1
-                else:
-                    # No conflict/uncertainty, placing on same aircraft does nothing
-                    # Do not allow action
-                    continue
+        # print(f"*** Action mask: {action_mask}")
+        # # print the value of the action together with the mask
+        # for i in range(len(action_mask)):
+        #     print(f"Action {i}: {action_mask[i]}")
+        return action_mask
 
         # If env_type is reactive and no current conflicts with prob == 1.0, restrict to (0,0)
         if self.env_type == 'reactive':
