@@ -205,37 +205,54 @@ def aggregate_results_and_plot(SEEDS, MAX_TOTAL_TIMESTEPS, brute_force_flag, cro
             reactive_mean_sm, reactive_std_sm, reactive_steps_sm = apply_smooth(reactive_mean, reactive_std, reactive_steps_mean)
         else:
             reactive_mean_sm, reactive_std_sm, reactive_steps_sm = [], [], []
-        # Create one figure that shows both training and cross-validation curves on the same axis
-        plt.figure(figsize=(12, 6))
 
-        # Plot training curves
+        # First plot - Training curves
+        plt.figure(figsize=(12,6))
+
         if len(proactive_mean_sm) > 0:
-            plt.plot(proactive_steps_sm, proactive_mean_sm, label="Train DQN Proactive-U", color='orange')
+            plt.plot(proactive_steps_sm, proactive_mean_sm, label="DQN Proactive-U", color='orange')
             plt.fill_between(proactive_steps_sm, 
                              proactive_mean_sm - proactive_std_sm, 
                              proactive_mean_sm + proactive_std_sm, 
                              alpha=0.2, color='orange')
 
         if len(myopic_mean_sm) > 0:
-            plt.plot(myopic_steps_sm, myopic_mean_sm, label="Train DQN Proactive-N", color='blue')
+            plt.plot(myopic_steps_sm, myopic_mean_sm, label="DQN Proactive-N", color='blue')
             plt.fill_between(myopic_steps_sm, 
                              myopic_mean_sm - myopic_std_sm, 
                              myopic_mean_sm + myopic_std_sm, 
                              alpha=0.2, color='blue')
 
         if len(reactive_mean_sm) > 0:
-            plt.plot(reactive_steps_sm, reactive_mean_sm, label="Train DQN Reactive", color='green')
+            plt.plot(reactive_steps_sm, reactive_mean_sm, label="DQN Reactive", color='green')
             plt.fill_between(reactive_steps_sm, 
                              reactive_mean_sm - reactive_std_sm, 
                              reactive_mean_sm + reactive_std_sm, 
                              alpha=0.2, color='green')
 
-        # If we have cross-validation data, plot them at their actual training steps
+        plt.xlabel("Environment Steps (Frames)")
+        plt.ylabel("Episode Reward")
+        if len(SEEDS) > 1:  
+            plt.title(f"Episode Rewards over {len(SEEDS)} Seeds ({stripped_scenario_folder})")
+        else:
+            plt.title(f"Episode Rewards ({stripped_scenario_folder})")
+        plt.legend(frameon=False)
+        plt.grid(True)
+
+        plots_dir = f"{scenario_path}/plots"
+        os.makedirs(plots_dir, exist_ok=True)
+        plot_file = os.path.join(plots_dir, f"averaged_rewards_over_steps_{stripped_scenario_folder}.png")
+        plt.savefig(plot_file)
+        print(f"Combined plot saved for scenario {stripped_scenario_folder} at {plot_file}")
+
+        # Only proceed if cross_val_flag is True and we have test reward arrays
         if cross_val_flag:
+            # Convert cross validation arrays to numpy
             all_test_rewards_myopic = np.array(all_test_rewards_myopic)
             all_test_rewards_proactive = np.array(all_test_rewards_proactive)
             all_test_rewards_reactive = np.array(all_test_rewards_reactive)
 
+            # Compute means and stds for cross validation arrays
             if all_test_rewards_myopic.size > 0:
                 myopic_test_mean = all_test_rewards_myopic.mean(axis=0)
                 myopic_test_std = all_test_rewards_myopic.std(axis=0)
@@ -254,7 +271,7 @@ def aggregate_results_and_plot(SEEDS, MAX_TOTAL_TIMESTEPS, brute_force_flag, cro
             else:
                 reactive_test_mean, reactive_test_std = [], []
 
-            # Determine min length to align all CV arrays
+            # Determine the minimum length among the arrays that are non-empty
             lengths = []
             if len(myopic_test_mean) > 0:
                 lengths.append(len(myopic_test_mean))
@@ -265,6 +282,7 @@ def aggregate_results_and_plot(SEEDS, MAX_TOTAL_TIMESTEPS, brute_force_flag, cro
 
             if lengths:
                 min_len = min(lengths)
+                # Slice all arrays to the minimum length
                 myopic_test_mean = myopic_test_mean[:min_len]
                 myopic_test_std = myopic_test_std[:min_len]
                 proactive_test_mean = proactive_test_mean[:min_len]
@@ -272,48 +290,117 @@ def aggregate_results_and_plot(SEEDS, MAX_TOTAL_TIMESTEPS, brute_force_flag, cro
                 reactive_test_mean = reactive_test_mean[:min_len]
                 reactive_test_std = reactive_test_std[:min_len]
 
-                # Calculate the steps at which cross validation was performed
-                cv_steps = np.arange(min_len) * CROSS_VAL_INTERVAL
+                cv_x = np.arange(min_len)
+            else:
+                # If all arrays are empty, skip plotting
+                continue
 
-                # Plot cross validation curves on the same axis
-                if len(proactive_test_mean) > 0:
-                    plt.plot(cv_steps, proactive_test_mean, label="CV DQN Proactive-U",
-                             linestyle='--', marker='.', color='orange', alpha=0.5)
-                    plt.fill_between(cv_steps,
-                                     proactive_test_mean - proactive_test_std,
-                                     proactive_test_mean + proactive_test_std,
-                                     alpha=0.2, color='orange')
+            # We do not have specific steps for cross validation measures, so we use their index
+            cv_x = np.arange(len(myopic_test_mean)) if len(myopic_test_mean) > 0 else np.array([])
 
-                if len(myopic_test_mean) > 0:
-                    plt.plot(cv_steps, myopic_test_mean, label="CV DQN Proactive-N",
-                             linestyle='--', marker='.', color='blue', alpha=0.5)
-                    plt.fill_between(cv_steps,
-                                     myopic_test_mean - myopic_test_std,
-                                     myopic_test_mean + myopic_test_std,
-                                     alpha=0.2, color='blue')
+            # Second plot - Cross validation curves
+            plt.figure(figsize=(12, 6))
 
-                if len(reactive_test_mean) > 0:
-                    plt.plot(cv_steps, reactive_test_mean, label="CV DQN Reactive",
-                             linestyle='--', marker='.', color='green', alpha=0.5)
-                    plt.fill_between(cv_steps,
-                                     reactive_test_mean - reactive_test_std,
-                                     reactive_test_mean + reactive_test_std,
-                                     alpha=0.2, color='green')
+            if len(proactive_test_mean) > 0:
+                plt.plot(cv_x, proactive_test_mean, label="CV DQN Proactive-U",
+                         linestyle='--', marker='.', color='orange', alpha=0.5)
+                plt.fill_between(cv_x,
+                                 proactive_test_mean - proactive_test_std,
+                                 proactive_test_mean + proactive_test_std,
+                                 alpha=0.2, color='orange')
 
-        plt.xlabel("Environment Steps (Frames)")
-        plt.ylabel("Episode Reward")
-        if len(SEEDS) > 1:
-            plt.title(f"Training and Cross Validation Rewards over {len(SEEDS)} Seeds ({stripped_scenario_folder})")
-        else:
-            plt.title(f"Training and Cross Validation Rewards ({stripped_scenario_folder})")
-        plt.legend(frameon=False)
-        plt.grid(True)
+            if len(myopic_test_mean) > 0:
+                plt.plot(cv_x, myopic_test_mean, label="CV DQN Proactive-N",
+                         linestyle='--', marker='.', color='blue', alpha=0.5)
+                plt.fill_between(cv_x,
+                                 myopic_test_mean - myopic_test_std,
+                                 myopic_test_mean + myopic_test_std,
+                                 alpha=0.2, color='blue')
 
-        plots_dir = f"{scenario_path}/plots"
-        os.makedirs(plots_dir, exist_ok=True)
-        combined_plot_file = os.path.join(plots_dir, f"averaged_rewards_over_steps_{stripped_scenario_folder}_combined.png")
-        plt.savefig(combined_plot_file)
-        print(f"Combined training and cross validation plot saved for scenario {stripped_scenario_folder} at {combined_plot_file}")
+            if len(reactive_test_mean) > 0:
+                plt.plot(cv_x, reactive_test_mean, label="CV DQN Reactive",
+                         linestyle='--', marker='.', color='green', alpha=0.5)
+                plt.fill_between(cv_x,
+                                 reactive_test_mean - reactive_test_std,
+                                 reactive_test_mean + reactive_test_std,
+                                 alpha=0.2, color='green')
+
+            plt.xlabel("Cross Validation Check Index")
+            plt.ylabel("Episode Reward (Cross Val)")
+            if len(SEEDS) > 1:
+                plt.title(f"Cross Validation Rewards over {len(SEEDS)} Seeds ({stripped_scenario_folder})")
+            else:
+                plt.title(f"Cross Validation Rewards ({stripped_scenario_folder})")
+            plt.legend(frameon=False)
+            plt.grid(True)
+
+            cv_plot_file = os.path.join(plots_dir, f"averaged_rewards_over_steps_{stripped_scenario_folder}_crossval.png")
+            plt.savefig(cv_plot_file)
+            print(f"Cross validation plot saved for scenario {stripped_scenario_folder} at {cv_plot_file}")
+
+            # Third plot - Combined training and cross validation curves
+            plt.figure(figsize=(12, 6))
+
+            # Plot training curves
+            if len(proactive_mean_sm) > 0:
+                plt.plot(proactive_steps_sm, proactive_mean_sm, label="Train DQN Proactive-U", color='orange')
+                plt.fill_between(proactive_steps_sm, 
+                                proactive_mean_sm - proactive_std_sm, 
+                                proactive_mean_sm + proactive_std_sm, 
+                                alpha=0.2, color='orange')
+
+            if len(myopic_mean_sm) > 0:
+                plt.plot(myopic_steps_sm, myopic_mean_sm, label="Train DQN Proactive-N", color='blue')
+                plt.fill_between(myopic_steps_sm, 
+                                myopic_mean_sm - myopic_std_sm, 
+                                myopic_mean_sm + myopic_std_sm, 
+                                alpha=0.2, color='blue')
+
+            if len(reactive_mean_sm) > 0:
+                plt.plot(reactive_steps_sm, reactive_mean_sm, label="Train DQN Reactive", color='green')
+                plt.fill_between(reactive_steps_sm, 
+                                reactive_mean_sm - reactive_std_sm, 
+                                reactive_mean_sm + reactive_std_sm, 
+                                alpha=0.2, color='green')
+
+            # Plot cross validation curves
+            if len(proactive_test_mean) > 0:
+                plt.plot(cv_x * CROSS_VAL_INTERVAL, proactive_test_mean, label="CV DQN Proactive-U",
+                        linestyle='--', marker='.', color='orange', alpha=0.5)
+                plt.fill_between(cv_x * CROSS_VAL_INTERVAL,
+                                proactive_test_mean - proactive_test_std,
+                                proactive_test_mean + proactive_test_std,
+                                alpha=0.2, color='orange')
+
+            if len(myopic_test_mean) > 0:
+                plt.plot(cv_x * CROSS_VAL_INTERVAL, myopic_test_mean, label="CV DQN Proactive-N",
+                        linestyle='--', marker='.', color='blue', alpha=0.5)
+                plt.fill_between(cv_x * CROSS_VAL_INTERVAL,
+                                myopic_test_mean - myopic_test_std,
+                                myopic_test_mean + myopic_test_std,
+                                alpha=0.2, color='blue')
+
+            if len(reactive_test_mean) > 0:
+                plt.plot(cv_x * CROSS_VAL_INTERVAL, reactive_test_mean, label="CV DQN Reactive",
+                        linestyle='--', marker='.', color='green', alpha=0.5)
+                plt.fill_between(cv_x * CROSS_VAL_INTERVAL,
+                                reactive_test_mean - reactive_test_std,
+                                reactive_test_mean + reactive_test_std,
+                                alpha=0.2, color='green')
+
+            plt.xlabel("Environment Steps (Frames)")
+            plt.ylabel("Episode Reward")
+            if len(SEEDS) > 1:
+                plt.title(f"Training and Cross Validation Rewards over {len(SEEDS)} Seeds ({stripped_scenario_folder})")
+            else:
+                plt.title(f"Training and Cross Validation Rewards ({stripped_scenario_folder})")
+            plt.legend(frameon=False)
+            plt.grid(True)
+
+            combined_plot_file = os.path.join(plots_dir, f"averaged_rewards_over_steps_{stripped_scenario_folder}_combined.png")
+            plt.savefig(combined_plot_file)
+            print(f"Combined training and cross validation plot saved for scenario {stripped_scenario_folder} at {combined_plot_file}")
+
 
 
 if __name__ == "__main__":
@@ -323,14 +410,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Common configuration
-    MAX_TOTAL_TIMESTEPS = 25000
-    SEEDS = [25] 
+    MAX_TOTAL_TIMESTEPS = 1000000
+    SEEDS = [72] 
     brute_force_flag = False
     cross_val_flag = True
     early_stopping_flag = False
-    CROSS_VAL_INTERVAL = 2
+    CROSS_VAL_INTERVAL = 20
     printing_intermediate_results = False
-    save_folder = "03-novel-run"
+    save_folder = "06-novel-run"
     TESTING_FOLDERS_PATH = "data/Testing/6ac-700-diverse/"
 
     if not os.path.exists(save_folder):
