@@ -7,6 +7,10 @@ from src.config import *
 from scripts.utils import *
 import time
 import random
+import gurobipy as gp
+from gurobipy import GRB
+from typing import Dict, List, Tuple
+import os
 
 class AircraftDisruptionEnv(gym.Env):
     def __init__(self, aircraft_dict, flights_dict, rotations_dict, alt_aircraft_dict, config_dict, env_type):
@@ -2032,3 +2036,151 @@ class AircraftDisruptionEnv(gym.Env):
         flight_action = index // (len(self.aircraft_ids) + 1)
         aircraft_action = index % (len(self.aircraft_ids) + 1)
         return flight_action, aircraft_action
+
+class AircraftDisruptionOptimizer(AircraftDisruptionEnv):
+    def __init__(self, aircraft_dict, flights_dict, rotations_dict, alt_aircraft_dict, config_dict):
+        # Initialize the environment with 'myopic' type (since we want to see all conflicts)
+        super().__init__(aircraft_dict, flights_dict, rotations_dict, alt_aircraft_dict, config_dict, env_type='myopic')
+        
+        # Initialize solution tracking
+        self.solution = {
+            "objective_value": 0,
+            "assignments": {},
+            "cancellations": [],
+            "delays": {},
+            "total_delay_minutes": 0,
+            "statistics": {
+                "runtime": 0,
+                "gap": 0,
+                "node_count": 0,
+                "status": "In Progress"
+            }
+        }
+        
+        # Track start time for runtime calculation
+        self.start_time = None
+        
+        # Track action history
+        self.action_history = []
+        
+
+    def solve(self):
+        """Solve the problem step by step using the environment's mechanics"""
+        self.start_time = time.time()
+        observation, _ = self.reset()  # Reset environment to initial state
+        
+        terminated = False
+        total_reward = 0
+        step_count = 0
+        
+        while not terminated:
+            step_count += 1
+            print(f"\nStep {step_count}:")
+            
+            # Get current conflicts
+            conflicts = self.get_current_conflicts()
+            print(f"Current conflicts: {conflicts}")
+            
+            if not conflicts:
+                # No conflicts - take no action
+                action = self.map_action_to_index(0, 0)  # No-op action
+                print("No conflicts - taking no-op action (0, 0)")
+            else:
+                # Choose the best action for the current state using valid action mask
+                action = self.select_best_action()
+                flight_action, aircraft_action = self.map_index_to_action(action)
+                print(f"Selected action: index={action} (flight={flight_action}, aircraft={aircraft_action})")
+            
+            # Take the action in the environment
+            observation, reward, terminated, truncated, info = self.step(action)
+            total_reward += reward
+            print(f"Action result: reward={reward}, terminated={terminated}")
+            
+            # Record action history
+            flight_action, aircraft_action = self.map_index_to_action(action)
+            self.action_history.append({
+                'step': step_count,
+                'action_index': action,
+                'flight': flight_action,
+                'aircraft': aircraft_action,
+                'reward': reward,
+                'conflicts': len(conflicts)
+            })
+            
+            # Update solution based on the action taken
+            self.update_solution(info)
+        
+        # Print action history summary
+        print("\nAction History Summary:")
+        print("----------------------")
+        print(f"{'Step':>4} | {'Flight':>6} | {'Aircraft':>8} | {'Reward':>8} | {'Conflicts':>9}")
+        print("-" * 45)
+        for entry in self.action_history:
+            print(f"{entry['step']:4d} | {entry['flight']:6} | {entry['aircraft']:8} | {entry['reward']:8.1f} | {entry['conflicts']:9d}")
+        print("-" * 45)
+        print(f"Total Reward: {total_reward:.1f}")
+        
+        # Finalize solution
+        self.solution["objective_value"] = -total_reward  # Convert reward to cost
+        self.solution["statistics"]["runtime"] = time.time() - self.start_time
+        self.solution["statistics"]["status"] = "Complete"
+        
+        return self.solution
+
+    def select_best_action(self):
+        """Select the best action from the valid action space using a greedy heuristic"""
+        best_action = None
+        best_score = float('-inf')
+        
+        # Get valid actions using the environment's action mask
+        action_mask = self.get_action_mask()
+        valid_actions = np.where(action_mask == 1)[0]
+        print(f"\nEvaluating {len(valid_actions)} valid actions:")
+        
+        # Try each valid action and evaluate its impact
+        for action in valid_actions:
+            flight_action, aircraft_action = self.map_index_to_action(action)
+            # Create a copy of the environment to simulate the action
+            env_copy = copy.deepcopy(self)
+            
+            # Take the action in the copied environment
+            _, reward, _, _, _ = env_copy.step(action)
+            
+            print(f"  Action {action} (flight={flight_action}, aircraft={aircraft_action}): reward={reward}")
+            
+            # Update best action if this one has better reward
+            if reward > best_score:
+                best_score = reward
+                best_action = action
+                print(f"    -> New best action (reward={reward})")
+        
+        # If no good action found, take no action (should be included in valid_actions)
+        if best_action is None:
+            best_action = self.map_action_to_index(0, 0)
+            print("No good action found, defaulting to no-op action (0, 0)")
+        else:
+            flight_action, aircraft_action = self.map_index_to_action(best_action)
+            print(f"\nChosen best action: index={best_action} (flight={flight_action}, aircraft={aircraft_action}) with reward={best_score}")
+        
+        return best_action
+
+    def update_solution(self, info):
+        """Update the solution dictionary based on the action taken"""
+        # Update cancellations
+        if 'cancelled_flights_count' in info and info['cancelled_flights_count'] > 0:
+            self.solution['cancellations'] = list(self.cancelled_flights)
+        
+        # Update assignments
+        if 'flight_action' in info and 'aircraft_action' in info:
+            flight_id = info['flight_action']
+            aircraft_idx = info['aircraft_action']
+            if flight_id != 0 and aircraft_idx != 0:
+                aircraft_id = self.aircraft_ids[aircraft_idx - 1]
+                if aircraft_id != self.rotations_dict[flight_id]['Aircraft']:
+                    self.solution['assignments'][flight_id] = aircraft_id
+        
+        # Update delays
+        if self.environment_delayed_flights:
+            self.solution['delays'] = {k: v for k, v in self.environment_delayed_flights.items()}
+            self.solution['total_delay_minutes'] = sum(self.environment_delayed_flights.values())
+            
