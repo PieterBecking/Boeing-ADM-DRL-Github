@@ -2040,7 +2040,7 @@ class AircraftDisruptionEnv(gym.Env):
 class AircraftDisruptionOptimizer(AircraftDisruptionEnv):
     def __init__(self, aircraft_dict, flights_dict, rotations_dict, alt_aircraft_dict, config_dict):
         # Initialize the environment with 'myopic' type (since we want to see all conflicts)
-        super().__init__(aircraft_dict, flights_dict, rotations_dict, alt_aircraft_dict, config_dict, env_type='myopic')
+        super().__init__(aircraft_dict, flights_dict, rotations_dict, alt_aircraft_dict, config_dict, env_type='reactive')
         
         # Initialize solution tracking
         self.solution = {
