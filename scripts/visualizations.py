@@ -14,7 +14,7 @@ import re  # Make sure to import re at the top
 # StatePlotter class for visualizing the state of the environment
 class StatePlotter:
     def __init__(self, aircraft_dict, flights_dict, rotations_dict, alt_aircraft_dict, start_datetime, end_datetime, 
-                 uncertain_breakdowns=None, offset_baseline=0, offset_id_number=-0.05, offset_delayed_flight=0, offset_marker_minutes=4):
+                 uncertain_breakdowns=None, offset_baseline=0, offset_id_number=-0.05, offset_delayed_flight=0, offset_marker_minutes=4, plot_title=None):
         self.aircraft_dict = aircraft_dict
         self.initial_flights_dict = flights_dict
         self.rotations_dict = rotations_dict
@@ -30,7 +30,7 @@ class StatePlotter:
         self.offset_id_number = offset_id_number
         self.offset_delayed_flight = offset_delayed_flight
         self.offset_marker_minutes = offset_marker_minutes
-
+        self.plot_title = plot_title
         # Define the sorting key function
         def extract_sort_key(aircraft_id):
             letters = ''.join(re.findall(r'[A-Za-z]+', aircraft_id))
@@ -257,7 +257,10 @@ class StatePlotter:
 
         plt.xlabel('Time')
         plt.ylabel('Aircraft')
-        title = f'Aircraft Rotations and Unavailability {title_appendix.title()}'
+        if self.plot_title:
+            title = f"Aircraft rotations and unavailability {self.plot_title}"  
+        else:
+            title = f'Aircraft Rotations and Unavailability {title_appendix.title()}'
         if reward_and_action:
             title += f' (Reward: {reward_and_action[0]:.2f}, Action: (flight: {reward_and_action[1][0]}, aircraft: {reward_and_action[1][1]}), Total Reward: {reward_and_action[2]:.2f})'
         plt.title(title)

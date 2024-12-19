@@ -123,135 +123,11 @@ def parse_time_with_day_offset(time_str, reference_date):
             parsed_time += timedelta(days=1)
             
         return parsed_time
-
-
-
 # Print state
-def print_state_nicely_myopic(state):
+def print_state_nicely(state, env_type):
     # First print the information row in tabular form
     info_row = state[0]
-    # print("\nSimulation Info:")
-    # print("┌────────────────────┬────────────────────┬────────────────────┬────────────────────┐")
-    print("│ Target Aircraft    │ Target Flight      │ Current Time       │ Time Until End     │")
-    # print("├────────────────────┼────────────────────┼────────────────────┼────────────────────┤")
-    print(f"│ {int(info_row[0]) if not np.isnan(info_row[0]) else '-':^19}│ "
-          f"{int(info_row[1]) if not np.isnan(info_row[1]) else '-':^19}│ "
-          f"{int(info_row[2]) if not np.isnan(info_row[2]) else '-':^19}│ "
-          f"{int(info_row[3]) if not np.isnan(info_row[3]) else '-':^19}│")
-    # print("└────────────────────┴────────────────────┴────────────────────┴────────────────────┘")
-    print("")  # Empty line for separation
-    
-    # Define column widths with extra space for non-flight headers
-    ac_width = 4
-    prob_width = 6
-    start_width = 6
-    end_width = 5
-    flight_width = 5
-    time_width = 5
-    
-    # Generate headers dynamically with proper spacing
-    headers = [
-        f"{'AC':>{ac_width}}", 
-        f"{'Prob':>{prob_width}}", 
-        f"{'Start':>{start_width}}", 
-        f"{'End':>{end_width}}"
-    ]
-    
-    # Add flight headers with proper spacing
-    for i in range(1, MAX_FLIGHTS_PER_AIRCRAFT + 1):
-        headers.extend([
-            f"| {'F'+str(i):>{flight_width}}", 
-            f"{'Dep'+str(i):>{time_width}}", 
-            f"{'Arr'+str(i):>{time_width}}"
-        ])
-    
-    # Print headers
-    print(" ".join(headers))
-    
-    # Print state rows with matching alignment
-    formatted_rows = []
-    for row in state[1:]:
-        formatted_values = []
-        for i, x in enumerate(row):
-            # Add vertical line before flight groups
-            if i >= 4 and (i - 4) % 3 == 0:
-                formatted_values.append("|")
-                
-            if np.isnan(x):
-                formatted_values.append(f"{'-':>{time_width}}" if i >= 4 else 
-                                     f"{'-':>{ac_width}}" if i == 0 else
-                                     f"{'-':>{prob_width}}" if i == 1 else
-                                     f"{'-':>{start_width}}" if i == 2 else
-                                     f"{'-':>{end_width}}")
-            else:
-                if i == 0:  # Aircraft index
-                    formatted_values.append(f"{float(x):>{ac_width}.0f}")
-                elif i == 1:  # Probability
-                    formatted_values.append(f"{float(x):>{prob_width}.2f}")
-                elif i == 2:  # Start time
-                    formatted_values.append(f"{float(x):>{start_width}.0f}")
-                elif i == 3:  # End time
-                    formatted_values.append(f"{float(x):>{end_width}.0f}")
-                else:  # Flight numbers and times
-                    formatted_values.append(f"{float(x):>{time_width}.0f}")
-        formatted_rows.append(" ".join(formatted_values))
-    
-    print('\n'.join(formatted_rows))
-
-import numpy as np
-import matplotlib.pyplot as plt
-
-MAX_FLIGHTS_PER_AIRCRAFT = 3  # Adjust as needed
-
-def plot_state_nicely_proactive(state, max_flights, output_path='state_table.png'):
-    info_row = state[0]
-    
-    # Build column headers
-    headers = ["AC", "Prob", "Start", "End"]
-    for i in range(1, max_flights + 1):
-        headers.extend([f"F{i}", f"Dep{i}", f"Arr{i}"])
-        
-    # Prepare data rows for the table (excluding the info row)
-    data_rows = []
-    for row in state[1:]:
-        formatted_row = []
-        for i, x in enumerate(row):
-            if np.isnan(x):
-                cell_value = '-'
-            else:
-                if i == 0:  # Aircraft index
-                    cell_value = f"{int(x)}"
-                elif i == 1:  # Probability
-                    cell_value = f"{float(x):.2f}"
-                else:
-                    cell_value = f"{int(x)}"
-            formatted_row.append(cell_value)
-        data_rows.append(formatted_row)
-    
-    # Create a new figure
-    fig, ax = plt.subplots(figsize=(12, 6))
-    ax.set_axis_off()
-    
-    # Create a table in the figure
-    table = ax.table(cellText=data_rows, colLabels=headers, loc='center')
-    table.auto_set_font_size(False)
-    table.set_fontsize(10)
-    table.scale(1, 1.5)
-    
-    # Add title with info row data
-    time_str = f"Current Time: {int(info_row[0]) if not np.isnan(info_row[0]) else '-'} | " \
-               f"Time Until End: {int(info_row[1]) if not np.isnan(info_row[1]) else '-'}"
-    ax.set_title(time_str, fontsize=14, pad=20)
-    
-    # Save the figure to a PNG file
-    plt.savefig(output_path, bbox_inches='tight')
-    plt.close(fig)
-
-# Print state
-def print_state_nicely_proactive(state):
-    # First print the information row in tabular form
-    info_row = state[0]
-    # print("\nSimulation Info:")
+    print("\nState for: ", env_type)
     # print("┌────────────────────┬────────────────────┬────────────────────┬────────────────────┐")
     print("│ Current Time       │ Time Until End     │   ")
     # print("├────────────────────┼────────────────────┼────────────────────┼────────────────────┤")
@@ -289,9 +165,26 @@ def print_state_nicely_proactive(state):
     
     # Print state rows with matching alignment
     formatted_rows = []
+    current_time = info_row[0] if not np.isnan(info_row[0]) else 0
+    
     for row in state[1:]:
         formatted_values = []
         for i, x in enumerate(row):
+            # For myopic env, mask disruption info if probability is not 1.00
+            if env_type == 'myopic' and i in [1,2,3]:
+                if i == 1 and x != 1.0 and not np.isnan(x):
+                    x = np.nan
+                if i in [2,3] and not np.isnan(row[1]) and row[1] != 1.0:
+                    x = np.nan
+            
+            # For reactive env, mask disruption info if start time is after current time
+            if env_type == 'reactive' and i in [1,2,3]:
+                if not np.isnan(row[2]) and row[2] > current_time:
+                    if i == 1:
+                        x = np.nan
+                    if i in [2,3]:
+                        x = np.nan
+                    
             # Add vertical line before flight groups
             if i >= 4 and (i - 4) % 3 == 0:
                 formatted_values.append("|")
@@ -306,7 +199,10 @@ def print_state_nicely_proactive(state):
                 if i == 0:  # Aircraft index
                     formatted_values.append(f"{float(x):>{ac_width}.0f}")
                 elif i == 1:  # Probability
-                    formatted_values.append(f"{float(x):>{prob_width}.2f}")
+                    if x == 0.0:
+                        formatted_values.append(f"{'-':>{prob_width}}")
+                    else:
+                        formatted_values.append(f"{float(x):>{prob_width}.2f}")
                 elif i == 2:  # Start time
                     formatted_values.append(f"{float(x):>{start_width}.0f}")
                 elif i == 3:  # End time
@@ -321,7 +217,7 @@ def print_state_semi_raw(state):
     info_row = state[0]
     print(info_row)
 
-def print_state_raw(state):
+def print_state_raw(state, env_type):
     print(state)
 
 # Parsing all the data files

@@ -7,8 +7,6 @@ from src.config import *
 from scripts.utils import *
 import time
 import random
-import gurobipy as gp
-from gurobipy import GRB
 from typing import Dict, List, Tuple
 import os
 
@@ -130,6 +128,7 @@ class AircraftDisruptionEnv(gym.Env):
 
         # Initialize eligible flights for conflict resolution bonus
         self.eligible_flights_for_resolved_bonus = self.get_initial_conflicts()
+        self.eligible_flights_for_not_being_cancelled_when_disruption_happens = self.get_initial_conflicts_with_deptime_before_unavail_start()
 
         self.scenario_wide_delay_minutes = 0
         self.scenario_wide_cancelled_flights = 0
@@ -355,7 +354,7 @@ class AircraftDisruptionEnv(gym.Env):
             'state': state_flat,
             'action_mask': action_mask
         }
-        return obs_with_mask
+        return obs_with_mask, state_to_observe
 
     
     def fix_state(self, state):
@@ -400,7 +399,7 @@ class AircraftDisruptionEnv(gym.Env):
 
         # Print the current state if in debug mode
         if DEBUG_MODE_PRINT_STATE:
-            print_state_nicely_proactive(self.state)
+            print_state_nicely(self.state, self.env_type)
             print("")
 
         # Extract the action values from the action
@@ -448,7 +447,7 @@ class AircraftDisruptionEnv(gym.Env):
             processed_state, reward, terminated, truncated, info = self.handle_flight_operations(flight_action, aircraft_action, pre_action_conflicts)
 
         # Update the processed state after processing uncertainties
-        processed_state = self.process_observation(self.state)
+        processed_state, _ = self.process_observation(self.state)
 
         terminated = self.check_termination_criteria()
         if DEBUG_MODE_STOPPING_CRITERIA:
@@ -567,11 +566,12 @@ class AircraftDisruptionEnv(gym.Env):
                 # Cap probabilities at [0.05, 0.95]
                 new_prob = max(0.05, min(0.95, new_prob))
                 self.unavailabilities_dict[aircraft_id]['Probability'] = new_prob
+                self.alt_aircraft_dict[aircraft_id]['Probability'] = new_prob
+                # print(f"*** new_prob: {new_prob}")
 
-                new_prob = prob
                 if self.env_type == "proactive":
                     self.state[idx + 1, 1] = new_prob
-
+                    # print(f"*** updated proactive state: {self.state[idx + 1, 1]}")
 
                 if DEBUG_MODE:
                     print(f"Aircraft {aircraft_id}: Probability updated from {prob:.2f} to {new_prob:.2f}")
@@ -622,8 +622,10 @@ class AircraftDisruptionEnv(gym.Env):
                     # Update alt_aircraft_dict if necessary
                     if aircraft_id in self.alt_aircraft_dict:
                         if isinstance(self.alt_aircraft_dict[aircraft_id], dict):
+                            # print("*** alt_aircraft_dict[aircraft_id] is a dict")
                             self.alt_aircraft_dict[aircraft_id] = [self.alt_aircraft_dict[aircraft_id]]
                         elif isinstance(self.alt_aircraft_dict[aircraft_id], str):
+                            # print("*** alt_aircraft_dict[aircraft_id] is a string")
                             # Handle case where entry is a string
                             self.alt_aircraft_dict[aircraft_id] = [{
                                 'StartDate': breakdown_start_time.strftime('%d/%m/%y'),
@@ -634,6 +636,7 @@ class AircraftDisruptionEnv(gym.Env):
                             }]
                         for breakdown_info in self.alt_aircraft_dict[aircraft_id]:
                             breakdown_info['Probability'] = self.state[idx + 1, 1]
+                            # print(f"*** breakdown_info['Probability']: {breakdown_info['Probability']}")
 
                     # print("state after rolling the dice:")
                     # if self.env_type == "proactive":
@@ -665,7 +668,7 @@ class AircraftDisruptionEnv(gym.Env):
             if terminated:
                 if DEBUG_MODE_STOPPING_CRITERIA:
                     print(f"Episode ended: {reason}")
-                processed_state = self.process_observation(self.state)
+                processed_state, _ = self.process_observation(self.state)
                 truncated = False
                 # print("*** 1")
                 reward = self._calculate_reward(set(), set(), flight_action, aircraft_action, original_flight_action_departure_time, terminated)
@@ -688,7 +691,7 @@ class AircraftDisruptionEnv(gym.Env):
         reward = self._calculate_reward(set(), set(), flight_action, aircraft_action, original_flight_action_departure_time, done)
 
 
-        processed_state = self.process_observation(self.state)
+        processed_state, _ = self.process_observation(self.state)
 
         if terminated:
             if DEBUG_MODE_STOPPING_CRITERIA:
@@ -749,7 +752,7 @@ class AircraftDisruptionEnv(gym.Env):
                 if DEBUG_MODE_STOPPING_CRITERIA:
                     print(f"Episode ended: {reason}")
 
-            processed_state = self.process_observation(self.state)
+            processed_state, _ = self.process_observation(self.state)
             return processed_state, reward, terminated, truncated, {}
         elif aircraft_action == 0:
             # Cancel the flight
@@ -775,7 +778,7 @@ class AircraftDisruptionEnv(gym.Env):
                 if DEBUG_MODE_STOPPING_CRITERIA:
                     print(f"Episode ended: {reason}")
 
-            processed_state = self.process_observation(self.state)
+            processed_state, _ = self.process_observation(self.state)
             return processed_state, reward, terminated, truncated, {}
         else:
             # Reschedule the flight to the selected aircraft
@@ -800,7 +803,7 @@ class AircraftDisruptionEnv(gym.Env):
                 # print("*** 5")
                 reward = self._calculate_reward(pre_action_conflicts, pre_action_conflicts, flight_action, aircraft_action, original_flight_action_departure_time, done)
 
-                processed_state = self.process_observation(self.state)
+                processed_state, _ = self.process_observation(self.state)
                 return processed_state, reward, terminated, truncated, {}
 
             current_aircraft_id = self.rotations_dict[selected_flight_id]['Aircraft']
@@ -876,7 +879,7 @@ class AircraftDisruptionEnv(gym.Env):
                 if DEBUG_MODE_STOPPING_CRITERIA:
                     print(f"Episode ended: {reason}")
 
-            processed_state = self.process_observation(self.state)
+            processed_state, _ = self.process_observation(self.state)
             # print("*** returning: ", processed_state, reward, terminated, truncated, {})
             return processed_state, reward, terminated, truncated, {}
 
@@ -1651,7 +1654,7 @@ class AircraftDisruptionEnv(gym.Env):
         self.eligible_flights_for_resolved_bonus = self.get_initial_conflicts()
 
         # Process the state into an observation as a NumPy array
-        processed_state = self.process_observation(self.state)
+        processed_state, _ = self.process_observation(self.state)
 
         if DEBUG_MODE:
             print(f"State space shape: {self.state.shape}")
@@ -1699,6 +1702,50 @@ class AircraftDisruptionEnv(gym.Env):
                             initial_conflicts.add(conflict_identifier)
 
         return initial_conflicts
+
+
+    def get_initial_conflicts_with_deptime_before_unavail_start(self):
+        """Retrieves the initial conflicts in the environment.
+
+        This function checks for conflicts between flights and unavailability periods,
+        considering unavailabilities with probability greater than 0.0.
+
+        Returns:
+            set: A set of conflicts currently present in the initial state of the environment.
+        """
+        initial_conflicts = set()
+
+        for idx, aircraft_id in enumerate(self.aircraft_ids):
+            if idx >= self.max_aircraft:
+                break
+
+            breakdown_probability = self.unavailabilities_dict[aircraft_id]['Probability']
+            if breakdown_probability <= 0.0 or np.isnan(breakdown_probability):
+                continue  # Only consider unavailabilities with probability > 0.0
+
+            unavail_start = self.unavailabilities_dict[aircraft_id]['StartTime']
+            unavail_end = self.unavailabilities_dict[aircraft_id]['EndTime']
+
+            if not np.isnan(unavail_start) and not np.isnan(unavail_end):
+                # Check for conflicts between flights and unavailability periods
+                for j in range(4, self.columns_state_space - 2, 3):
+                    flight_id = self.state[idx + 1, j]
+                    flight_dep = self.state[idx + 1, j + 1]
+                    flight_arr = self.state[idx + 1, j + 2]
+
+                    if not np.isnan(flight_dep) and not np.isnan(flight_arr):
+                        # Skip cancelled flights
+                        if flight_id in self.cancelled_flights:
+                            continue
+
+                        # Check for overlaps with unavailability periods
+                        if flight_dep < unavail_end and flight_arr > unavail_start:
+                            if flight_dep < unavail_start:
+                                conflict_identifier = (aircraft_id, flight_id)
+                                initial_conflicts.add(conflict_identifier)
+
+        return initial_conflicts
+
 
     def get_current_conflicts(self):
         """Retrieves the current conflicts in the environment.
