@@ -2239,13 +2239,13 @@ class AircraftDisruptionOptimizer(AircraftDisruptionEnv):
             # Take the action in the copied environment
             _, reward, _, _, _ = env_copy.step(action)
             
-            # print(f"  Action {action} (flight={flight_action}, aircraft={aircraft_action}): reward={reward}")
+            print(f"  Action {action} (flight={flight_action}, aircraft={aircraft_action}): reward={reward}")
             
             # Update best action if this one has better reward
             if reward > best_score:
                 best_score = reward
                 best_action = action
-                # print(f"    -> New best action (reward={reward})")
+                print(f"    -> New best action (reward={reward})")
         
         # If no good action found, take no action (should be included in valid_actions)
         if best_action is None:
@@ -2253,7 +2253,7 @@ class AircraftDisruptionOptimizer(AircraftDisruptionEnv):
             # print("No good action found, defaulting to no-op action (0, 0)")
         else:
             flight_action, aircraft_action = self.map_index_to_action(best_action)
-            # print(f"\nChosen best action: index={best_action} (flight={flight_action}, aircraft={aircraft_action}) with reward={best_score}")
+            print(f"\nChosen best action: index={best_action} (flight={flight_action}, aircraft={aircraft_action}) with reward={best_score}")
         
         return best_action
 
