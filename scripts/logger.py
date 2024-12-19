@@ -55,12 +55,12 @@ def log_scenario_folder(logs_id, scenario_folder_path, inputs, outputs):
         "outputs": outputs
     }
 
-    log_file_path = os.path.join("../logs", "scenarios", f"scenario_folder_{logs_id}.json")
+    log_file_path = os.path.join("..\logs", "scenarios", f"scenario_folder_{logs_id}.json")
 
-    with open(log_file_path, 'w') as log_file:
-        json.dump(log_data, log_file, indent=4)
+    # with open(log_file_path, 'w') as log_file:
+    #     json.dump(log_data, log_file, indent=4)
 
-    print(f"Scenario logged to {log_file_path}")
+    print(f"Scenario not logged to {log_file_path}")
 
 def mark_log_as_finished(logs_id, additional_info=None):
     """

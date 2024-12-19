@@ -417,7 +417,7 @@ if __name__ == "__main__":
     early_stopping_flag = False
     CROSS_VAL_INTERVAL = 10
     printing_intermediate_results = False
-    save_folder = "07-novel-run"
+    save_folder = "107-novel-run"
     TESTING_FOLDERS_PATH = "data/Testing/6ac-700-diverse/"
 
     if not os.path.exists(save_folder):
@@ -444,7 +444,6 @@ if __name__ == "__main__":
         config_df.to_csv(f"{save_folder}/config.csv", index=False)
 
         start_time = time.time()
-
         processes = []
         for seed in SEEDS:
             cmd = [
