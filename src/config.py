@@ -21,16 +21,17 @@ DUMMY_VALUE = -999  # Dummy value for padding
 
 
 # Reward and Penalty Values
-RESOLVED_CONFLICT_REWARD = 5000     # Reward for resolving a conflict
-DELAY_MINUTE_PENALTY = 11.5           # Penalty per minute of delay
-MAX_DELAY_PENALTY = 2500            # Maximum penalty for delay
-NO_ACTION_PENALTY = 0               # Penalty for no action while conflict(s) exist
-CANCELLED_FLIGHT_PENALTY = 5000    # Penalty for cancelling a flight
-LAST_MINUTE_THRESHOLD = 120           # Threshold for last-minute changes in minutes
-LAST_MINUTE_FLIGHT_PENALTY = 455      # Penalty for last-minute flight changes  
-AHEAD_BONUS_PER_MINUTE = 0.1                # Reward for proactive flight changes
-TIME_MINUTE_PENALTY = 1                 # penalty for every minute passed, each timestep cumulatively
-TERMINATION_REWARD = 500                  # Reward for terminating the episode
+RESOLVED_CONFLICT_REWARD = 1000     # Reward for resolving a conflict
+DELAY_MINUTE_PENALTY = 5           # Penalty per minute of delay
+MAX_DELAY_PENALTY = 25000000            # Maximum penalty for delay
+NO_ACTION_PENALTY = 1               # Penalty for no action while conflict(s) exist
+CANCELLED_FLIGHT_PENALTY = 1000    # Penalty for cancelling a flight
+LAST_MINUTE_THRESHOLD = 0           # Threshold for last-minute changes in minutes
+LAST_MINUTE_FLIGHT_PENALTY = 0      # Penalty for last-minute flight changes  
+AHEAD_BONUS_PER_MINUTE = 0                # Reward for proactive flight changes
+TIME_MINUTE_PENALTY = 0                 # penalty for every minute passed, each timestep cumulatively
+TERMINATION_REWARD = 0                  # Reward for terminating the episode
+TAIL_SWAP_COST = 100
 
 
 # Environment Settings
@@ -39,7 +40,7 @@ MIN_BREAKDOWN_PROBABILITY = 0
 # Logging and Debug Settings
 DEBUG_MODE = False # Turn on/off debug mode
 DEBUG_MODE_TRAINING = False  # Turn on/off debug mode for training
-DEBUG_MODE_REWARD = False  # Turn on/off debug mode for reward calculation
+DEBUG_MODE_REWARD = True  # Turn on/off debug mode for reward calculation
 DEBUG_MODE_PRINT_STATE = False         # Turn on/off debug mode for printing state
 DEBUG_MODE_CANCELLED_FLIGHT = False  # Turn on/off debug mode for cancelled flight
 DEBUG_MODE_VISUALIZATION = False

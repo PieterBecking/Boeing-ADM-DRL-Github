@@ -150,6 +150,9 @@ class AircraftDisruptionEnv(gym.Env):
             "final_conflict_resolution_reward": 0,
         }
 
+        # Initialize tail swap tracking
+        self.tail_swap_happened = False
+
     def _get_initial_state(self):
         """Initializes the state matrix for the environment.
         
@@ -967,6 +970,7 @@ class AircraftDisruptionEnv(gym.Env):
         current_ac_is_same_as_target_ac = aircraft_id == current_aircraft_id
         if not current_ac_is_same_as_target_ac:
             self.something_happened = True
+            self.tail_swap_happened = True  # Track that a tail swap occurred
 
         if DEBUG_MODE_SCHEDULING:
             print(f"current_ac_is_same_as_target_ac: {current_ac_is_same_as_target_ac}") 
@@ -1173,6 +1177,7 @@ class AircraftDisruptionEnv(gym.Env):
         4. Proactive Bonus: Reward for taking actions well before flight departure
         5. Time Penalty: Small penalty for each minute of simulation time
         6. Final Resolution Reward: Bonus for resolving real conflicts at scenario end
+        7. Tail Swap Penalty: Penalty for swapping a flight to a different aircraft
 
         Args:
             resolved_conflicts (set): The set of conflicts that were resolved during the action
@@ -1260,6 +1265,14 @@ class AircraftDisruptionEnv(gym.Env):
             # Calculate scenario-wide solution slack
             self._calculate_scenario_wide_solution_slack()
 
+        # 7. Tail Swap Penalty: Penalize swapping a flight to a different aircraft
+        tail_swap_penalty = TAIL_SWAP_COST if self.tail_swap_happened else 0
+        if DEBUG_MODE_REWARD and self.tail_swap_happened:
+            print(f"  -{tail_swap_penalty} penalty for tail swap")
+        
+        # Reset tail swap tracking for next step
+        self.tail_swap_happened = False
+
         # Update penalized delays for next iteration
         for flight_id, delay in self.environment_delayed_flights.items():
             self.penalized_delays[flight_id] = delay
@@ -1272,6 +1285,7 @@ class AircraftDisruptionEnv(gym.Env):
             + proactive_bonus
             - time_penalty
             + final_conflict_resolution_reward
+            - tail_swap_penalty
         )
 
         # Update scenario-wide reward components
@@ -1281,7 +1295,8 @@ class AircraftDisruptionEnv(gym.Env):
             "inaction_penalty": self.scenario_wide_reward_components["inaction_penalty"] - inaction_penalty,
             "proactive_bonus": self.scenario_wide_reward_components["proactive_bonus"] + proactive_bonus,
             "time_penalty": self.scenario_wide_reward_components["time_penalty"] - time_penalty,
-            "final_conflict_resolution_reward": self.scenario_wide_reward_components["final_conflict_resolution_reward"] + final_conflict_resolution_reward
+            "final_conflict_resolution_reward": self.scenario_wide_reward_components["final_conflict_resolution_reward"] + final_conflict_resolution_reward,
+            "tail_swap_penalty": self.scenario_wide_reward_components.get("tail_swap_penalty", 0) - tail_swap_penalty
         })
 
         # Store reward components in state
@@ -1319,6 +1334,7 @@ class AircraftDisruptionEnv(gym.Env):
             "flight_action": flight_action,
             "aircraft_action": aircraft_action,
             "original_departure_time": original_flight_action_departure_time,
+            "tail_swap_penalty": tail_swap_penalty
         }
 
         return reward
