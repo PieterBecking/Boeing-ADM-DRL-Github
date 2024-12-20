@@ -360,10 +360,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Common configuration
-    MAX_TOTAL_TIMESTEPS = 50000
-    SEEDS = [1023, 1024, 1025] 
+    MAX_TOTAL_TIMESTEPS = 500000
+    SEEDS = [1]
     brute_force_flag = False
-    cross_val_flag = True
+    cross_val_flag = False
     early_stopping_flag = False
     CROSS_VAL_INTERVAL = 2
     printing_intermediate_results = False
@@ -377,8 +377,8 @@ if __name__ == "__main__":
         # "data/Training/6ac-100-stochastic-low/",
         # "data/Training/6ac-100-stochastic-medium/",
         # "data/Training/6ac-100-stochastic-high/",
-        "data/Training/6ac-700-diverse/",
-        # "data/Training/3ac-5-deterministic-na/",
+        # "data/Training/6ac-700-diverse/",
+        "data/Training/3ac-5-deterministic-na/",
     ]
 
     if args.seed is None and args.training_folder is None:
