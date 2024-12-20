@@ -954,7 +954,8 @@ class AircraftDisruptionEnv(gym.Env):
             unavail_end_time = float(unavail_end)
             
             # Check for any overlap between flight and unavailability period
-            if max(flight_start, unavail_start_time) < min(flight_end, unavail_end_time):
+            # A flight overlaps if it doesn't end before the disruption starts
+            if flight_end > unavail_start_time:
                 has_unavail_overlap = True
                 
             if DEBUG_MODE_SCHEDULING:
@@ -963,8 +964,6 @@ class AircraftDisruptionEnv(gym.Env):
                 print(f"Unavail: {unavail_start_time} -> {unavail_end_time}")
                 print(f"Overlap detected: {has_unavail_overlap}")
 
-
-
         current_ac_is_same_as_target_ac = aircraft_id == current_aircraft_id
         if not current_ac_is_same_as_target_ac:
             self.something_happened = True
@@ -972,110 +971,14 @@ class AircraftDisruptionEnv(gym.Env):
         if DEBUG_MODE_SCHEDULING:
             print(f"current_ac_is_same_as_target_ac: {current_ac_is_same_as_target_ac}") 
 
+        # If flight is on current aircraft and completes before disruption, keep it there
         if current_ac_is_same_as_target_ac and not has_unavail_overlap:
-            if not secondary:
-                self.something_happened = False
-                return
-            else:
-                # HERERERERE - Implementing similar logic as the bottom half:
-                if DEBUG_MODE_SCHEDULING:
-                    print("    No unavailability overlap and current aircraft is the same as target aircraft - Checking for conflicts")
-
-            # Gather currently scheduled flights for conflict detection
-            scheduled_flights = []
-            for j in range(4, self.columns_state_space - 2, 3):
-                existing_flight_id = self.state[aircraft_idx, j]
-                existing_dep_time = self.state[aircraft_idx, j + 1]
-                existing_arr_time = self.state[aircraft_idx, j + 2]
-                if (not np.isnan(existing_flight_id) and
-                    not np.isnan(existing_dep_time) and
-                    not np.isnan(existing_arr_time)):
-                    scheduled_flights.append((existing_flight_id, existing_dep_time, existing_arr_time))
-
-            # Check for conflicts with existing flights
-            for existing_flight_id, existing_dep_time, existing_arr_time in scheduled_flights:
-                if existing_flight_id == flight_id:
-                    continue  # Skip the same flight
-                # Check overlap condition: If the new flight overlaps with an existing one
-                if dep_time < existing_arr_time + MIN_TURN_TIME and arr_time + MIN_TURN_TIME > existing_dep_time:
-                    # print(f"***Conflict detected between flights {flight_id} and {existing_flight_id}")
-
-                    # Retrieve original departure times
-                    original_new_dep_time = parse_time_with_day_offset(
-                        self.flights_dict[flight_id]['DepTime'], self.start_datetime
-                    )
-                    original_existing_dep_time = parse_time_with_day_offset(
-                        self.flights_dict[existing_flight_id]['DepTime'], self.start_datetime
-                    )
-
-                    # Convert to minutes from earliest_datetime
-                    new_flight_original_dep_minutes = (original_new_dep_time - self.earliest_datetime).total_seconds() / 60
-                    existing_flight_original_dep_minutes = (original_existing_dep_time - self.earliest_datetime).total_seconds() / 60
-
-                    # Compute delays needed
-                    delay_new_flight = max(0, (existing_arr_time + MIN_TURN_TIME) - dep_time)
-                    delay_existing_flight = max(0, (arr_time + MIN_TURN_TIME) - existing_dep_time)
-
-                    # Delay the flight with the later original departure time
-                    if new_flight_original_dep_minutes >= existing_flight_original_dep_minutes:
-                        # Delay the new flight
-                        dep_time += delay_new_flight
-                        dep_time = max(dep_time, original_dep_minutes)
-                        arr_time = dep_time + flight_duration
-
-                        total_delay = dep_time - original_dep_minutes
-                        self.environment_delayed_flights[flight_id] = self.environment_delayed_flights.get(flight_id, 0) + total_delay
-                        # print(f"***Delayed new flight {flight_id} by {delay_new_flight} minutes")
-                        self.something_happened = True
-
-                    else:
-                        # Attempt to delay the existing flight if not already delayed
-                        if existing_flight_id not in delayed_flights:
-                            delayed_flights.add(existing_flight_id)
-                            new_dep_time = existing_dep_time + delay_existing_flight
-                            new_dep_time = max(new_dep_time, existing_flight_original_dep_minutes)
-                            new_arr_time = new_dep_time + (existing_arr_time - existing_dep_time)
-
-                            delay_existing = new_dep_time - existing_dep_time
-                            self.environment_delayed_flights[existing_flight_id] = self.environment_delayed_flights.get(existing_flight_id, 0) + delay_existing
-
-                            # Update state for existing flight
-                            for k in range(4, self.columns_state_space - 2, 3):
-                                if self.state[aircraft_idx, k] == existing_flight_id:
-                                    self.state[aircraft_idx, k + 1] = new_dep_time
-                                    self.state[aircraft_idx, k + 2] = new_arr_time
-                                    break
-
-                            # Update flights_dict for existing flight
-                            self.update_flight_times(existing_flight_id, new_dep_time, new_arr_time)
-
-                            # Recursively resolve conflicts for the existing flight
-                            # print(f"***Recursively resolving conflicts for existing flight {existing_flight_id}")
-                            self.schedule_flight_on_aircraft(
-                                aircraft_id, 
-                                existing_flight_id, 
-                                new_dep_time, 
-                                current_aircraft_id, 
-                                new_arr_time, 
-                                delayed_flights
-                            )
-                        else:
-                            # If the existing flight was already delayed, delay the new flight instead
-                            dep_time += delay_new_flight
-                            dep_time = max(dep_time, original_dep_minutes)
-                            arr_time = dep_time + flight_duration
-
-                            total_delay = dep_time - original_dep_minutes
-                            # print(f"***Delayed new flight {flight_id} by {delay_new_flight} minutes")
-                            self.environment_delayed_flights[flight_id] = self.environment_delayed_flights.get(flight_id, 0) + total_delay
-                        
-                        self.something_happened = True
-                else:
-                    # print(f"***No conflict detected between flights {flight_id} and {existing_flight_id}")
-                    self.something_happened = False
+            if DEBUG_MODE_SCHEDULING:
+                print("Flight is on current aircraft and completes before disruption - keeping original schedule")
+            self.something_happened = False
             return
 
-
+        # Handle unavailability overlap
         if has_unavail_overlap:
             if DEBUG_MODE_SCHEDULING:
                 print("\nFlight overlaps with unavailability period!")
@@ -1111,107 +1014,89 @@ class AircraftDisruptionEnv(gym.Env):
                         print("Case 4: Different aircraft with prob < 1.00 - Allowing overlap")
                     self.something_happened = True
 
-        # Now handle conflicts with other flights
+        # Get all flights on this aircraft sorted by departure time
         scheduled_flights = []
         for j in range(4, self.columns_state_space - 2, 3):
             existing_flight_id = self.state[aircraft_idx, j]
             existing_dep_time = self.state[aircraft_idx, j + 1]
             existing_arr_time = self.state[aircraft_idx, j + 2]
             if not np.isnan(existing_flight_id) and not np.isnan(existing_dep_time) and not np.isnan(existing_arr_time):
-                scheduled_flights.append((existing_flight_id, existing_dep_time, existing_arr_time))
+                if existing_flight_id != flight_id:  # Don't include the flight we're scheduling
+                    scheduled_flights.append((existing_flight_id, existing_dep_time, existing_arr_time))
+        
+        # Sort flights by departure time
+        scheduled_flights.sort(key=lambda x: x[1])
 
-        # Check for conflicts with existing flights
-        for existing_flight_id, existing_dep_time, existing_arr_time in scheduled_flights:
-            if existing_flight_id == flight_id:
-                continue  # Skip the same flight
-            if dep_time < existing_arr_time + MIN_TURN_TIME and arr_time + MIN_TURN_TIME > existing_dep_time:
-                # print(f"***Conflict detected between flights {flight_id} and {existing_flight_id}")
-                # Conflict detected
-                # Decide whether to delay new flight or existing flight
+        # Find where our flight should be inserted
+        insert_idx = 0
+        for i, (_, existing_dep_time, _) in enumerate(scheduled_flights):
+            if dep_time < existing_dep_time:
+                break
+            insert_idx = i + 1
 
-                # Get original departure times for comparison
-                original_new_dep_time = parse_time_with_day_offset(
-                    self.flights_dict[flight_id]['DepTime'], self.start_datetime
-                )
-                original_existing_dep_time = parse_time_with_day_offset(
-                    self.flights_dict[existing_flight_id]['DepTime'], self.start_datetime
-                )
+        # Insert our flight at the correct position
+        scheduled_flights.insert(insert_idx, (flight_id, dep_time, arr_time))
 
-                # Convert to minutes from earliest_datetime for comparison
-                new_flight_original_dep_minutes = (original_new_dep_time - self.earliest_datetime).total_seconds() / 60
-                existing_flight_original_dep_minutes = (original_existing_dep_time - self.earliest_datetime).total_seconds() / 60
+        # Now process all flights in sequence to ensure proper spacing
+        for i in range(len(scheduled_flights)):
+            current_flight = scheduled_flights[i]
+            current_flight_id = current_flight[0]
+            current_dep_time = current_flight[1]
+            current_arr_time = current_flight[2]
 
-                # Compute the minimum delays required
-                delay_new_flight = existing_arr_time + MIN_TURN_TIME - dep_time
-                delay_existing_flight = arr_time + MIN_TURN_TIME - existing_dep_time
-
-                delay_new_flight = max(0, delay_new_flight)
-                delay_existing_flight = max(0, delay_existing_flight)
-
-                # Delay the flight with the later original departure time
-                if new_flight_original_dep_minutes >= existing_flight_original_dep_minutes:
-                    # Delay new flight
-                    dep_time += delay_new_flight
-                    dep_time = max(dep_time, original_dep_minutes)  # Ensure not earlier than original dep time
-                    arr_time = dep_time + flight_duration
-
-                    # Update delay tracking
-                    total_delay = dep_time - original_dep_minutes
-                    self.environment_delayed_flights[flight_id] = self.environment_delayed_flights.get(flight_id, 0) + total_delay
-                    # print(f"***Delayed new flight {flight_id} by {delay_new_flight} minutes")
-                else:
-                    # Delay existing flight if it hasn't been delayed before
-                    if existing_flight_id not in delayed_flights:
-                        delayed_flights.add(existing_flight_id)
-                        new_dep_time = existing_dep_time + delay_existing_flight
-                        new_arr_time = existing_arr_time + delay_existing_flight
-                        
-                        # Ensure existing flight is not scheduled earlier than original departure
-                        new_dep_time = max(new_dep_time, existing_flight_original_dep_minutes)
-                        new_arr_time = new_dep_time + (existing_arr_time - existing_dep_time)
-
-                        delay_existing = new_dep_time - existing_dep_time
-                        self.environment_delayed_flights[existing_flight_id] = self.environment_delayed_flights.get(existing_flight_id, 0) + delay_existing
-
-                        # Update state for existing flight
+            # Check for overlap with previous flight
+            if i > 0:
+                prev_flight = scheduled_flights[i-1]
+                prev_arr_time = prev_flight[2]
+                
+                # If there's an overlap, delay the current flight
+                if current_dep_time < prev_arr_time + MIN_TURN_TIME:
+                    new_dep_time = prev_arr_time + MIN_TURN_TIME
+                    new_arr_time = new_dep_time + (current_arr_time - current_dep_time)
+                    
+                    # Update the flight times
+                    if current_flight_id == flight_id:
+                        dep_time = new_dep_time
+                        arr_time = new_arr_time
+                    else:
+                        # Update the other flight's times
+                        self.update_flight_times(current_flight_id, new_dep_time, new_arr_time)
                         for k in range(4, self.columns_state_space - 2, 3):
-                            if self.state[aircraft_idx, k] == existing_flight_id:
+                            if self.state[aircraft_idx, k] == current_flight_id:
                                 self.state[aircraft_idx, k + 1] = new_dep_time
                                 self.state[aircraft_idx, k + 2] = new_arr_time
                                 break
-                                
-                        # Update flights_dict for existing flight
-                        self.update_flight_times(existing_flight_id, new_dep_time, new_arr_time)
-                        # Recursively resolve conflicts for existing flight
-                        # print(f"***Recursively resolving conflicts for existing flight {existing_flight_id}")
-                        self.schedule_flight_on_aircraft(aircraft_id, existing_flight_id, new_dep_time, current_aircraft_id, new_arr_time, delayed_flights, secondary=True)
-                    else:
-                        # If existing flight was already delayed, delay the new flight instead
-                        dep_time += delay_new_flight
-                        dep_time = max(dep_time, original_dep_minutes)  # Ensure not earlier than original dep time
-                        arr_time = dep_time + flight_duration
+                    
+                    # Update the scheduled_flights list with new times
+                    scheduled_flights[i] = (current_flight_id, new_dep_time, new_arr_time)
+                    
+                    # Track the delay
+                    original_dep = parse_time_with_day_offset(
+                        self.flights_dict[current_flight_id]['DepTime'], 
+                        self.start_datetime
+                    )
+                    original_dep_minutes = (original_dep - self.earliest_datetime).total_seconds() / 60
+                    delay = new_dep_time - original_dep_minutes
+                    self.environment_delayed_flights[current_flight_id] = self.environment_delayed_flights.get(current_flight_id, 0) + delay
 
-                        # Update delay tracking
-                        total_delay = dep_time - original_dep_minutes
-                        # print(f"***Delayed new flight {flight_id} by {delay_new_flight} minutes")
-                        self.environment_delayed_flights[flight_id] = self.environment_delayed_flights.get(flight_id, 0) + total_delay
-
-        # Now, update the flight's times in the state
+        # Finally, update the state for our flight
+        flight_placed = False
         for j in range(4, self.columns_state_space - 2, 3):
             if self.state[aircraft_idx, j] == flight_id:
                 self.state[aircraft_idx, j + 1] = dep_time
                 self.state[aircraft_idx, j + 2] = arr_time
+                flight_placed = True
                 break
-            elif np.isnan(self.state[aircraft_idx, j]):
+            elif np.isnan(self.state[aircraft_idx, j]) and not flight_placed:
                 self.state[aircraft_idx, j] = flight_id
                 self.state[aircraft_idx, j + 1] = dep_time
                 self.state[aircraft_idx, j + 2] = arr_time
+                flight_placed = True
                 break
 
         # Update flights_dict
         self.update_flight_times(flight_id, dep_time, arr_time)
 
-        # Debugging: Print the final departure and arrival times
         if DEBUG_MODE_SCHEDULING:
             print(f"Final departure time for flight {flight_id}: {dep_time} minutes.")
             print(f"Final arrival time for flight {flight_id}: {arr_time} minutes.")
