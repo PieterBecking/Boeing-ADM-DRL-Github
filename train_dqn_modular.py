@@ -503,13 +503,13 @@ def run_train_dqn_both_timesteps(
             if episode > 0:
                 time_this_episode = current_time - previous_episode_time
                 timesteps_this_episode = total_timesteps - previous_timesteps
-                time_per_1000 = (time_this_episode / timesteps_this_episode) * 1000
+                time_per_10000 = (time_this_episode / timesteps_this_episode) * 10000
             else:
-                time_per_1000 = 0
+                time_per_10000 = 0
             
             rewards[episode]["timestamp"] = current_time
             time_remaining_str = f"{hours}h{minutes}m" if hours > 0 else f"{minutes}m"
-            print(f"({total_timesteps:.0f}/{MAX_TOTAL_TIMESTEPS:.0f} - {percentage_complete:.0f}% - {time_remaining_str} remaining, {time_per_1000:.0f}s/1k steps) {env_type:<10} - episode {episode + 1} - epsilon {epsilon:.2f} - reward this episode: {avg_reward_for_this_batch:.2f}")
+            print(f"({total_timesteps:.0f}/{MAX_TOTAL_TIMESTEPS:.0f} - {percentage_complete:.0f}% - {time_remaining_str} remaining, {time_per_10000:.0f}s/10k steps) {env_type:<10} - episode {episode + 1} - epsilon {epsilon:.2f} - reward this episode: {avg_reward_for_this_batch:.2f}")
 
             previous_episode_time = current_time
             previous_timesteps = total_timesteps
