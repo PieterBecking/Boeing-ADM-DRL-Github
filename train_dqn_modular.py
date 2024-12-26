@@ -69,6 +69,8 @@ def run_train_dqn_both_timesteps(
 
     N_EPISODES = 50 # DOESNT MATTER
 
+    starting_time = time.time()
+
     # extract number of scenarios in training and testing folders
     num_scenarios_training = len(os.listdir(TRAINING_FOLDERS_PATH))
 
@@ -117,10 +119,10 @@ def run_train_dqn_both_timesteps(
         runtime_start_in_seconds = time.time()
 
         # Construct model_path with required directory structure
-        model_save_dir = f"trained_models/dqn/{stripped_scenario_folder}/{seed}/"
+        model_save_dir = f"{save_folder}/{stripped_scenario_folder}"
         os.makedirs(model_save_dir, exist_ok=True)
 
-        model_path = f"{model_save_dir}/{env_type}-{training_id}.zip"
+        model_path = f"{model_save_dir}/{env_type}_{single_seed}.zip"
 
         print(f"Models will be saved to: {model_path}")
 
@@ -489,7 +491,28 @@ def run_train_dqn_both_timesteps(
             rewards[episode]["avg_reward"] = avg_reward_for_this_batch
             rewards[episode]["total_timesteps"] = total_timesteps
 
-            print(f"({total_timesteps}/{MAX_TOTAL_TIMESTEPS}) {env_type} - episode {episode + 1} - epsilon {epsilon:.2f} - reward this episode: {avg_reward_for_this_batch:.2f}")
+            current_time = time.time()
+            elapsed_time = current_time - starting_time
+            percentage_complete = (total_timesteps / MAX_TOTAL_TIMESTEPS) * 100
+
+            estimated_time_remaining = (elapsed_time / percentage_complete) * (100 - percentage_complete)
+            hours = int(estimated_time_remaining // 3600)
+            minutes = int((estimated_time_remaining % 3600) // 60)
+
+            # Calculate time per 1000 timesteps
+            if episode > 0:
+                time_this_episode = current_time - previous_episode_time
+                timesteps_this_episode = total_timesteps - previous_timesteps
+                time_per_1000 = (time_this_episode / timesteps_this_episode) * 1000
+            else:
+                time_per_1000 = 0
+            
+            rewards[episode]["timestamp"] = current_time
+            time_remaining_str = f"{hours}h{minutes}m" if hours > 0 else f"{minutes}m"
+            print(f"({total_timesteps:.0f}/{MAX_TOTAL_TIMESTEPS:.0f} - {percentage_complete:.0f}% - {time_remaining_str} remaining, {time_per_1000:.0f}s/1k steps) {env_type:<10} - episode {episode + 1} - epsilon {epsilon:.2f} - reward this episode: {avg_reward_for_this_batch:.2f}")
+
+            previous_episode_time = current_time
+            previous_timesteps = total_timesteps
 
             episode_data["avg_reward"] = avg_reward_for_this_batch
             log_data['episodes'] = {}

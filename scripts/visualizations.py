@@ -40,7 +40,6 @@ class StatePlotter:
         # Sort aircraft IDs using the custom sort key
         sorted_aircraft_ids = sorted(self.aircraft_dict.keys(), key=extract_sort_key)
         self.aircraft_id_to_idx = {aircraft_id: idx + 1 for idx, aircraft_id in enumerate(sorted_aircraft_ids)}
-        
         # Calculate the earliest and latest datetimes
         self.earliest_datetime = min(
             min(parse_time_with_day_offset(flight_info['DepTime'], start_datetime) for flight_info in flights_dict.values()),
@@ -102,6 +101,12 @@ class StatePlotter:
                 dep_datetime = parse_time_with_day_offset(dep_datetime_str, self.start_datetime)
                 arr_datetime = parse_time_with_day_offset(arr_datetime_str, dep_datetime)
                 
+                # Ensure arrival time is on same day as departure for flights crossing midnight
+                if '+1' in dep_datetime_str:
+                    # If departure is next day, arrival should be same day
+                    arr_datetime = arr_datetime.replace(day=dep_datetime.day)
+                
+                # Recalculate earliest and latest times after fixing arr_datetime
                 earliest_time = min(earliest_time, dep_datetime)
                 latest_time = max(latest_time, arr_datetime)
                 
@@ -128,6 +133,11 @@ class StatePlotter:
                 y_offset = aircraft_indices[aircraft_id] + self.offset_baseline
                 if delayed:
                     y_offset += self.offset_delayed_flight
+
+                # Ensure arrival time is on same day as departure for flights crossing midnight
+                if '+1' in dep_datetime_str:
+                    # If departure is next day, arrival should be same day
+                    arr_datetime = arr_datetime.replace(day=dep_datetime.day)
 
                 ax.plot([dep_datetime, arr_datetime], [y_offset, y_offset], color=plot_color, label=plot_label if not labels[plot_label] else None)
                 

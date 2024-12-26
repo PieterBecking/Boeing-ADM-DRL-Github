@@ -180,7 +180,7 @@ def generate_alt_aircraft_file(file_name, aircraft_ids, amount_aircraft_disrupte
 
 # Function to generate flights.csv
 def generate_flights_file(file_name, aircraft_ids, average_flights_per_aircraft, std_dev_flights_per_aircraft, airports, config_dict, 
-                          start_datetime, end_datetime, first_flight_dep_time_range, flight_length_range, time_between_flights_range):
+                          start_datetime, end_datetime, first_flight_dep_time_range, flight_length_range, time_between_flights_range, percentage_no_turn_time):
     """Generates the flights.csv file."""
     clear_file(file_name)
 
@@ -229,10 +229,17 @@ def generate_flights_file(file_name, aircraft_ids, average_flights_per_aircraft,
                 dep_time_obj = datetime.strptime(f"{start_datetime.strftime('%d/%m/%y')} {dep_time}", '%d/%m/%y %H:%M')
             else:
                 # Use this aircraft's last arrival time
-                dep_time_obj = parse_time_with_day_offset(last_arr_time, start_datetime) + timedelta(
-                    hours=random.randint(time_between_flights_range[0], time_between_flights_range[1] - 1),
-                    minutes=random.randint(0, 59)
-                )
+                if random.random() < percentage_no_turn_time:
+                    dep_time_obj = parse_time_with_day_offset(last_arr_time, start_datetime) + timedelta(
+                        hours=0,
+                        minutes=0
+                    )
+
+                else:
+                    dep_time_obj = parse_time_with_day_offset(last_arr_time, start_datetime) + timedelta(
+                        hours=random.randint(time_between_flights_range[0], time_between_flights_range[1] - 1),
+                        minutes=random.randint(0, 59)
+                    )
 
             arr_time_obj = dep_time_obj + timedelta(
                 hours=random.randint(flight_length_range[0], flight_length_range[1] - 1),
@@ -242,7 +249,7 @@ def generate_flights_file(file_name, aircraft_ids, average_flights_per_aircraft,
             # Check time constraints
             if dep_time_obj > end_datetime + timedelta(hours=DEPARTURE_AFTER_END_RECOVERY):
                 break
-            if arr_time_obj > end_datetime:
+            if arr_time_obj > end_datetime + timedelta(hours=DEPARTURE_AFTER_END_RECOVERY):
                 break
 
             # Format times with day offset when necessary
@@ -303,6 +310,7 @@ def generate_flights_file(file_name, aircraft_ids, average_flights_per_aircraft,
             line = f"{flight_id} {flight_data['Orig']} {flight_data['Dest']} {flight_data['DepTime']} {flight_data['ArrTime']} {flight_data['PrevFlight']}\n"
             file.write(line)
         file.write('#')
+
 
     return flights_dict, flight_rotation_data, file_name
 
@@ -401,7 +409,7 @@ def create_data_scenario(
     std_dev_flights_per_aircraft, airports, config_dict, recovery_start_date,
     recovery_start_time, recovery_end_date, recovery_end_time, clear_one_random_aircraft, 
     clear_random_flights, switch_one_random_flight_to_the_cleared_aircraft, probability_range, probability_distribution, first_flight_dep_time_range, 
-    flight_length_range, time_between_flights_range):
+    flight_length_range, time_between_flights_range, percentage_no_turn_time):
     """Creates a data scenario and returns the outputs."""
 
     data_folder = os.path.join(data_root_folder, scenario_name)
@@ -433,7 +441,7 @@ def create_data_scenario(
     flights_dict, flight_rotation_data, flights_file = generate_flights_file(
         flights_file, aircraft_ids, average_flights_per_aircraft, std_dev_flights_per_aircraft, 
         airports, config_dict, start_datetime, end_datetime, 
-        first_flight_dep_time_range, flight_length_range, time_between_flights_range
+        first_flight_dep_time_range, flight_length_range, time_between_flights_range, percentage_no_turn_time
     )
 
     # Generate rotations data

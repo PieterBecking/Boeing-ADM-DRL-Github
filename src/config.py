@@ -11,7 +11,7 @@ ACTION_SPACE_SIZE = (MAX_AIRCRAFT + 1) * (MAX_FLIGHTS_PER_AIRCRAFT + 1)  # Numbe
 
 
 # Data Generation Settings
-DEPARTURE_AFTER_END_RECOVERY = 1  # how many hours after the end of the recovery period can a generated flight depart
+DEPARTURE_AFTER_END_RECOVERY = 5  # how many hours after the end of the recovery period can a generated flight depart
 
 # Time Settings for intervals
 TIMESTEP_HOURS = 1  # Length of each timestep in hours
