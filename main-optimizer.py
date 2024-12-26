@@ -5,7 +5,7 @@ from scripts.visualizations import StatePlotter
 from datetime import datetime
 
 def main():
-    scenario_folder = "data/Training/6ac-700-diverse/mixed_high_Scenario_004"
+    scenario_folder = "data/Training/6ac-100-superdiverse/Scenario_00001"
     
     # Load scenario data first
     data_dict = load_scenario_data(scenario_folder)

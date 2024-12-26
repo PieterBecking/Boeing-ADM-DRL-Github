@@ -471,7 +471,7 @@ def run_train_dqn_both_timesteps(
     all_test_rewards_proactive = []
     all_test_rewards_reactive = []
 
-    def run_training_for_seed(seed):
+    def run_training_for_seed(seed, env_type):
         import random
         import numpy as np
         import torch as th
@@ -482,20 +482,44 @@ def run_train_dqn_both_timesteps(
             th.cuda.manual_seed_all(seed)
         th.manual_seed(seed)
 
-        # Pass seed to the train_dqn_agent call
-        (rewards_myopic, test_rewards_myopic, total_timesteps_myopic,
-         epsilon_values_myopic, good_rewards_myopic, action_sequences_myopic,
-         model_path_and_name_myopic) = train_dqn_agent('myopic', seed)
+        # Train only the specified environment type
+        rewards, test_rewards, total_timesteps, epsilon_values, good_rewards, action_sequences, model_path = train_dqn_agent(env_type, seed)
 
-        (rewards_proactive, test_rewards_proactive, total_timesteps_proactive,
-         epsilon_values_proactive, good_rewards_proactive, action_sequences_proactive,
-         model_path_and_name_proactive) = train_dqn_agent('proactive', seed)
+        # Extract only the necessary data
+        episode_rewards = [rewards[e]["avg_reward"] for e in sorted(rewards.keys()) if "avg_reward" in rewards[e]]
+        episode_steps = [rewards[e]["total_timesteps"] for e in sorted(rewards.keys()) if "total_timesteps" in rewards[e]]
 
-        (rewards_reactive, test_rewards_reactive, total_timesteps_reactive,
-         epsilon_values_reactive, good_rewards_reactive, action_sequences_reactive,
-         model_path_and_name_reactive) = train_dqn_agent('reactive', seed)
+        # Return only the essential data
+        return episode_rewards, episode_steps, test_rewards, model_path
 
-        return (rewards_myopic, rewards_proactive, rewards_reactive,
-                test_rewards_myopic, test_rewards_proactive, test_rewards_reactive)
+    # Train each environment type sequentially and save results immediately
+    results = {}
+    for env_type in ['myopic', 'proactive', 'reactive']:
+        print(f"\nTraining {env_type} agent...")
+        episode_rewards, episode_steps, test_rewards, model_path = run_training_for_seed(single_seed, env_type)
+        
+        # Save results immediately
+        os.makedirs(f"{save_results_big_run}/numpy", exist_ok=True)
+        np.save(f'{save_results_big_run}/numpy/{env_type}_runs_seed_{single_seed}.npy', np.array(episode_rewards))
+        np.save(f'{save_results_big_run}/numpy/{env_type}_steps_runs_seed_{single_seed}.npy', np.array(episode_steps))
+        if test_rewards:  # Only save if we have test rewards
+            np.save(f'{save_results_big_run}/numpy/test_rewards_{env_type}_seed_{single_seed}.npy', test_rewards)
+        
+        # Store only what's needed for the return value
+        results[env_type] = {
+            'rewards': episode_rewards,
+            'test_rewards': test_rewards
+        }
+        
+        # Clear any remaining references to free memory
+        del episode_rewards
+        del episode_steps
+        del test_rewards
+        import gc
+        gc.collect()
 
-    return run_training_for_seed(single_seed)
+    # Return the minimal required data in the expected format
+    return (
+        results['myopic']['rewards'], results['proactive']['rewards'], results['reactive']['rewards'],
+        results['myopic']['test_rewards'], results['proactive']['test_rewards'], results['reactive']['test_rewards']
+    )

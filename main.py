@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
 
+
 def get_config_variables(config_module):
     config_vars = {
         key: value for key, value in vars(config_module).items()
@@ -19,14 +20,15 @@ def get_config_variables(config_module):
 def run_for_single_folder(training_folder, MAX_TOTAL_TIMESTEPS, single_seed, brute_force_flag, cross_val_flag, early_stopping_flag, CROSS_VAL_INTERVAL, printing_intermediate_results, save_folder, TESTING_FOLDERS_PATH):
     """
     Runs training for a single scenario folder and a single seed.
-    Saves the per-seed arrays but does NOT produce the final combined plot.
-    The final combined plot is produced later by an aggregation step after all seeds finish.
+    Saves the results for each environment type immediately after training.
     """
-
     stripped_scenario_folder = training_folder.strip("/").split("/")[-1]  # handle trailing slash
     save_results_big_run = f"{save_folder}/{stripped_scenario_folder}"
 
-    # Run training for the given seed
+    # Create the numpy directory if it doesn't exist
+    os.makedirs(f"{save_results_big_run}/numpy", exist_ok=True)
+
+    # Run training for the given seed - results will be saved during training for each env_type
     rewards_myopic, rewards_proactive, rewards_reactive, \
     test_rewards_myopic, test_rewards_proactive, test_rewards_reactive = run_train_dqn_both_timesteps(
         MAX_TOTAL_TIMESTEPS=MAX_TOTAL_TIMESTEPS,
@@ -43,45 +45,10 @@ def run_for_single_folder(training_folder, MAX_TOTAL_TIMESTEPS, single_seed, bru
         TESTING_FOLDERS_PATH=TESTING_FOLDERS_PATH
     )
 
-    myopic_episode_rewards = [
-        rewards_myopic[e]["avg_reward"] for e in sorted(rewards_myopic.keys())
-        if "avg_reward" in rewards_myopic[e]
-    ]
-    myopic_episode_steps = [
-        rewards_myopic[e]["total_timesteps"] for e in sorted(rewards_myopic.keys())
-        if "total_timesteps" in rewards_myopic[e]
-    ]
-
-    proactive_episode_rewards = [
-        rewards_proactive[e]["avg_reward"] for e in sorted(rewards_proactive.keys())
-        if "avg_reward" in rewards_proactive[e]
-    ]
-    proactive_episode_steps = [
-        rewards_proactive[e]["total_timesteps"] for e in sorted(rewards_proactive.keys())
-        if "total_timesteps" in rewards_proactive[e]
-    ]
-
-    reactive_episode_rewards = [
-        rewards_reactive[e]["avg_reward"] for e in sorted(rewards_reactive.keys())
-        if "avg_reward" in rewards_reactive[e]
-    ]
-    reactive_episode_steps = [
-        rewards_reactive[e]["total_timesteps"] for e in sorted(rewards_reactive.keys())
-        if "total_timesteps" in rewards_reactive[e]
-    ]
-
-    # Save results for this seed
-    os.makedirs(f"{save_results_big_run}/numpy", exist_ok=True)
-
-    np.save(f'{save_results_big_run}/numpy/myopic_runs_seed_{single_seed}.npy', np.array(myopic_episode_rewards))
-    np.save(f'{save_results_big_run}/numpy/proactive_runs_seed_{single_seed}.npy', np.array(proactive_episode_rewards))
-    np.save(f'{save_results_big_run}/numpy/myopic_steps_runs_seed_{single_seed}.npy', np.array(myopic_episode_steps))
-    np.save(f'{save_results_big_run}/numpy/proactive_steps_runs_seed_{single_seed}.npy', np.array(proactive_episode_steps))
-    np.save(f'{save_results_big_run}/numpy/reactive_runs_seed_{single_seed}.npy', np.array(reactive_episode_rewards))
-    np.save(f'{save_results_big_run}/numpy/reactive_steps_runs_seed_{single_seed}.npy', np.array(reactive_episode_steps))
-    np.save(f'{save_results_big_run}/numpy/test_rewards_myopic_seed_{single_seed}.npy', test_rewards_myopic)
-    np.save(f'{save_results_big_run}/numpy/test_rewards_proactive_seed_{single_seed}.npy', test_rewards_proactive)
-    np.save(f'{save_results_big_run}/numpy/test_rewards_reactive_seed_{single_seed}.npy', test_rewards_reactive)
+    # Note: The rewards are already in the correct format (lists) and saved to disk
+    # No need to process them further here since they're saved during training
+    # Just return them for any subsequent processing if needed
+    return
 
 def aggregate_results_and_plot(SEEDS, MAX_TOTAL_TIMESTEPS, brute_force_flag, cross_val_flag, early_stopping_flag, CROSS_VAL_INTERVAL, printing_intermediate_results, save_folder, TESTING_FOLDERS_PATH):
     """
@@ -384,14 +351,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Common configuration
-    MAX_TOTAL_TIMESTEPS = 5e3
-    SEEDS = [1]
+    MAX_TOTAL_TIMESTEPS = 2e6
+    SEEDS = [1, 2, 3]
     brute_force_flag = False
     cross_val_flag = False
     early_stopping_flag = False
     CROSS_VAL_INTERVAL = 2
     printing_intermediate_results = False
-    save_folder = "103-novel-run"
+    save_folder = "3-run"
     TESTING_FOLDERS_PATH = "data/Testing/6ac-100-superdiverse/"
 
     if not os.path.exists(save_folder):
@@ -402,7 +369,7 @@ if __name__ == "__main__":
         # "data/Training/6ac-100-stochastic-medium/",
         # "data/Training/6ac-100-stochastic-high/",
         # "data/Training/6ac-700-diverse/",
-        "data/Training/6ac-100-superdiverse/",
+        "data/Training/6ac-10000-superdiverse/",
     ]
 
     if args.seed is None and args.training_folder is None:
@@ -482,3 +449,4 @@ if __name__ == "__main__":
             )
     else:
         pass
+
