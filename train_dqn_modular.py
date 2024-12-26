@@ -43,10 +43,11 @@ def run_train_dqn_both_timesteps(
     stripped_scenario_folder,
     save_folder,
     save_results_big_run,
-    TESTING_FOLDERS_PATH
+    TESTING_FOLDERS_PATH,
+    env_type
 ):
 
-    print(f"Training on {stripped_scenario_folder}")
+    print(f"Training on {stripped_scenario_folder} with {env_type} environment")
     save_results_big_run = f"{save_folder}/{stripped_scenario_folder}"
 
     # Constants and Training Settings
@@ -460,66 +461,25 @@ def run_train_dqn_both_timesteps(
         # Return collected data
         return rewards, test_rewards, total_timesteps, epsilon_values, good_rewards, {}, model_path
 
-    # Run training for each seed and store results
-    all_myopic_runs = []
-    all_proactive_runs = []
-    all_myopic_steps_runs = []
-    all_proactive_steps_runs = []
-    all_reactive_runs = []
-    all_reactive_steps_runs = []
-    all_test_rewards_myopic = []
-    all_test_rewards_proactive = []
-    all_test_rewards_reactive = []
+    # Run training for the specified environment type only
+    rewards, test_rewards, total_timesteps, epsilon_values, good_rewards, action_sequences, model_path = train_dqn_agent(env_type, single_seed)
 
-    def run_training_for_seed(seed, env_type):
-        import random
-        import numpy as np
-        import torch as th
+    # Extract only the necessary data
+    episode_rewards = [rewards[e]["avg_reward"] for e in sorted(rewards.keys()) if "avg_reward" in rewards[e]]
+    episode_steps = [rewards[e]["total_timesteps"] for e in sorted(rewards.keys()) if "total_timesteps" in rewards[e]]
 
-        random.seed(seed)
-        np.random.seed(seed)
-        if th.cuda.is_available():
-            th.cuda.manual_seed_all(seed)
-        th.manual_seed(seed)
+    # Save results for this environment type
+    os.makedirs(f"{save_results_big_run}/numpy", exist_ok=True)
+    np.save(f'{save_results_big_run}/numpy/{env_type}_runs_seed_{single_seed}.npy', np.array(episode_rewards))
+    np.save(f'{save_results_big_run}/numpy/{env_type}_steps_runs_seed_{single_seed}.npy', np.array(episode_steps))
+    if test_rewards:  # Only save if we have test rewards
+        np.save(f'{save_results_big_run}/numpy/test_rewards_{env_type}_seed_{single_seed}.npy', test_rewards)
 
-        # Train only the specified environment type
-        rewards, test_rewards, total_timesteps, epsilon_values, good_rewards, action_sequences, model_path = train_dqn_agent(env_type, seed)
-
-        # Extract only the necessary data
-        episode_rewards = [rewards[e]["avg_reward"] for e in sorted(rewards.keys()) if "avg_reward" in rewards[e]]
-        episode_steps = [rewards[e]["total_timesteps"] for e in sorted(rewards.keys()) if "total_timesteps" in rewards[e]]
-
-        # Return only the essential data
-        return episode_rewards, episode_steps, test_rewards, model_path
-
-    # Train each environment type sequentially and save results immediately
-    results = {}
-    for env_type in ['myopic', 'proactive', 'reactive']:
-        print(f"\nTraining {env_type} agent...")
-        episode_rewards, episode_steps, test_rewards, model_path = run_training_for_seed(single_seed, env_type)
-        
-        # Save results immediately
-        os.makedirs(f"{save_results_big_run}/numpy", exist_ok=True)
-        np.save(f'{save_results_big_run}/numpy/{env_type}_runs_seed_{single_seed}.npy', np.array(episode_rewards))
-        np.save(f'{save_results_big_run}/numpy/{env_type}_steps_runs_seed_{single_seed}.npy', np.array(episode_steps))
-        if test_rewards:  # Only save if we have test rewards
-            np.save(f'{save_results_big_run}/numpy/test_rewards_{env_type}_seed_{single_seed}.npy', test_rewards)
-        
-        # Store only what's needed for the return value
-        results[env_type] = {
-            'rewards': episode_rewards,
-            'test_rewards': test_rewards
-        }
-        
-        # Clear any remaining references to free memory
-        del episode_rewards
-        del episode_steps
-        del test_rewards
-        import gc
-        gc.collect()
-
-    # Return the minimal required data in the expected format
-    return (
-        results['myopic']['rewards'], results['proactive']['rewards'], results['reactive']['rewards'],
-        results['myopic']['test_rewards'], results['proactive']['test_rewards'], results['reactive']['test_rewards']
-    )
+    # Return empty arrays for the other environment types
+    empty_array = np.array([])
+    if env_type == 'myopic':
+        return episode_rewards, empty_array, empty_array, test_rewards, [], []
+    elif env_type == 'proactive':
+        return empty_array, episode_rewards, empty_array, [], test_rewards, []
+    else:  # reactive
+        return empty_array, empty_array, episode_rewards, [], [], test_rewards

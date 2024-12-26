@@ -17,7 +17,7 @@ def get_config_variables(config_module):
     }
     return config_vars
 
-def run_for_single_folder(training_folder, MAX_TOTAL_TIMESTEPS, single_seed, brute_force_flag, cross_val_flag, early_stopping_flag, CROSS_VAL_INTERVAL, printing_intermediate_results, save_folder, TESTING_FOLDERS_PATH):
+def run_for_single_folder(training_folder, MAX_TOTAL_TIMESTEPS, single_seed, brute_force_flag, cross_val_flag, early_stopping_flag, CROSS_VAL_INTERVAL, printing_intermediate_results, save_folder, TESTING_FOLDERS_PATH, env_type):
     """
     Runs training for a single scenario folder and a single seed.
     Saves the results for each environment type immediately after training.
@@ -42,7 +42,8 @@ def run_for_single_folder(training_folder, MAX_TOTAL_TIMESTEPS, single_seed, bru
         stripped_scenario_folder=stripped_scenario_folder,
         save_folder=save_folder,
         save_results_big_run=save_results_big_run,
-        TESTING_FOLDERS_PATH=TESTING_FOLDERS_PATH
+        TESTING_FOLDERS_PATH=TESTING_FOLDERS_PATH,
+        env_type=env_type
     )
 
     # Note: The rewards are already in the correct format (lists) and saved to disk
@@ -348,17 +349,18 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--training_folder", type=str, help="Path to a single training folder")
     parser.add_argument("--seed", type=int, help="Specific seed to run")
+    parser.add_argument("--env_type", type=str, choices=['myopic', 'proactive', 'reactive'], help="Environment type to run")
     args = parser.parse_args()
 
     # Common configuration
     MAX_TOTAL_TIMESTEPS = 2e6
-    SEEDS = [1, 2, 3]
+    SEEDS = [111]
     brute_force_flag = False
-    cross_val_flag = False
+    cross_val_flag = True
     early_stopping_flag = False
-    CROSS_VAL_INTERVAL = 2
+    CROSS_VAL_INTERVAL = 1
     printing_intermediate_results = False
-    save_folder = "3-run"
+    save_folder = "4-run"
     TESTING_FOLDERS_PATH = "data/Testing/6ac-100-superdiverse/"
 
     if not os.path.exists(save_folder):
@@ -373,7 +375,7 @@ if __name__ == "__main__":
     ]
 
     if args.seed is None and args.training_folder is None:
-        # Controller mode: Spawn multiple subprocesses, one per seed
+        # Controller mode: Spawn multiple subprocesses, one per combination of seed and env_type
         config_values = get_config_variables(config)
         config_df = pd.DataFrame([config_values])
         config_df['MAX_TOTAL_TIMESTEPS'] = MAX_TOTAL_TIMESTEPS
@@ -388,19 +390,22 @@ if __name__ == "__main__":
         start_time = time.time()
 
         processes = []
+        env_types = ['myopic', 'proactive', 'reactive']
         for seed in SEEDS:
-            cmd = [
-                "python", "main.py",
-                "--seed", str(seed)
-            ]
-            p = subprocess.Popen(cmd, cwd=os.path.dirname(os.path.abspath(__file__)))
-            processes.append(p)
+            for env_type in env_types:
+                cmd = [
+                    "python", "main.py",
+                    "--seed", str(seed),
+                    "--env_type", env_type
+                ]
+                p = subprocess.Popen(cmd, cwd=os.path.dirname(os.path.abspath(__file__)))
+                processes.append(p)
 
         # Wait for all subprocesses to finish
         for p in processes:
             p.wait()
 
-        # After all seeds are done, aggregate and plot the combined results
+        # After all combinations are done, aggregate and plot the combined results
         aggregate_results_and_plot(
             SEEDS=SEEDS,
             MAX_TOTAL_TIMESTEPS=MAX_TOTAL_TIMESTEPS,
@@ -418,7 +423,7 @@ if __name__ == "__main__":
         print(f"\nTotal runtime: {total_runtime:.2f} seconds")
 
     elif args.seed is not None and args.training_folder:
-        # Worker mode: run a single scenario folder for a single seed
+        # Worker mode: run a single scenario folder for a single seed and env_type
         run_for_single_folder(
             training_folder=args.training_folder,
             MAX_TOTAL_TIMESTEPS=MAX_TOTAL_TIMESTEPS,
@@ -429,11 +434,12 @@ if __name__ == "__main__":
             CROSS_VAL_INTERVAL=CROSS_VAL_INTERVAL,
             printing_intermediate_results=printing_intermediate_results,
             save_folder=save_folder,
-            TESTING_FOLDERS_PATH=TESTING_FOLDERS_PATH
+            TESTING_FOLDERS_PATH=TESTING_FOLDERS_PATH,
+            env_type=args.env_type
         )
 
     elif args.seed is not None and args.training_folder is None:
-        # Worker mode: run all scenario folders for this single seed
+        # Worker mode: run all scenario folders for this single seed and env_type
         for folder in all_folders_temp:
             run_for_single_folder(
                 training_folder=folder,
@@ -445,7 +451,8 @@ if __name__ == "__main__":
                 CROSS_VAL_INTERVAL=CROSS_VAL_INTERVAL,
                 printing_intermediate_results=printing_intermediate_results,
                 save_folder=save_folder,
-                TESTING_FOLDERS_PATH=TESTING_FOLDERS_PATH
+                TESTING_FOLDERS_PATH=TESTING_FOLDERS_PATH,
+                env_type=args.env_type
             )
     else:
         pass
