@@ -123,7 +123,6 @@ def run_train_dqn_both_timesteps(
 
         print(f"Models will be saved to: {model_path}")
 
-
         training_metadata = {
             "myopic_or_proactive": env_type,
             "model_type": "dqn",
@@ -153,8 +152,6 @@ def run_train_dqn_both_timesteps(
             "runtime_start_in_seconds": runtime_start_in_seconds,
         }
 
-
-        # log_data['metadata'] = {training_metadata}
         log_data['metadata'] = {}
         log_data['episodes'] = {}
         log_data['cross_validation'] = {}
@@ -168,15 +165,6 @@ def run_train_dqn_both_timesteps(
         total_timesteps = 0  # Added to track total timesteps
         consecutive_drops = 0  # Track consecutive performance drops
         best_test_reward = float('-inf')  # Track best test performance
-        action_sequences = {
-            os.path.join(TRAINING_FOLDERS_PATH, folder): {
-                "best_actions": [],
-                "best_reward": float('-inf'),
-                "worst_actions": [],
-                "worst_reward": float('inf')
-            }
-            for folder in training_folders
-        }
 
         def cross_validate_on_test_data(model, current_episode, log_data):
             cross_val_data = {
@@ -195,7 +183,6 @@ def run_train_dqn_both_timesteps(
                 scenario_data = {
                     "scenario_folder": test_scenario_folder,
                     "total_reward": 0,
-                    "steps": []
                 }
                 # Load data
                 data_dict = load_scenario_data(test_scenario_folder)
@@ -249,24 +236,6 @@ def run_train_dqn_both_timesteps(
                     total_reward_local += reward
                     obs = obs_next
 
-                    scenario_data["steps"].append({
-                        "step_number": timesteps_local + 1,
-                        "action": action,
-                        "flight_action": env.map_index_to_action(action)[0],
-                        "aircraft_action": env.map_index_to_action(action)[1],
-                        "reward": reward,
-                        "total_timestep": total_timesteps,
-                        "time_in_scenario": timesteps_local,
-                        "epsilon": "1.0 at cross-validation",
-                        "action_reason": "exploitation at cross-validation",
-                        "action_mask": action_mask,
-                        "action_mask_sum": np.sum(action_mask),
-                        "len_action_mask": len(action_mask),
-                        "masked_q_values": masked_q_values,
-                        "q_values": q_values,
-                        "info_after_step": env.info_after_step,
-                    })
-
                     timesteps_local += 1
                     if done_flag:
                         break
@@ -277,10 +246,9 @@ def run_train_dqn_both_timesteps(
 
             avg_test_reward = total_test_reward / len(test_scenario_folders)
             cross_val_data["avg_test_reward"] = avg_test_reward
-            test_rewards.append((avg_test_reward))
+            test_rewards.append(avg_test_reward)
             print(f"cross-val done at episode {current_episode}")
 
-            # log_data['cross_validation'][current_episode] = cross_val_data
             log_data['cross_validation'] = {}
 
             return avg_test_reward
@@ -333,7 +301,6 @@ def run_train_dqn_both_timesteps(
         episode = 0
         while total_timesteps < MAX_TOTAL_TIMESTEPS:
             rewards[episode] = {}
-            action_sequences[episode] = {}
             episode_data = {
                 "episode_number": episode + 1,
                 "epsilon_start": epsilon,
@@ -343,13 +310,10 @@ def run_train_dqn_both_timesteps(
             for scenario_folder in scenario_folders:
                 scenario_data = {
                     "scenario_folder": scenario_folder,
-                    "steps": [],
                     "total_reward": 0,
                 }
                 rewards[episode][scenario_folder] = {}
-                action_sequences[episode][scenario_folder] = []
                 best_reward_local = float('-inf')
-                best_action_sequence_local = []
                 data_dict = load_scenario_data(scenario_folder)
                 aircraft_dict = data_dict['aircraft']
                 flights_dict = data_dict['flights']
@@ -371,7 +335,6 @@ def run_train_dqn_both_timesteps(
                 done_flag = False
                 total_reward_local = 0
                 timesteps_local = 0
-                action_sequence_local = []
 
                 while not done_flag:
                     num_cancelled_flights_before_step = len(env.cancelled_flights)
@@ -406,10 +369,8 @@ def run_train_dqn_both_timesteps(
                     obs_next, reward, terminated, truncated, info = result
 
                     rewards[episode][scenario_folder][timesteps_local] = reward
-                    action_sequences[episode][scenario_folder].append(action)
 
                     done_flag = terminated or truncated
-                    action_sequence_local.append(action)
 
                     model.replay_buffer.add(
                         obs=obs,
@@ -447,32 +408,11 @@ def run_train_dqn_both_timesteps(
                         "num_penalized_cancelled": num_penalized_cancelled_after_step - num_penalized_cancelled_before_step,
                     }
 
-                    scenario_data["steps"].append({
-                        "step_number": timesteps_local,
-                        "action": action,
-                        "flight_action": env.map_index_to_action(action)[0],
-                        "aircraft_action": env.map_index_to_action(action)[1],
-                        "reward": reward,
-                        "total_timestep": total_timesteps,
-                        "time_in_scenario": timesteps_local,
-                        "epsilon": epsilon,
-                        "action_reason": action_reason,
-                        "impact_of_action": impact_of_action,
-                        "done_flag": done_flag,
-                        "action_mask_sum": np.sum(action_mask),
-                        "len_action_mask": len(action_mask),
-                        "info_after_step": env.info_after_step,
-                        "masked_q_values": masked_q_values,
-                        "q_values": q_values,
-                        "action_mask": action_mask,
-                    })
-
                     if done_flag:
                         break
 
                 total_reward_local = sum(rewards[episode][scenario_folder].values())
                 rewards[episode][scenario_folder]["total"] = total_reward_local
-                action_sequences[episode][scenario_folder] = action_sequence_local
 
                 scenario_data["total_reward"] = total_reward_local
                 episode_data["scenarios"][scenario_folder] = scenario_data
@@ -509,7 +449,6 @@ def run_train_dqn_both_timesteps(
             print(f"({total_timesteps}/{MAX_TOTAL_TIMESTEPS}) {env_type} - episode {episode + 1} - epsilon {epsilon:.2f} - reward this episode: {avg_reward_for_this_batch:.2f}")
 
             episode_data["avg_reward"] = avg_reward_for_this_batch
-            # log_data['episodes'][episode + 1] = episode_data
             log_data['episodes'] = {}
             episode += 1
 
@@ -518,13 +457,8 @@ def run_train_dqn_both_timesteps(
         runtime_in_seconds = runtime_end_in_seconds - runtime_start_in_seconds
         actual_total_timesteps = total_timesteps
 
-
-        runtime_end_in_seconds = time.time()
-        runtime_in_seconds = runtime_end_in_seconds - runtime_start_in_seconds
-        actual_total_timesteps = total_timesteps
-
         # Return collected data
-        return rewards, test_rewards, total_timesteps, epsilon_values, good_rewards, action_sequences, model_path
+        return rewards, test_rewards, total_timesteps, epsilon_values, good_rewards, {}, model_path
 
     # Run training for each seed and store results
     all_myopic_runs = []
