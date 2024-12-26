@@ -92,10 +92,23 @@ def aggregate_results_and_plot(SEEDS, MAX_TOTAL_TIMESTEPS, brute_force_flag, cro
     - Produce a single plot per scenario with mean and std shaded area
     """
 
-    # Identify scenario folders that were created
-    # We assume all scenario results are in save_folder and contain a numpy folder
-    scenario_folders = [os.path.join(save_folder, d) for d in os.listdir(save_folder) 
-                        if os.path.isdir(os.path.join(save_folder, d)) and os.path.exists(os.path.join(save_folder, d, "numpy"))]
+    # Identify scenario folders that were created and contain numpy data
+    scenario_folders = []
+    for d in os.listdir(save_folder):
+        folder_path = os.path.join(save_folder, d)
+        numpy_path = os.path.join(folder_path, "numpy")
+        if os.path.isdir(folder_path) and os.path.exists(numpy_path):
+            # Verify that the numpy folder contains the expected files for at least one seed
+            seed_files_exist = all(
+                os.path.exists(os.path.join(numpy_path, f"{prefix}_seed_{SEEDS[0]}.npy"))
+                for prefix in ["myopic_runs", "proactive_runs", "reactive_runs"]
+            )
+            if seed_files_exist:
+                scenario_folders.append(folder_path)
+
+    if not scenario_folders:
+        print("No scenario folders with complete data found. Skipping aggregation.")
+        return
 
     def smooth(data, window=10):
         if window > 1 and len(data) >= window:
@@ -105,6 +118,7 @@ def aggregate_results_and_plot(SEEDS, MAX_TOTAL_TIMESTEPS, brute_force_flag, cro
     for scenario_path in scenario_folders:
         stripped_scenario_folder = os.path.basename(scenario_path)
         numpy_path = os.path.join(scenario_path, "numpy")
+        print(f"Processing scenario: {stripped_scenario_folder}")
 
         all_myopic_runs = []
         all_proactive_runs = []
@@ -117,28 +131,38 @@ def aggregate_results_and_plot(SEEDS, MAX_TOTAL_TIMESTEPS, brute_force_flag, cro
         all_test_rewards_reactive = []
 
         for seed in SEEDS:
-            myopic_runs_seed = np.load(os.path.join(numpy_path, f"myopic_runs_seed_{seed}.npy"), allow_pickle=True)
-            proactive_runs_seed = np.load(os.path.join(numpy_path, f"proactive_runs_seed_{seed}.npy"), allow_pickle=True)
-            reactive_runs_seed = np.load(os.path.join(numpy_path, f"reactive_runs_seed_{seed}.npy"), allow_pickle=True)
+            try:
+                # Load data for this seed
+                myopic_runs_seed = np.load(os.path.join(numpy_path, f"myopic_runs_seed_{seed}.npy"), allow_pickle=True)
+                proactive_runs_seed = np.load(os.path.join(numpy_path, f"proactive_runs_seed_{seed}.npy"), allow_pickle=True)
+                reactive_runs_seed = np.load(os.path.join(numpy_path, f"reactive_runs_seed_{seed}.npy"), allow_pickle=True)
 
-            myopic_steps_seed = np.load(os.path.join(numpy_path, f"myopic_steps_runs_seed_{seed}.npy"), allow_pickle=True)
-            proactive_steps_seed = np.load(os.path.join(numpy_path, f"proactive_steps_runs_seed_{seed}.npy"), allow_pickle=True)
-            reactive_steps_seed = np.load(os.path.join(numpy_path, f"reactive_steps_runs_seed_{seed}.npy"), allow_pickle=True)
+                myopic_steps_seed = np.load(os.path.join(numpy_path, f"myopic_steps_runs_seed_{seed}.npy"), allow_pickle=True)
+                proactive_steps_seed = np.load(os.path.join(numpy_path, f"proactive_steps_runs_seed_{seed}.npy"), allow_pickle=True)
+                reactive_steps_seed = np.load(os.path.join(numpy_path, f"reactive_steps_runs_seed_{seed}.npy"), allow_pickle=True)
 
-            test_rewards_myopic_seed = np.load(os.path.join(numpy_path, f"test_rewards_myopic_seed_{seed}.npy"), allow_pickle=True)
-            test_rewards_proactive_seed = np.load(os.path.join(numpy_path, f"test_rewards_proactive_seed_{seed}.npy"), allow_pickle=True)
-            test_rewards_reactive_seed = np.load(os.path.join(numpy_path, f"test_rewards_reactive_seed_{seed}.npy"), allow_pickle=True)
+                all_myopic_runs.append(myopic_runs_seed)
+                all_proactive_runs.append(proactive_runs_seed)
+                all_reactive_runs.append(reactive_runs_seed)
+                all_myopic_steps_runs.append(myopic_steps_seed)
+                all_proactive_steps_runs.append(proactive_steps_seed)
+                all_reactive_steps_runs.append(reactive_steps_seed)
 
-            all_myopic_runs.append(myopic_runs_seed)
-            all_proactive_runs.append(proactive_runs_seed)
-            all_reactive_runs.append(reactive_runs_seed)
-            all_myopic_steps_runs.append(myopic_steps_seed)
-            all_proactive_steps_runs.append(proactive_steps_seed)
-            all_reactive_steps_runs.append(reactive_steps_seed)
+                if cross_val_flag:
+                    test_rewards_myopic_seed = np.load(os.path.join(numpy_path, f"test_rewards_myopic_seed_{seed}.npy"), allow_pickle=True)
+                    test_rewards_proactive_seed = np.load(os.path.join(numpy_path, f"test_rewards_proactive_seed_{seed}.npy"), allow_pickle=True)
+                    test_rewards_reactive_seed = np.load(os.path.join(numpy_path, f"test_rewards_reactive_seed_{seed}.npy"), allow_pickle=True)
+                    all_test_rewards_myopic.append(test_rewards_myopic_seed)
+                    all_test_rewards_proactive.append(test_rewards_proactive_seed)
+                    all_test_rewards_reactive.append(test_rewards_reactive_seed)
 
-            all_test_rewards_myopic.append(test_rewards_myopic_seed)
-            all_test_rewards_proactive.append(test_rewards_proactive_seed)
-            all_test_rewards_reactive.append(test_rewards_reactive_seed)
+            except FileNotFoundError as e:
+                print(f"Warning: Some files missing for seed {seed} in {stripped_scenario_folder}: {e}")
+                continue
+
+        if not all_myopic_runs:
+            print(f"No valid data found for scenario {stripped_scenario_folder}. Skipping.")
+            continue
 
         # Ensure arrays are consistent length
         min_length_myopic = min(len(run) for run in all_myopic_runs if len(run) > 0) if all_myopic_runs and all(len(r) > 0 for r in all_myopic_runs) else 0
@@ -360,7 +384,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Common configuration
-    MAX_TOTAL_TIMESTEPS = 5e2
+    MAX_TOTAL_TIMESTEPS = 5e3
     SEEDS = [1]
     brute_force_flag = False
     cross_val_flag = False
@@ -378,7 +402,7 @@ if __name__ == "__main__":
         # "data/Training/6ac-100-stochastic-medium/",
         # "data/Training/6ac-100-stochastic-high/",
         # "data/Training/6ac-700-diverse/",
-        "data/Training/6ac-10000-superdiverse/",
+        "data/Training/6ac-100-superdiverse/",
     ]
 
     if args.seed is None and args.training_folder is None:
