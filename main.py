@@ -29,8 +29,8 @@ def run_for_single_folder(training_folder, MAX_TOTAL_TIMESTEPS, single_seed, bru
     os.makedirs(f"{save_results_big_run}/numpy", exist_ok=True)
 
     # Run training for the given seed - results will be saved during training for each env_type
-    rewards_myopic, rewards_proactive, rewards_reactive, \
-    test_rewards_myopic, test_rewards_proactive, test_rewards_reactive = run_train_dqn_both_timesteps(
+    rewards_myopic, rewards_proactive, rewards_reactive, rewards_drl_greedy, \
+    test_rewards_myopic, test_rewards_proactive, test_rewards_reactive, test_rewards_drl_greedy = run_train_dqn_both_timesteps(
         MAX_TOTAL_TIMESTEPS=MAX_TOTAL_TIMESTEPS,
         single_seed=single_seed,
         brute_force_flag=brute_force_flag,
@@ -69,7 +69,7 @@ def aggregate_results_and_plot(SEEDS, MAX_TOTAL_TIMESTEPS, brute_force_flag, cro
             # Verify that the numpy folder contains the expected files for at least one seed
             seed_files_exist = all(
                 os.path.exists(os.path.join(numpy_path, f"{prefix}_seed_{SEEDS[0]}.npy"))
-                for prefix in ["myopic_runs", "proactive_runs", "reactive_runs"]
+                for prefix in ["myopic_runs", "proactive_runs", "reactive_runs", "drl-greedy_runs"]
             )
             if seed_files_exist:
                 scenario_folders.append(folder_path)
@@ -91,12 +91,15 @@ def aggregate_results_and_plot(SEEDS, MAX_TOTAL_TIMESTEPS, brute_force_flag, cro
         all_myopic_runs = []
         all_proactive_runs = []
         all_reactive_runs = []
+        all_drl_greedy_runs = []
         all_myopic_steps_runs = []
         all_proactive_steps_runs = []
         all_reactive_steps_runs = []
+        all_drl_greedy_steps_runs = []
         all_test_rewards_myopic = []
         all_test_rewards_proactive = []
         all_test_rewards_reactive = []
+        all_test_rewards_drl_greedy = []
 
         for seed in SEEDS:
             try:
@@ -104,25 +107,31 @@ def aggregate_results_and_plot(SEEDS, MAX_TOTAL_TIMESTEPS, brute_force_flag, cro
                 myopic_runs_seed = np.load(os.path.join(numpy_path, f"myopic_runs_seed_{seed}.npy"), allow_pickle=True)
                 proactive_runs_seed = np.load(os.path.join(numpy_path, f"proactive_runs_seed_{seed}.npy"), allow_pickle=True)
                 reactive_runs_seed = np.load(os.path.join(numpy_path, f"reactive_runs_seed_{seed}.npy"), allow_pickle=True)
+                drl_greedy_runs_seed = np.load(os.path.join(numpy_path, f"drl-greedy_runs_seed_{seed}.npy"), allow_pickle=True)
 
                 myopic_steps_seed = np.load(os.path.join(numpy_path, f"myopic_steps_runs_seed_{seed}.npy"), allow_pickle=True)
                 proactive_steps_seed = np.load(os.path.join(numpy_path, f"proactive_steps_runs_seed_{seed}.npy"), allow_pickle=True)
                 reactive_steps_seed = np.load(os.path.join(numpy_path, f"reactive_steps_runs_seed_{seed}.npy"), allow_pickle=True)
+                drl_greedy_steps_seed = np.load(os.path.join(numpy_path, f"drl-greedy_steps_runs_seed_{seed}.npy"), allow_pickle=True)
 
                 all_myopic_runs.append(myopic_runs_seed)
                 all_proactive_runs.append(proactive_runs_seed)
                 all_reactive_runs.append(reactive_runs_seed)
+                all_drl_greedy_runs.append(drl_greedy_runs_seed)
                 all_myopic_steps_runs.append(myopic_steps_seed)
                 all_proactive_steps_runs.append(proactive_steps_seed)
                 all_reactive_steps_runs.append(reactive_steps_seed)
+                all_drl_greedy_steps_runs.append(drl_greedy_steps_seed)
 
                 if cross_val_flag:
                     test_rewards_myopic_seed = np.load(os.path.join(numpy_path, f"test_rewards_myopic_seed_{seed}.npy"), allow_pickle=True)
                     test_rewards_proactive_seed = np.load(os.path.join(numpy_path, f"test_rewards_proactive_seed_{seed}.npy"), allow_pickle=True)
                     test_rewards_reactive_seed = np.load(os.path.join(numpy_path, f"test_rewards_reactive_seed_{seed}.npy"), allow_pickle=True)
+                    test_rewards_drl_greedy_seed = np.load(os.path.join(numpy_path, f"test_rewards_drl-greedy_seed_{seed}.npy"), allow_pickle=True)
                     all_test_rewards_myopic.append(test_rewards_myopic_seed)
                     all_test_rewards_proactive.append(test_rewards_proactive_seed)
                     all_test_rewards_reactive.append(test_rewards_reactive_seed)
+                    all_test_rewards_drl_greedy.append(test_rewards_drl_greedy_seed)
 
             except FileNotFoundError as e:
                 print(f"Warning: Some files missing for seed {seed} in {stripped_scenario_folder}: {e}")
@@ -136,33 +145,42 @@ def aggregate_results_and_plot(SEEDS, MAX_TOTAL_TIMESTEPS, brute_force_flag, cro
         min_length_myopic = min(len(run) for run in all_myopic_runs if len(run) > 0) if all_myopic_runs and all(len(r) > 0 for r in all_myopic_runs) else 0
         min_length_proactive = min(len(run) for run in all_proactive_runs if len(run) > 0) if all_proactive_runs and all(len(r) > 0 for r in all_proactive_runs) else 0
         min_length_reactive = min(len(run) for run in all_reactive_runs if len(run) > 0) if all_reactive_runs and all(len(r) > 0 for r in all_reactive_runs) else 0
+        min_length_drl_greedy = min(len(run) for run in all_drl_greedy_runs if len(run) > 0) if all_drl_greedy_runs and all(len(r) > 0 for r in all_drl_greedy_runs) else 0
 
         all_myopic_runs = [run[:min_length_myopic] for run in all_myopic_runs]
         all_proactive_runs = [run[:min_length_proactive] for run in all_proactive_runs]
         all_reactive_runs = [run[:min_length_reactive] for run in all_reactive_runs]
+        all_drl_greedy_runs = [run[:min_length_drl_greedy] for run in all_drl_greedy_runs]
 
         all_myopic_steps_runs = [steps[:min_length_myopic] for steps in all_myopic_steps_runs]
         all_proactive_steps_runs = [steps[:min_length_proactive] for steps in all_proactive_steps_runs]
         all_reactive_steps_runs = [steps[:min_length_reactive] for steps in all_reactive_steps_runs]
+        all_drl_greedy_steps_runs = [steps[:min_length_drl_greedy] for steps in all_drl_greedy_steps_runs]
 
         all_myopic_runs = np.array(all_myopic_runs)
         all_proactive_runs = np.array(all_proactive_runs)
+        all_reactive_runs = np.array(all_reactive_runs)
+        all_drl_greedy_runs = np.array(all_drl_greedy_runs)
         all_myopic_steps_runs = np.array(all_myopic_steps_runs)
         all_proactive_steps_runs = np.array(all_proactive_steps_runs)
-        all_reactive_runs = np.array(all_reactive_runs)
         all_reactive_steps_runs = np.array(all_reactive_steps_runs)
+        all_drl_greedy_steps_runs = np.array(all_drl_greedy_steps_runs)
 
         # Save combined arrays
         np.save(f'{numpy_path}/all_myopic_runs.npy', all_myopic_runs)
-        np.save(f'{numpy_path}/all_proactive_runs.npy', all_proactive_runs) 
+        np.save(f'{numpy_path}/all_proactive_runs.npy', all_proactive_runs)
         np.save(f'{numpy_path}/all_reactive_runs.npy', all_reactive_runs)
+        np.save(f'{numpy_path}/all_drl_greedy_runs.npy', all_drl_greedy_runs)
         np.save(f'{numpy_path}/all_myopic_steps_runs.npy', all_myopic_steps_runs)
         np.save(f'{numpy_path}/all_proactive_steps_runs.npy', all_proactive_steps_runs)
         np.save(f'{numpy_path}/all_reactive_steps_runs.npy', all_reactive_steps_runs)
+        np.save(f'{numpy_path}/all_drl_greedy_steps_runs.npy', all_drl_greedy_steps_runs)
+
         if cross_val_flag:
             np.save(f'{numpy_path}/all_test_rewards_myopic.npy', all_test_rewards_myopic)
             np.save(f'{numpy_path}/all_test_rewards_proactive.npy', all_test_rewards_proactive)
             np.save(f'{numpy_path}/all_test_rewards_reactive.npy', all_test_rewards_reactive)
+            np.save(f'{numpy_path}/all_test_rewards_drl_greedy.npy', all_test_rewards_drl_greedy)
 
         myopic_mean = all_myopic_runs.mean(axis=0) if all_myopic_runs.size > 0 else []
         myopic_std = all_myopic_runs.std(axis=0) if all_myopic_runs.size > 0 else []
@@ -170,10 +188,13 @@ def aggregate_results_and_plot(SEEDS, MAX_TOTAL_TIMESTEPS, brute_force_flag, cro
         proactive_std = all_proactive_runs.std(axis=0) if all_proactive_runs.size > 0 else []
         reactive_mean = all_reactive_runs.mean(axis=0) if all_reactive_runs.size > 0 else []
         reactive_std = all_reactive_runs.std(axis=0) if all_reactive_runs.size > 0 else []
+        drl_greedy_mean = all_drl_greedy_runs.mean(axis=0) if all_drl_greedy_runs.size > 0 else []
+        drl_greedy_std = all_drl_greedy_runs.std(axis=0) if all_drl_greedy_runs.size > 0 else []
 
         myopic_steps_mean = all_myopic_steps_runs.mean(axis=0).astype(int) if all_myopic_steps_runs.size > 0 else []
         proactive_steps_mean = all_proactive_steps_runs.mean(axis=0).astype(int) if all_proactive_steps_runs.size > 0 else []
         reactive_steps_mean = all_reactive_steps_runs.mean(axis=0).astype(int) if all_reactive_steps_runs.size > 0 else []
+        drl_greedy_steps_mean = all_drl_greedy_steps_runs.mean(axis=0).astype(int) if all_drl_greedy_steps_runs.size > 0 else []
 
         # Smoothing not really needed if window=1, but kept for parity
         smooth_window = 1
@@ -197,6 +218,11 @@ def aggregate_results_and_plot(SEEDS, MAX_TOTAL_TIMESTEPS, brute_force_flag, cro
             reactive_mean_sm, reactive_std_sm, reactive_steps_sm = apply_smooth(reactive_mean, reactive_std, reactive_steps_mean)
         else:
             reactive_mean_sm, reactive_std_sm, reactive_steps_sm = [], [], []
+
+        if len(drl_greedy_mean) > 0:
+            drl_greedy_mean_sm, drl_greedy_std_sm, drl_greedy_steps_sm = apply_smooth(drl_greedy_mean, drl_greedy_std, drl_greedy_steps_mean)
+        else:
+            drl_greedy_mean_sm, drl_greedy_std_sm, drl_greedy_steps_sm = [], [], []
 
         # First plot - Training curves
         plt.figure(figsize=(12,6))
@@ -222,6 +248,13 @@ def aggregate_results_and_plot(SEEDS, MAX_TOTAL_TIMESTEPS, brute_force_flag, cro
                              reactive_mean_sm + reactive_std_sm, 
                              alpha=0.2, color='green')
 
+        if len(drl_greedy_mean_sm) > 0:
+            plt.plot(drl_greedy_steps_sm, drl_greedy_mean_sm, label="DQN Greedy-Guided", color='red')
+            plt.fill_between(drl_greedy_steps_sm, 
+                             drl_greedy_mean_sm - drl_greedy_std_sm, 
+                             drl_greedy_mean_sm + drl_greedy_std_sm, 
+                             alpha=0.2, color='red')
+
         plt.xlabel("Environment Steps (Frames)")
         plt.ylabel("Episode Reward")
         if len(SEEDS) > 1:  
@@ -245,28 +278,34 @@ def aggregate_results_and_plot(SEEDS, MAX_TOTAL_TIMESTEPS, brute_force_flag, cro
                 test_rewards_myopic = np.load(os.path.join(numpy_path, f"test_rewards_myopic_seed_{seed}.npy"), allow_pickle=True)
                 test_rewards_proactive = np.load(os.path.join(numpy_path, f"test_rewards_proactive_seed_{seed}.npy"), allow_pickle=True)
                 test_rewards_reactive = np.load(os.path.join(numpy_path, f"test_rewards_reactive_seed_{seed}.npy"), allow_pickle=True)
+                test_rewards_drl_greedy = np.load(os.path.join(numpy_path, f"test_rewards_drl-greedy_seed_{seed}.npy"), allow_pickle=True)
                 
                 min_test_length = min(min_test_length, len(test_rewards_myopic), 
-                                    len(test_rewards_proactive), len(test_rewards_reactive))
+                                    len(test_rewards_proactive), len(test_rewards_reactive),
+                                    len(test_rewards_drl_greedy))
 
             # Truncate arrays to minimum length before combining
             all_test_rewards_myopic = []
             all_test_rewards_proactive = []
             all_test_rewards_reactive = []
+            all_test_rewards_drl_greedy = []
 
             for seed in SEEDS:
                 test_rewards_myopic = np.load(os.path.join(numpy_path, f"test_rewards_myopic_seed_{seed}.npy"), allow_pickle=True)[:min_test_length]
                 test_rewards_proactive = np.load(os.path.join(numpy_path, f"test_rewards_proactive_seed_{seed}.npy"), allow_pickle=True)[:min_test_length]
                 test_rewards_reactive = np.load(os.path.join(numpy_path, f"test_rewards_reactive_seed_{seed}.npy"), allow_pickle=True)[:min_test_length]
+                test_rewards_drl_greedy = np.load(os.path.join(numpy_path, f"test_rewards_drl-greedy_seed_{seed}.npy"), allow_pickle=True)[:min_test_length]
                 
                 all_test_rewards_myopic.append(test_rewards_myopic)
                 all_test_rewards_proactive.append(test_rewards_proactive)
                 all_test_rewards_reactive.append(test_rewards_reactive)
+                all_test_rewards_drl_greedy.append(test_rewards_drl_greedy)
 
             # Convert to numpy arrays after ensuring consistent lengths
             all_test_rewards_myopic = np.array(all_test_rewards_myopic)
             all_test_rewards_proactive = np.array(all_test_rewards_proactive)
             all_test_rewards_reactive = np.array(all_test_rewards_reactive)
+            all_test_rewards_drl_greedy = np.array(all_test_rewards_drl_greedy)
 
             # Calculate means and stds
             myopic_test_mean = np.mean(all_test_rewards_myopic, axis=0)
@@ -275,6 +314,8 @@ def aggregate_results_and_plot(SEEDS, MAX_TOTAL_TIMESTEPS, brute_force_flag, cro
             proactive_test_std = np.std(all_test_rewards_proactive, axis=0)
             reactive_test_mean = np.mean(all_test_rewards_reactive, axis=0)
             reactive_test_std = np.std(all_test_rewards_reactive, axis=0)
+            drl_greedy_test_mean = np.mean(all_test_rewards_drl_greedy, axis=0)
+            drl_greedy_test_std = np.std(all_test_rewards_drl_greedy, axis=0)
 
             # Calculate x-axis positions based on when cross validation was performed
             # Each test was performed every CROSS_VAL_INTERVAL steps
@@ -305,6 +346,13 @@ def aggregate_results_and_plot(SEEDS, MAX_TOTAL_TIMESTEPS, brute_force_flag, cro
                                 reactive_mean_sm + reactive_std_sm, 
                                 alpha=0.2, color='green')
 
+            if len(drl_greedy_mean_sm) > 0:
+                plt.plot(drl_greedy_steps_sm, drl_greedy_mean_sm, label="Train DQN Greedy-Guided", color='red')
+                plt.fill_between(drl_greedy_steps_sm, 
+                                drl_greedy_mean_sm - drl_greedy_std_sm, 
+                                drl_greedy_mean_sm + drl_greedy_std_sm, 
+                                alpha=0.2, color='red')
+
             # Plot cross validation points at their actual timesteps
             if len(proactive_test_mean) > 0:
                 plt.plot(cv_steps, proactive_test_mean, 'o-', label="CV DQN Proactive-U",
@@ -330,6 +378,14 @@ def aggregate_results_and_plot(SEEDS, MAX_TOTAL_TIMESTEPS, brute_force_flag, cro
                                 reactive_test_mean + reactive_test_std,
                                 alpha=0.1, color='green')
 
+            if len(drl_greedy_test_mean) > 0:
+                plt.plot(cv_steps, drl_greedy_test_mean, 'o-', label="CV DQN Greedy-Guided",
+                        color='red', alpha=0.5, markersize=4)
+                plt.fill_between(cv_steps,
+                                drl_greedy_test_mean - drl_greedy_test_std,
+                                drl_greedy_test_mean + drl_greedy_test_std,
+                                alpha=0.1, color='red')
+
             plt.xlabel("Environment Steps")
             plt.ylabel("Episode Reward")
             if len(SEEDS) > 1:
@@ -349,18 +405,18 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--training_folder", type=str, help="Path to a single training folder")
     parser.add_argument("--seed", type=int, help="Specific seed to run")
-    parser.add_argument("--env_type", type=str, choices=['myopic', 'proactive', 'reactive'], help="Environment type to run")
+    parser.add_argument("--env_type", type=str, choices=['myopic', 'proactive', 'reactive', 'drl-greedy'], help="Environment type to run")
     args = parser.parse_args()
 
     # Common configuration
-    MAX_TOTAL_TIMESTEPS = 2e6
+    MAX_TOTAL_TIMESTEPS = 1e5
     SEEDS = [111]
     brute_force_flag = False
     cross_val_flag = True
     early_stopping_flag = False
     CROSS_VAL_INTERVAL = 1
     printing_intermediate_results = False
-    save_folder = "4-run"
+    save_folder = "6-run"
     TESTING_FOLDERS_PATH = "data/Testing/6ac-100-superdiverse/"
 
     if not os.path.exists(save_folder):
@@ -371,7 +427,7 @@ if __name__ == "__main__":
         # "data/Training/6ac-100-stochastic-medium/",
         # "data/Training/6ac-100-stochastic-high/",
         # "data/Training/6ac-700-diverse/",
-        "data/Training/6ac-10000-superdiverse/",
+        "data/Training/6ac-100-superdiverse/",
     ]
 
     if args.seed is None and args.training_folder is None:
@@ -390,13 +446,14 @@ if __name__ == "__main__":
         start_time = time.time()
 
         processes = []
-        env_types = ['myopic', 'proactive', 'reactive']
+        env_types = ['myopic', 'proactive', 'reactive', 'drl-greedy']
         for seed in SEEDS:
             for env_type in env_types:
                 cmd = [
                     "python", "main.py",
                     "--seed", str(seed),
-                    "--env_type", env_type
+                    "--env_type", env_type,
+                    "--training_folder", all_folders_temp[0]  # Add the training folder
                 ]
                 p = subprocess.Popen(cmd, cwd=os.path.dirname(os.path.abspath(__file__)))
                 processes.append(p)

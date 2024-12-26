@@ -24,12 +24,12 @@ DUMMY_VALUE = -999  # Dummy value for padding
 RESOLVED_CONFLICT_REWARD = 1000     # Reward for resolving a conflict
 DELAY_MINUTE_PENALTY = 5           # Penalty per minute of delay
 MAX_DELAY_PENALTY = 25000000            # Maximum penalty for delay
-NO_ACTION_PENALTY = 1               # Penalty for no action while conflict(s) exist
+NO_ACTION_PENALTY = 0.2               # Penalty for no action while conflict(s) exist
 CANCELLED_FLIGHT_PENALTY = 1000    # Penalty for cancelling a flight
-LAST_MINUTE_THRESHOLD = 0           # Threshold for last-minute changes in minutes
-LAST_MINUTE_FLIGHT_PENALTY = 0      # Penalty for last-minute flight changes  
-AHEAD_BONUS_PER_MINUTE = 0                # Reward for proactive flight changes
-TIME_MINUTE_PENALTY = 0                 # penalty for every minute passed, each timestep cumulatively
+LAST_MINUTE_THRESHOLD = 120           # Threshold for last-minute changes in minutes
+LAST_MINUTE_FLIGHT_PENALTY = 300      # Penalty for last-minute flight changes  
+AHEAD_BONUS_PER_MINUTE = 0.5                # Reward for proactive flight changes
+TIME_MINUTE_PENALTY = 0.9                 # penalty for every minute passed, each timestep cumulatively
 TERMINATION_REWARD = 0                  # Reward for terminating the episode
 TAIL_SWAP_COST = 100
 

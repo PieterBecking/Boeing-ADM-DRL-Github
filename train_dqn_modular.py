@@ -62,7 +62,7 @@ def run_train_dqn_both_timesteps(
 
     EPSILON_START = 1.0
     EPSILON_MIN = 0.025
-    PERCENTAGE_MIN = 95
+    PERCENTAGE_MIN = 85
     EPSILON_TYPE = "exponential"
     if EPSILON_TYPE == "linear":
         EPSILON_MIN = 0
@@ -359,14 +359,56 @@ def run_train_dqn_both_timesteps(
 
                     action_reason = "None"
                     if np.random.rand() < epsilon or brute_force_flag:
-                        valid_actions = np.where(action_mask == 1)[0]
-                        action = np.random.choice(valid_actions)
-                        action_reason = "exploration"
+                        if env_type == "drl-greedy" and np.random.rand() < 0.5:
+                            # Use the greedy optimizer to select action
+                            from src.environment import AircraftDisruptionOptimizer
+                            # Create a copy of the current environment state for the optimizer
+                            optimizer = AircraftDisruptionOptimizer(
+                                aircraft_dict=env.aircraft_dict,
+                                flights_dict=env.flights_dict,
+                                rotations_dict=env.rotations_dict,
+                                alt_aircraft_dict=env.alt_aircraft_dict,
+                                config_dict=env.config_dict
+                            )
+                            # Set the optimizer's state to match current environment
+                            optimizer.current_datetime = env.current_datetime
+                            optimizer.state = env.state.copy()
+                            optimizer.unavailabilities_dict = env.unavailabilities_dict.copy()
+                            optimizer.cancelled_flights = env.cancelled_flights.copy()
+                            optimizer.environment_delayed_flights = env.environment_delayed_flights.copy()
+                            optimizer.penalized_delays = env.penalized_delays.copy()
+                            optimizer.penalized_cancelled_flights = env.penalized_cancelled_flights.copy()
+                            optimizer.initial_conflict_combinations = env.initial_conflict_combinations
+                            optimizer.eligible_flights_for_resolved_bonus = env.eligible_flights_for_resolved_bonus
+                            optimizer.eligible_flights_for_not_being_cancelled_when_disruption_happens = env.eligible_flights_for_not_being_cancelled_when_disruption_happens
+                            optimizer.scenario_wide_initial_disrupted_flights_list = env.scenario_wide_initial_disrupted_flights_list
+                            optimizer.scenario_wide_actual_disrupted_flights = env.scenario_wide_actual_disrupted_flights
+                            optimizer.something_happened = False
+                            optimizer.tail_swap_happened = False
+                            optimizer.scenario_wide_reward_components = env.scenario_wide_reward_components.copy()
+                            optimizer.scenario_wide_delay_minutes = env.scenario_wide_delay_minutes
+                            optimizer.scenario_wide_cancelled_flights = env.scenario_wide_cancelled_flights
+                            optimizer.scenario_wide_steps = env.scenario_wide_steps
+                            optimizer.scenario_wide_resolved_conflicts = env.scenario_wide_resolved_conflicts
+                            optimizer.scenario_wide_solution_slack = env.scenario_wide_solution_slack
+                            optimizer.scenario_wide_tail_swaps = env.scenario_wide_tail_swaps
+                            optimizer.info_after_step = {}
+                            
+                            # Get the best action from the optimizer and convert to numpy array
+                            action = optimizer.select_best_action()
+                            action = np.array(action).reshape(1, -1)
+                            action_reason = "greedy-optimizer"
+                        else:
+                            valid_actions = np.where(action_mask == 1)[0]
+                            action = np.random.choice(valid_actions)
+                            action = np.array(action).reshape(1, -1)
+                            action_reason = "exploration"
                     else:
                         action = np.argmax(masked_q_values)
+                        action = np.array(action).reshape(1, -1)
                         action_reason = "exploitation"
 
-                    result = env.step(action)
+                    result = env.step(action.item())  # Convert back to scalar for the environment
                     obs_next, reward, terminated, truncated, info = result
 
                     rewards[episode][scenario_folder][timesteps_local] = reward
@@ -376,7 +418,7 @@ def run_train_dqn_both_timesteps(
                     model.replay_buffer.add(
                         obs=obs,
                         next_obs=obs_next,
-                        action=action,
+                        action=action,  # Now action is already in the correct format
                         reward=reward,
                         done=done_flag,
                         infos=[info]
@@ -478,8 +520,10 @@ def run_train_dqn_both_timesteps(
     # Return empty arrays for the other environment types
     empty_array = np.array([])
     if env_type == 'myopic':
-        return episode_rewards, empty_array, empty_array, test_rewards, [], []
+        return episode_rewards, empty_array, empty_array, empty_array, test_rewards, [], [], []
     elif env_type == 'proactive':
-        return empty_array, episode_rewards, empty_array, [], test_rewards, []
-    else:  # reactive
-        return empty_array, empty_array, episode_rewards, [], [], test_rewards
+        return empty_array, episode_rewards, empty_array, empty_array, [], test_rewards, [], []
+    elif env_type == 'reactive':
+        return empty_array, empty_array, episode_rewards, empty_array, [], [], test_rewards, []
+    else:  # drl-greedy
+        return empty_array, empty_array, empty_array, episode_rewards, [], [], [], test_rewards

@@ -20,11 +20,11 @@ class AircraftDisruptionEnv(gym.Env):
             rotations_dict (dict): Dictionary containing rotation information.
             alt_aircraft_dict (dict): Dictionary containing alternative aircraft information.
             config_dict (dict): Dictionary containing configuration information.
-            env_type (str): Type of environment ('myopic' or 'proactive', 'reactive').
+            env_type (str): Type of environment ('myopic' or 'proactive', 'reactive', 'drl-greedy').
         """
         super(AircraftDisruptionEnv, self).__init__()
         
-        # Store the environment type ('myopic' or 'proactive')
+        # Store the environment type ('myopic' or 'proactive', 'reactive', 'drl-greedy')
         self.env_type = env_type  
         
         # Constants for environment configuration
@@ -331,8 +331,8 @@ class AircraftDisruptionEnv(gym.Env):
                     obs_breakdown_probability = np.nan
                     obs_unavail_start_minutes = np.nan
                     obs_unavail_end_minutes = np.nan
-            elif self.env_type == 'proactive':
-                # Proactive sees everything (no masking needed)
+            elif self.env_type == 'proactive' or self.env_type == 'drl-greedy':
+                # Proactive and drl-greedy see everything (no masking needed)
                 pass
 
             # Assign the masked values back to the observation copy
@@ -2052,7 +2052,7 @@ class AircraftDisruptionOptimizer(AircraftDisruptionEnv):
             if reward > best_score:
                 best_score = reward
                 best_action = action
-                print(f"    -> New best action (reward={reward})")
+                # print(f"    -> New best action (reward={reward})")
         
         # If no good action found, take no action (should be included in valid_actions)
         if best_action is None:
