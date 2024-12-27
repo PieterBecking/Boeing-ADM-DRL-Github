@@ -251,14 +251,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Common configuration
-    MAX_TOTAL_TIMESTEPS = 1e6
-    SEEDS = [2323]
+    MAX_TOTAL_TIMESTEPS = 2e7
+    SEEDS = [2020]
     brute_force_flag = False
     cross_val_flag = False
     early_stopping_flag = False
     CROSS_VAL_INTERVAL = 1
     printing_intermediate_results = False
-    save_folder = "10-run"
+    save_folder = "11-run"
     TESTING_FOLDERS_PATH = "data/Testing/6ac-100-superdiverse/"
 
     # Define environment types

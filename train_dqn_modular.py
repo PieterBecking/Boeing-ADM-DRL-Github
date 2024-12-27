@@ -52,10 +52,10 @@ def run_train_dqn_both_timesteps(
 
     # Constants and Training Settings
     LEARNING_RATE = 0.0001
-    GAMMA = 0.99
+    GAMMA = 0.9999
     BUFFER_SIZE = 100000
     BATCH_SIZE = 128
-    TARGET_UPDATE_INTERVAL = 1000
+    TARGET_UPDATE_INTERVAL = 100
     NEURAL_NET_STRUCTURE = dict(net_arch=[256, 256])
     LEARNING_STARTS = 10000
     TRAIN_FREQ = 4
