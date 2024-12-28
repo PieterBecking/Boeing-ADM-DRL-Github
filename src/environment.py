@@ -1809,7 +1809,7 @@ class AircraftDisruptionEnv(gym.Env):
                     action_mask[index] = 1
 
         # For reactive environment, only allow 0,0 action if no current conflicts with prob==1.00
-        if self.env_type == 'reactive':
+        if self.env_type == 'reactive': 
             reactive_allowed_to_take_action = False
             current_time_minutes = (self.current_datetime - self.earliest_datetime).total_seconds() / 60
 
@@ -1824,10 +1824,7 @@ class AircraftDisruptionEnv(gym.Env):
                 if breakdown_prob == 1.0:
                     unavail_start = self.unavailabilities_dict[aircraft_id]['StartTime']
                     unavail_end = self.unavailabilities_dict[aircraft_id]['EndTime']
-                    # print(f"*** unavail_start: {unavail_start}")
-                    # print(f"*** unavail_end: {unavail_end}")
                     if not np.isnan(unavail_start):
-                        
                         earliest_disruption_start = min(earliest_disruption_start, unavail_start)
                         
                         # Check if current time is inside disruption period
@@ -1841,13 +1838,8 @@ class AircraftDisruptionEnv(gym.Env):
                             dep_time = self.state[idx + 1, j + 1]
                             arr_time = self.state[idx + 1, j + 2]
                             if not np.isnan(flight_id) and not np.isnan(dep_time):
-                                # print(f"*** flight_id: {flight_id}")
-                                # print(f"*** dep_time: {dep_time}")
-                                # print(f"*** arr_time: {arr_time}")
-                                # there is any overlap (whichever starts first, check the deptime/startime)
                                 if dep_time < unavail_end and arr_time > unavail_start:
                                     earliest_disrupted_dep = min(earliest_disrupted_dep, dep_time)
-                                    # print(f"*** earliest disrupted dep: {earliest_disrupted_dep} of flight {flight_id}")
 
             # Allow reactive action if approaching either critical time
             current_time_minutes = (self.current_datetime - self.start_datetime).total_seconds() / 60
@@ -1855,16 +1847,12 @@ class AircraftDisruptionEnv(gym.Env):
             
             if current_time_minutes + self.timestep_minutes >= earliest_critical_time:
                 reactive_allowed_to_take_action = True
-            # print(f"**** allowed to take action: {reactive_allowed_to_take_action}")
+
             if not reactive_allowed_to_take_action:
                 # Reset mask to all zeros except for 0,0 action
                 action_mask[:] = 0
                 action_mask[0] = 1  # Only allow 0,0 action
 
-        # print(f"*** Action mask: {action_mask}")
-        # # print the value of the action together with the mask
-        # for i in range(len(action_mask)):
-        #     print(f"Action {i}: {action_mask[i]}")
         return action_mask
 
     def map_action_to_index(self, flight_action, aircraft_action):
@@ -1990,52 +1978,53 @@ class AircraftDisruptionOptimizer(AircraftDisruptionEnv):
         """Select the best action from the valid action space using a greedy heuristic"""
         best_action = None
         best_score = float('-inf')
-        # For reactive environment, only allow 0,0 action if no current conflicts with prob==1.00
-        reactive_allowed_to_take_action = False
-        current_time_minutes = (self.current_datetime - self.earliest_datetime).total_seconds() / 60
-
-        # Find earliest disrupted flight departure time and earliest disruption start time 
-        earliest_disrupted_dep = float('inf')
-        earliest_disruption_start = float('inf')
-        earliest_disruption_end = float('inf')
-
-        # Check each aircraft for disruptions with probability 1
-        for idx, aircraft_id in enumerate(self.aircraft_ids):
-            breakdown_prob = self.unavailabilities_dict[aircraft_id]['Probability']
-            if breakdown_prob == 1.0:
-                unavail_start = self.unavailabilities_dict[aircraft_id]['StartTime']
-                unavail_end = self.unavailabilities_dict[aircraft_id]['EndTime']
-                if not np.isnan(unavail_start):
-                    earliest_disruption_start = min(earliest_disruption_start, unavail_start)
-                    
-                    # Check if current time is inside disruption period
-                    if current_time_minutes >= unavail_start and current_time_minutes <= unavail_end:
-                        reactive_allowed_to_take_action = True
-                        break
-                        
-                    # Check flights assigned to this aircraft for departures during disruption
-                    for j in range(4, self.columns_state_space - 2, 3):
-                        flight_id = self.state[idx + 1, j]
-                        dep_time = self.state[idx + 1, j + 1]
-                        arr_time = self.state[idx + 1, j + 2]
-                        if not np.isnan(flight_id) and not np.isnan(dep_time):
-                            if dep_time < unavail_end and arr_time > unavail_start:
-                                earliest_disrupted_dep = min(earliest_disrupted_dep, dep_time)
-
-        # Allow reactive action if approaching either critical time
-        current_time_minutes = (self.current_datetime - self.start_datetime).total_seconds() / 60
-        earliest_critical_time = min(earliest_disrupted_dep, earliest_disruption_start)
         
-        if current_time_minutes + self.timestep_minutes >= earliest_critical_time:
-            reactive_allowed_to_take_action = True
+        # For reactive environment, only allow 0,0 action if no current conflicts with prob==1.00
+        if self.env_type != 'drl-greedy':
+            reactive_allowed_to_take_action = False
+            current_time_minutes = (self.current_datetime - self.earliest_datetime).total_seconds() / 60
 
-        if not reactive_allowed_to_take_action:
-            return self.map_action_to_index(0, 0)  # Only allow 0,0 action
+            # Find earliest disrupted flight departure time and earliest disruption start time 
+            earliest_disrupted_dep = float('inf')
+            earliest_disruption_start = float('inf')
+            earliest_disruption_end = float('inf')
+
+            # Check each aircraft for disruptions with probability 1
+            for idx, aircraft_id in enumerate(self.aircraft_ids):
+                breakdown_prob = self.unavailabilities_dict[aircraft_id]['Probability']
+                if breakdown_prob == 1.0:
+                    unavail_start = self.unavailabilities_dict[aircraft_id]['StartTime']
+                    unavail_end = self.unavailabilities_dict[aircraft_id]['EndTime']
+                    if not np.isnan(unavail_start):
+                        earliest_disruption_start = min(earliest_disruption_start, unavail_start)
+                        
+                        # Check if current time is inside disruption period
+                        if current_time_minutes >= unavail_start and current_time_minutes <= unavail_end:
+                            reactive_allowed_to_take_action = True
+                            break
+                            
+                        # Check flights assigned to this aircraft for departures during disruption
+                        for j in range(4, self.columns_state_space - 2, 3):
+                            flight_id = self.state[idx + 1, j]
+                            dep_time = self.state[idx + 1, j + 1]
+                            arr_time = self.state[idx + 1, j + 2]
+                            if not np.isnan(flight_id) and not np.isnan(dep_time):
+                                if dep_time < unavail_end and arr_time > unavail_start:
+                                    earliest_disrupted_dep = min(earliest_disrupted_dep, dep_time)
+
+            # Allow reactive action if approaching either critical time
+            current_time_minutes = (self.current_datetime - self.start_datetime).total_seconds() / 60
+            earliest_critical_time = min(earliest_disrupted_dep, earliest_disruption_start)
+            
+            if current_time_minutes + self.timestep_minutes >= earliest_critical_time:
+                reactive_allowed_to_take_action = True
+
+            if not reactive_allowed_to_take_action:
+                return self.map_action_to_index(0, 0)  # Only allow 0,0 action
         
         # Get valid actions using the environment's action mask
         action_mask = self.get_action_mask()
         valid_actions = np.where(action_mask == 1)[0]
-        # print(f"\nEvaluating {len(valid_actions)} valid actions:")
         
         # Try each valid action and evaluate its impact
         for action in valid_actions:
@@ -2046,21 +2035,14 @@ class AircraftDisruptionOptimizer(AircraftDisruptionEnv):
             # Take the action in the copied environment
             _, reward, _, _, _ = env_copy.step(action)
             
-            # print(f"  Action {action} (flight={flight_action}, aircraft={aircraft_action}): reward={reward}")
-            
             # Update best action if this one has better reward
             if reward > best_score:
                 best_score = reward
                 best_action = action
-                # print(f"    -> New best action (reward={reward})")
         
         # If no good action found, take no action (should be included in valid_actions)
         if best_action is None:
             best_action = self.map_action_to_index(0, 0)
-            # print("No good action found, defaulting to no-op action (0, 0)")
-        else:
-            flight_action, aircraft_action = self.map_index_to_action(best_action)
-            # print(f"\nChosen best action: index={best_action} (flight={flight_action}, aircraft={aircraft_action}) with reward={best_score}")
         
         return best_action
 

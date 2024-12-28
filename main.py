@@ -251,8 +251,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Common configuration
-    MAX_TOTAL_TIMESTEPS = 2e7
-    SEEDS = [2020]
+    MAX_TOTAL_TIMESTEPS = 5e5
+    SEEDS = [2021]
     brute_force_flag = False
     cross_val_flag = False
     early_stopping_flag = False
@@ -262,7 +262,7 @@ if __name__ == "__main__":
     TESTING_FOLDERS_PATH = "data/Testing/6ac-100-superdiverse/"
 
     # Define environment types
-    env_types = ['myopic', 'proactive', 'reactive']
+    env_types = ['myopic', 'proactive', 'reactive', 'drl-greedy']
 
     if not os.path.exists(save_folder):
         os.makedirs(save_folder)
@@ -272,7 +272,7 @@ if __name__ == "__main__":
         # "data/Training/6ac-100-stochastic-medium/",
         # "data/Training/6ac-100-stochastic-high/",
         # "data/Training/6ac-700-diverse/",
-        "data/Training/6ac-10000-superdiverse/",
+        "data/Training/3ac-100-superdiverse/",
     ]
 
     if args.seed is None and args.training_folder is None:
