@@ -54,6 +54,13 @@ class StatePlotter:
         if debug_print:
             print(f"Plotting state with following flights: {flights_dict}")
 
+        # Set up the figure first
+        fig, ax = plt.subplots(figsize=(14, 8))
+        
+        # Set up date formatter and locator before any plotting
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        ax.xaxis.set_major_locator(mdates.HourLocator(interval=1)) 
+        
         updated_rotations_dict = self.rotations_dict.copy()
         for swap in swapped_flights:
             flight_id, new_aircraft_id = swap
@@ -69,8 +76,6 @@ class StatePlotter:
         all_aircraft_ids = set([rotation_info['Aircraft'] for rotation_info in updated_rotations_dict.values()]).union(set(self.aircraft_dict.keys()))
         aircraft_ids = sorted(all_aircraft_ids, key=extract_sort_key)
         aircraft_indices = {aircraft_id: index + 1 for index, aircraft_id in enumerate(aircraft_ids)}
-
-        fig, ax = plt.subplots(figsize=(14, 8))
 
         labels = {
             'Scheduled Flight': False,
@@ -101,10 +106,34 @@ class StatePlotter:
                 dep_datetime = parse_time_with_day_offset(dep_datetime_str, self.start_datetime)
                 arr_datetime = parse_time_with_day_offset(arr_datetime_str, dep_datetime)
                 
-                # Ensure arrival time is on same day as departure for flights crossing midnight
-                if '+1' in dep_datetime_str:
-                    # If departure is next day, arrival should be same day
-                    arr_datetime = arr_datetime.replace(day=dep_datetime.day)
+                # Handle flights crossing midnight properly
+                if '+1' in dep_datetime_str and '+1' in arr_datetime_str:
+                    # Both departure and arrival are on next day
+                    dep_datetime = self.start_datetime + timedelta(days=1)
+                    dep_datetime = dep_datetime.replace(hour=int(dep_datetime_str.split(':')[0]), 
+                                                     minute=int(dep_datetime_str.split(':')[1].split('+')[0]))
+                    arr_datetime = dep_datetime + timedelta(days=0)  # Same day as departure
+                    arr_datetime = arr_datetime.replace(hour=int(arr_datetime_str.split(':')[0]), 
+                                                     minute=int(arr_datetime_str.split(':')[1].split('+')[0]))
+                elif '+1' in dep_datetime_str:
+                    # Only departure is next day
+                    dep_datetime = self.start_datetime + timedelta(days=1)
+                    dep_datetime = dep_datetime.replace(hour=int(dep_datetime_str.split(':')[0]), 
+                                                     minute=int(dep_datetime_str.split(':')[1].split('+')[0]))
+                    arr_datetime = dep_datetime
+                    arr_datetime = arr_datetime.replace(hour=int(arr_datetime_str.split(':')[0]), 
+                                                     minute=int(arr_datetime_str.split(':')[1]))
+                elif '+1' in arr_datetime_str:
+                    # Only arrival is next day relative to departure
+                    dep_datetime = dep_datetime.replace(hour=int(dep_datetime_str.split(':')[0]), 
+                                                     minute=int(dep_datetime_str.split(':')[1]))
+                    arr_datetime = dep_datetime + timedelta(days=1)
+                    arr_datetime = arr_datetime.replace(hour=int(arr_datetime_str.split(':')[0]), 
+                                                     minute=int(arr_datetime_str.split(':')[1].split('+')[0]))
+                
+                # Debug print
+                if '+1' in dep_datetime_str or '+1' in arr_datetime_str:
+                    print(f"Flight {flight_id} times - Dep: {dep_datetime_str} -> {dep_datetime}, Arr: {arr_datetime_str} -> {arr_datetime}")
                 
                 # Recalculate earliest and latest times after fixing arr_datetime
                 earliest_time = min(earliest_time, dep_datetime)
@@ -133,11 +162,6 @@ class StatePlotter:
                 y_offset = aircraft_indices[aircraft_id] + self.offset_baseline
                 if delayed:
                     y_offset += self.offset_delayed_flight
-
-                # Ensure arrival time is on same day as departure for flights crossing midnight
-                if '+1' in dep_datetime_str:
-                    # If departure is next day, arrival should be same day
-                    arr_datetime = arr_datetime.replace(day=dep_datetime.day)
 
                 ax.plot([dep_datetime, arr_datetime], [y_offset, y_offset], color=plot_color, label=plot_label if not labels[plot_label] else None)
                 
@@ -246,13 +270,23 @@ class StatePlotter:
             )
             ax.add_patch(rect)
 
-        x_min = earliest_time - timedelta(hours=1)
-        x_max = latest_time + timedelta(hours=1)
-        ax.set_xlim(x_min, x_max)
+        # After all plotting is done, set the x-axis limits and format
+        buffer_time = timedelta(hours=1)
+        ax.set_xlim(earliest_time - buffer_time, latest_time + buffer_time)
+        
+        # Add day markers if the time range spans multiple days
+        if (latest_time.date() - earliest_time.date()).days > 0:
+            current_date = earliest_time.date()
+            while current_date <= latest_time.date():
+                next_day = datetime.combine(current_date + timedelta(days=1), datetime.min.time())
+                if next_day >= earliest_time and next_day <= latest_time:
+                    ax.axvline(x=next_day, color='gray', linestyle='--', alpha=0.5)
+                    ax.text(next_day, ax.get_ylim()[1], f' Day +{(current_date - self.start_datetime.date()).days + 1}',
+                           rotation=90, va='bottom', ha='right')
+                current_date += timedelta(days=1)
+        
+        plt.xticks(rotation=45)
 
-        ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
-        ax.xaxis.set_minor_locator(mdates.MinuteLocator(interval=30))
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
         ax.axvline(self.start_datetime, color='green', linestyle='--', label='Start Recovery Period')
         ax.axvline(self.end_datetime, color='green', linestyle='-', label='End Recovery Period')
         ax.axvline(current_datetime, color='black', linestyle='-', label='Current Time')
@@ -275,7 +309,6 @@ class StatePlotter:
             title += f' (Reward: {reward_and_action[0]:.2f}, Action: (flight: {reward_and_action[1][0]}, aircraft: {reward_and_action[1][1]}), Total Reward: {reward_and_action[2]:.2f})'
         plt.title(title)
         plt.grid(True)
-        plt.xticks(rotation=45)
         plt.tight_layout()
 
         plt.legend(bbox_to_anchor=(0.5, -0.1), loc='upper center', ncol=3)
@@ -373,10 +406,23 @@ class StatePlotterDemo:
                 dep_datetime = parse_time_with_day_offset(dep_datetime_str, self.start_datetime)
                 arr_datetime = parse_time_with_day_offset(arr_datetime_str, dep_datetime)
                 
-                # Ensure arrival time is on same day as departure for flights crossing midnight
-                if '+1' in dep_datetime_str:
-                    # If departure is next day, arrival should be same day
+                # Handle flights crossing midnight properly
+                if '+1' in dep_datetime_str and '+1' in arr_datetime_str:
+                    # Both departure and arrival are on next day
+                    # Keep them on the same day (next day relative to start)
+                    next_day = self.start_datetime.day + 1
+                    dep_datetime = dep_datetime.replace(day=next_day)
+                    arr_datetime = arr_datetime.replace(day=next_day)
+                elif '+1' in dep_datetime_str:
+                    # Only departure is next day, arrival should be same day as departure
                     arr_datetime = arr_datetime.replace(day=dep_datetime.day)
+                elif '+1' in arr_datetime_str:
+                    # Only arrival is next day relative to departure
+                    arr_datetime = arr_datetime.replace(day=dep_datetime.day + 1)
+                
+                # Recalculate earliest and latest times after fixing arr_datetime
+                earliest_time = min(earliest_time, dep_datetime)
+                latest_time = max(latest_time, arr_datetime)
                 
                 swapped = any(flight_id == swap[0] for swap in swapped_flights)
                 delayed = flight_id in environment_delayed_flights
@@ -404,11 +450,6 @@ class StatePlotterDemo:
                 y_offset = aircraft_indices[aircraft_id]
                 if delayed:
                     y_offset += self.offset_delayed_flight
-
-                # Ensure arrival time is on same day as departure for flights crossing midnight
-                if '+1' in dep_datetime_str:
-                    # If departure is next day, arrival should be same day
-                    arr_datetime = arr_datetime.replace(day=dep_datetime.day)
 
                 ax.plot([dep_datetime, arr_datetime], [y_offset, y_offset], color=plot_color, label=plot_label if not labels[plot_label] else None)
                 
