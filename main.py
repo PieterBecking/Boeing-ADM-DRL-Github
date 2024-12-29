@@ -262,7 +262,7 @@ if __name__ == "__main__":
     early_stopping_flag = False
     CROSS_VAL_INTERVAL = 5
     printing_intermediate_results = False
-    save_folder = "18-run"
+    save_folder = "19-run"
     TESTING_FOLDERS_PATH = "data/Testing/6ac-100-superdiverse/"
 
     # Define environment types
@@ -277,7 +277,8 @@ if __name__ == "__main__":
         # "data/Training/6ac-100-stochastic-high/",
         # "data/Training/6ac-700-diverse/",
         # "data/Training/6ac-1-deterministic/",
-        "data/Training/6ac-100-superdiverse/",
+        "data/Training/6ac-1000-deterministic/",
+        # "data/Training/6ac-100-superdiverse/",
     ]
 
     if args.seed is None and args.training_folder is None:
