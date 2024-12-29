@@ -1,13 +1,14 @@
 import numpy as np
 
 # General Environment Settings
-MAX_AIRCRAFT = 3  # Maximum number of aircraft considered in the environment
-MAX_FLIGHTS_PER_AIRCRAFT = 10  # Maximum number of flights per aircraft
+MAX_AIRCRAFT = 6  # Maximum number of aircraft considered in the environment
+MAX_FLIGHTS_PER_AIRCRAFT = 17  # Maximum number of flights per aircraft
+MAX_FLIGHTS_IN_SCENARIO = 40
+
+# Space sizes Settings
 ROWS_STATE_SPACE = 1 + MAX_AIRCRAFT  # Number of rows in the state space
 COLUMNS_STATE_SPACE = 1 + 2 + 3 * MAX_FLIGHTS_PER_AIRCRAFT # Number of columns in the state space: 1 for ac id, 2 for ac unavail, 3 for each flight (id, start, end)
-
-# Calculate the flattened action space size
-ACTION_SPACE_SIZE = (MAX_AIRCRAFT + 1) * (MAX_FLIGHTS_PER_AIRCRAFT + 1)  # Number of possible actions (+1 for the zero for no action and cancellations)
+ACTION_SPACE_SIZE = (MAX_AIRCRAFT + 1) * (MAX_FLIGHTS_IN_SCENARIO + 1)  # Number of possible actions (+1 for the zero for no action and cancellations)
 
 
 # Data Generation Settings
@@ -31,7 +32,7 @@ LAST_MINUTE_FLIGHT_PENALTY = 300      # Penalty for last-minute flight changes
 AHEAD_BONUS_PER_MINUTE = 0.05                # Reward for proactive flight changes
 TIME_MINUTE_PENALTY = 0.1                 # penalty for every minute passed, each timestep cumulatively
 TERMINATION_REWARD = 0                  # Reward for terminating the episode
-TAIL_SWAP_COST = 100
+TAIL_SWAP_COST = 1000
 
 
 # Environment Settings
@@ -50,3 +51,4 @@ DEBUG_MODE_STOPPING_CRITERIA = False
 DEBUG_MODE_SCHEDULING = False
 DEBUG_MODE_REWARD_LAST_MINUTE_PENALTY = False  # Turn on/off debug mode for reward calculation last minute penalty
 DEBUG_MODE_REWARD_RESOLVED_CONFLICTS = False
+DEBUG_MODE_DELAY_MINUTES = False
