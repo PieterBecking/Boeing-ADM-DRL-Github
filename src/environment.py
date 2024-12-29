@@ -1041,6 +1041,15 @@ class AircraftDisruptionEnv(gym.Env):
         # Insert our flight at the correct position
         scheduled_flights.insert(insert_idx, (flight_id, dep_time, arr_time))
 
+        # Store original departure times for reward calculation before any propagation updates
+        original_dep_times_for_reward_calculation = {}
+        for flight_tuple in scheduled_flights:
+            flight_id_for_reward_calculation = flight_tuple[0]
+            original_dep_times_for_reward_calculation[flight_id_for_reward_calculation] = parse_time_with_day_offset(
+                self.flights_dict[flight_id_for_reward_calculation]['DepTime'],
+                self.start_datetime
+            )
+
         # Now process all flights in sequence to ensure proper spacing
         for i in range(len(scheduled_flights)):
             current_flight = scheduled_flights[i]
@@ -1074,7 +1083,7 @@ class AircraftDisruptionEnv(gym.Env):
                     # Update the scheduled_flights list with new times
                     scheduled_flights[i] = (current_flight_id, new_dep_time, new_arr_time)
                     
-                    # Track the delay
+                    # Track the delay for normal operations
                     original_dep = parse_time_with_day_offset(
                         self.flights_dict[current_flight_id]['DepTime'], 
                         self.start_datetime
@@ -1082,6 +1091,27 @@ class AircraftDisruptionEnv(gym.Env):
                     original_dep_minutes = (original_dep - self.earliest_datetime).total_seconds() / 60
                     delay = new_dep_time - original_dep_minutes
                     self.environment_delayed_flights[current_flight_id] = self.environment_delayed_flights.get(current_flight_id, 0) + delay
+
+                    # Track the delay separately for reward calculation
+                    if DEBUG_MODE_DELAY_MINUTES:
+                        print(f"\nCalculating delay for flight {current_flight_id}:")
+                        print(f"  Original departure time: {self.flights_dict[current_flight_id]['DepTime']}")
+                        print(f"  New departure time minutes: {new_dep_time}")
+                        print(f"  Previous accumulated delay for reward: {self.environment_delayed_flights_for_reward_calculation.get(current_flight_id, 0)}")
+                    
+                    original_dep_for_reward = original_dep_times_for_reward_calculation[current_flight_id]
+                    original_dep_minutes_for_reward = (original_dep_for_reward - self.earliest_datetime).total_seconds() / 60
+                    
+                    if DEBUG_MODE_DELAY_MINUTES:
+                        print(f"  Original departure minutes for reward: {original_dep_minutes_for_reward}")
+                    
+                    delay_for_reward = new_dep_time - original_dep_minutes_for_reward
+                    
+                    if DEBUG_MODE_DELAY_MINUTES:
+                        print(f"  Calculated delay for reward: {delay_for_reward} minutes")
+                        print(f"  New total delay for reward: {self.environment_delayed_flights_for_reward_calculation.get(current_flight_id, 0) + delay_for_reward} minutes")
+                    
+                    self.environment_delayed_flights_for_reward_calculation[current_flight_id] = self.environment_delayed_flights_for_reward_calculation.get(current_flight_id, 0) + delay_for_reward
 
         # Finally, update the state for our flight
         flight_placed = False
@@ -1197,10 +1227,28 @@ class AircraftDisruptionEnv(gym.Env):
             print(f"Calculating reward for action: flight {flight_action}, aircraft {aircraft_action}")
 
         # 1. Delay Penalty: Penalize additional minutes of delay
+        if DEBUG_MODE_DELAY_MINUTES:
+            print("\nCalculating delay penalty:")
+            print("Current delayed flights for reward:", self.environment_delayed_flights_for_reward_calculation)
+            print("Previously penalized delays for reward:", self.penalized_delays_for_reward_calculation)
+            
         delay_penalty_minutes = sum(
-            self.environment_delayed_flights[flight_id] - self.penalized_delays.get(flight_id, 0)
-            for flight_id in self.environment_delayed_flights
+            self.environment_delayed_flights_for_reward_calculation[flight_id] - self.penalized_delays_for_reward_calculation.get(flight_id, 0)
+            for flight_id in self.environment_delayed_flights_for_reward_calculation
         )
+        
+        if DEBUG_MODE_DELAY_MINUTES:
+            print("Delay penalty calculation details:")
+            for flight_id in self.environment_delayed_flights_for_reward_calculation:
+                current_delay = self.environment_delayed_flights_for_reward_calculation[flight_id]
+                previous_penalty = self.penalized_delays_for_reward_calculation.get(flight_id, 0)
+                penalty = current_delay - previous_penalty
+                print(f"  Flight {flight_id}:")
+                print(f"    Current delay for reward: {current_delay}")
+                print(f"    Previous penalty for reward: {previous_penalty}")
+                print(f"    Additional penalty for reward: {penalty}")
+            print(f"Total delay penalty minutes: {delay_penalty_minutes}")
+        
         self.scenario_wide_delay_minutes += delay_penalty_minutes
         delay_penalty_total = min(delay_penalty_minutes * DELAY_MINUTE_PENALTY, MAX_DELAY_PENALTY)
 
@@ -1274,8 +1322,8 @@ class AircraftDisruptionEnv(gym.Env):
         self.tail_swap_happened = False
 
         # Update penalized delays for next iteration
-        for flight_id, delay in self.environment_delayed_flights.items():
-            self.penalized_delays[flight_id] = delay
+        for flight_id, delay in self.environment_delayed_flights_for_reward_calculation.items():
+            self.penalized_delays_for_reward_calculation[flight_id] = delay
 
         # Calculate total reward
         reward = (
@@ -1450,7 +1498,9 @@ class AircraftDisruptionEnv(gym.Env):
 
         self.swapped_flights = []  # Reset the swapped flights list
         self.environment_delayed_flights = {}  # Reset the delayed flights list
+        self.environment_delayed_flights_for_reward_calculation = {}  # Reset the delayed flights list for reward calculation
         self.penalized_delays = {}  # Reset the penalized delays
+        self.penalized_delays_for_reward_calculation = {}  # Reset the penalized delays for reward calculation
         self.penalized_conflicts = set()
         self.resolved_conflicts = set()
         self.penalized_cancelled_flights = set()  # Reset penalized cancelled flights
