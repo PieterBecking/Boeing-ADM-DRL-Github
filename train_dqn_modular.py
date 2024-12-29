@@ -23,6 +23,7 @@ from stable_baselines3.common.utils import polyak_update, set_random_seed
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 from scripts.utils import NumpyEncoder
 from scripts.logger import *
+from stable_baselines3.common.prioritized_replay_buffer import PrioritizedReplayBuffer
 import json
 import seaborn as sns
 sns.set(style="darkgrid")
@@ -295,7 +296,13 @@ def run_train_dqn_both_timesteps(
             target_update_interval=TARGET_UPDATE_INTERVAL,
             verbose=0,
             policy_kwargs=NEURAL_NET_STRUCTURE,
-            device=device
+            device=device,
+            replay_buffer_class=PrioritizedReplayBuffer,
+            replay_buffer_kwargs=dict(
+                alpha=0.6,  # Prioritization exponent (0 = no prioritization, 1 = full prioritization)
+                beta=0.4,   # Initial importance sampling correction (increases to 1 over training)
+                epsilon=1e-6  # Small constant to ensure non-zero probabilities
+            )
         )
 
         logger = configure()
