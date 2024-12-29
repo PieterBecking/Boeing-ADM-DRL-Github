@@ -56,7 +56,7 @@ def run_train_dqn_both_timesteps(
     BUFFER_SIZE = 100000
     BATCH_SIZE = 128
     TARGET_UPDATE_INTERVAL = 100
-    NEURAL_NET_STRUCTURE = dict(net_arch=[256, 256])
+    NEURAL_NET_STRUCTURE = dict(net_arch=[256, 256*2, 256])
     LEARNING_STARTS = 10000
     TRAIN_FREQ = 4
 
@@ -372,8 +372,7 @@ def run_train_dqn_both_timesteps(
                                     flights_dict=env.flights_dict,
                                     rotations_dict=env.rotations_dict,
                                     alt_aircraft_dict=env.alt_aircraft_dict,
-                                    config_dict=env.config_dict,
-                                    env_type=env_type
+                                    config_dict=env.config_dict
                                 )
                                 # Set the optimizer's state to match current environment
                                 optimizer.current_datetime = env.current_datetime
@@ -401,7 +400,7 @@ def run_train_dqn_both_timesteps(
 
                                 
                                 # Get the best action from the optimizer and convert to numpy array
-                                action = optimizer.select_best_action(env_type=env_type)
+                                action = optimizer.select_best_action()
                                 action = np.array(action).reshape(1, -1)
                                 action_reason = "greedy-optimizer"
                             else:
