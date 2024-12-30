@@ -275,6 +275,8 @@ def run_train_dqn_both_timesteps(
         alt_aircraft_dict = data_dict['alt_aircraft']
         config_dict = data_dict['config']
 
+        # initialize the environment
+
         from src.environment import AircraftDisruptionEnv
         env = AircraftDisruptionEnv(
             aircraft_dict,
@@ -284,6 +286,8 @@ def run_train_dqn_both_timesteps(
             config_dict,
             env_type=env_type
         )
+
+
 
         model = DQN(
             policy='MultiInputPolicy',
