@@ -105,8 +105,10 @@ class AircraftDisruptionEnv(gym.Env):
 
         # Track environment state related to delays and conflicts
         self.environment_delayed_flights = {}   # Tracks delays for flights {flight_id: delay_minutes}
-        self.penalized_delays = {}           # Set of penalized delays
-        
+        self.environment_delayed_flights_for_reward_calculation = {}  # Tracks delays for reward calculation
+        self.penalized_delays = {}
+        self.penalized_delays_for_reward_calculation = {}  # Tracks penalized delays for reward calculation
+
         self.penalized_conflicts = set()        # Set of penalized conflicts
         self.resolved_conflicts = set()         # Set of resolved conflicts
         self.penalized_cancelled_flights = set()  # To keep track of penalized cancelled flights
@@ -138,8 +140,6 @@ class AircraftDisruptionEnv(gym.Env):
         self.scenario_wide_tail_swaps = 0
         self.scenario_wide_initial_disrupted_flights_list = self.get_current_conflicts()
         self.scenario_wide_actual_disrupted_flights = len(self.get_current_conflicts())
-        # print(f"*********scenario_wide_actual_disrupted_flights: {self.scenario_wide_actual_disrupted_flights}")
-        # print(f"*********scenario_wide_initial_disrupted_flights_list: {self.scenario_wide_initial_disrupted_flights_list}")
 
         self.scenario_wide_reward_components = {
             "delay_penalty_total": 0,
@@ -152,6 +152,8 @@ class AircraftDisruptionEnv(gym.Env):
 
         # Initialize tail swap tracking
         self.tail_swap_happened = False
+
+        self.something_happened_testing = 0
 
     def _get_initial_state(self):
         """Initializes the state matrix for the environment.
@@ -230,7 +232,7 @@ class AircraftDisruptionEnv(gym.Env):
             }
 
             # # In the myopic env, the info for uncertain breakdowns is not shown
-            # if breakdown_probability != 1.0 and self.env_type == 'myopic':
+            # if breakdown_probability != 1.00 and self.env_type == 'myopic':
             #     breakdown_probability = np.nan  # Set to NaN if not 1.00
             #     unavail_start_minutes = np.nan
             #     unavail_end_minutes = np.nan
@@ -957,8 +959,8 @@ class AircraftDisruptionEnv(gym.Env):
             unavail_end_time = float(unavail_end)
             
             # Check for any overlap between flight and unavailability period
-            # A flight overlaps if it doesn't end before the disruption starts
-            if flight_end > unavail_start_time:
+            # A flight overlaps if it doesn't end before the disruption starts and if it doesn't start after the disruption ends
+            if flight_end > unavail_start_time and flight_start < unavail_end_time:
                 has_unavail_overlap = True
                 
             if DEBUG_MODE_SCHEDULING:
@@ -981,6 +983,8 @@ class AircraftDisruptionEnv(gym.Env):
                 print("Flight is on current aircraft and completes before disruption - keeping original schedule")
             self.something_happened = False
             return
+        
+        self.something_happened_testing = 2
 
         # Handle unavailability overlap
         if has_unavail_overlap:
@@ -999,6 +1003,7 @@ class AircraftDisruptionEnv(gym.Env):
                     delay = dep_time - original_dep_minutes
                     self.environment_delayed_flights[flight_id] = self.environment_delayed_flights.get(flight_id, 0) + delay
                     self.something_happened = True
+                    self.something_happened_testing = 1
                 else:
                     if DEBUG_MODE_SCHEDULING:
                         print("Case 2: Current aircraft with prob = 0.00 - Keeping original schedule")
@@ -1268,7 +1273,15 @@ class AircraftDisruptionEnv(gym.Env):
             print(f"  -{cancel_penalty} penalty for {cancellation_penalty_count} new cancelled flights: {new_cancellations}")
 
         # 3. Inaction Penalty: Penalize doing nothing when conflicts exist
-        inaction_penalty = NO_ACTION_PENALTY if flight_action == 0 and remaining_conflicts else 0
+        if flight_action == 0 and remaining_conflicts:
+            inaction_penalty = NO_ACTION_PENALTY
+        else:
+            inaction_penalty = 0
+
+
+        if not self.something_happened:
+            inaction_penalty = NO_ACTION_PENALTY
+
 
         if DEBUG_MODE_REWARD:
             print(f"  -{inaction_penalty} penalty for inaction with remaining conflicts")
@@ -1386,6 +1399,9 @@ class AircraftDisruptionEnv(gym.Env):
         }
 
         return reward
+
+
+
 
     def _calculate_scenario_wide_solution_slack(self):
         """Calculate the scenario-wide solution slack based on flight schedules."""
@@ -2030,7 +2046,7 @@ class AircraftDisruptionOptimizer(AircraftDisruptionEnv):
         best_score = float('-inf')
         
         # For reactive environment, only allow 0,0 action if no current conflicts with prob==1.00
-        if self.env_type != 'drl-greedy':
+        if self.env_type != 'drl-greedy' and self.env_type != 'myopic' and self.env_type != 'proactive' and self.env_type != 'reactive':
             reactive_allowed_to_take_action = False
             current_time_minutes = (self.current_datetime - self.earliest_datetime).total_seconds() / 60
 
@@ -2115,3 +2131,7 @@ class AircraftDisruptionOptimizer(AircraftDisruptionEnv):
         if self.environment_delayed_flights:
             self.solution['delays'] = {k: v for k, v in self.environment_delayed_flights.items()}
             self.solution['total_delay_minutes'] = sum(self.environment_delayed_flights.values())
+
+
+
+
