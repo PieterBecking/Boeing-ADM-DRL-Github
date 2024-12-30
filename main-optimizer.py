@@ -1,8 +1,181 @@
 import os
+import copy
+import numpy as np
+import time
 from scripts.utils import load_scenario_data
-from src.environment import AircraftDisruptionOptimizer
+from src.environment import AircraftDisruptionEnv
 from scripts.visualizations import StatePlotter
 from datetime import datetime
+
+
+class AircraftDisruptionExactInference(AircraftDisruptionEnv):
+    def __init__(self, aircraft_dict, flights_dict, rotations_dict, alt_aircraft_dict, config_dict):
+        # Initialize the environment with 'myopic' type (since we want to see all conflicts)
+        super().__init__(aircraft_dict, flights_dict, rotations_dict, alt_aircraft_dict, config_dict, env_type='proactive')
+        
+        # Initialize solution tracking
+        self.solution = {
+            "objective_value": 0,
+            "assignments": {},
+            "cancellations": [],
+            "delays": {},
+            "total_delay_minutes": 0,
+            "statistics": {
+                "runtime": 0,
+                "gap": 0,
+                "node_count": 0,
+                "status": "In Progress"
+            }
+        }
+        
+        # Track start time for runtime calculation
+        self.start_time = None
+        
+        # Track action history
+        self.action_history = []
+
+        self.scenario_wide_reward_total = 0
+        
+
+    def select_best_action(self):
+        """Select the best action using beam search with width 3.
+        
+        This method looks ahead until terminal states, keeping only the top 3 paths at each step.
+        Returns the first action of the best-performing path.
+        """
+        BEAM_WIDTH = 5
+        
+        # Get valid actions using the environment's action mask
+        action_mask = self.get_action_mask()
+        valid_actions = np.where(action_mask == 1)[0]
+        
+        # Initialize beam with empty paths
+        # Each path is (sequence_of_actions, total_reward, env_state, terminated)
+        current_beam = [([], 0, copy.deepcopy(self), False)]
+        
+        # Keep track of best complete path
+        best_complete_path = None
+        best_complete_reward = float('-inf')
+        
+        # Track total sequences considered
+        total_sequences_considered = 0
+        
+        while current_beam:
+            next_beam = []
+            
+            # Try extending each path in current beam
+            for action_sequence, total_reward, env_state, terminated in current_beam:
+                if terminated:
+                    # If this is a complete path, update best if it's better
+                    if total_reward > best_complete_reward:
+                        best_complete_path = action_sequence
+                        best_complete_reward = total_reward
+                    continue
+                
+                # Get valid actions for this state
+                action_mask = env_state.get_action_mask()
+                valid_actions = np.where(action_mask == 1)[0]
+                
+                # Try each valid action
+                candidates = []
+                for action in valid_actions:
+                    total_sequences_considered += 1
+                    env_copy = copy.deepcopy(env_state)
+                    _, reward, terminated, _, _ = env_copy.step(action)
+                    new_sequence = action_sequence + [action]
+                    new_total_reward = total_reward + reward
+                    candidates.append((new_sequence, new_total_reward, env_copy, terminated))
+                
+                # Sort candidates by reward and keep top BEAM_WIDTH
+                candidates.sort(key=lambda x: x[1], reverse=True)
+                next_beam.extend(candidates[:BEAM_WIDTH])
+            
+            # Sort all new paths by reward and keep top BEAM_WIDTH
+            next_beam.sort(key=lambda x: x[1], reverse=True)
+            current_beam = next_beam[:BEAM_WIDTH]
+            
+            # Check if all paths in beam are terminated
+            if all(terminated for _, _, _, terminated in current_beam):
+                # Update best complete path if any path in beam is better
+                best_in_beam = max(current_beam, key=lambda x: x[1])
+                if best_in_beam[1] > best_complete_reward:
+                    best_complete_path = best_in_beam[0]
+                    best_complete_reward = best_in_beam[1]
+                break
+        
+        print(f"Total action sequences considered: {total_sequences_considered}")
+        
+        # If we found a complete path, return its first action
+        if best_complete_path and best_complete_path:
+            return best_complete_path[0]
+        
+        # If no complete path found (shouldn't happen), return no-op action
+        return self.map_action_to_index(0, 0)
+
+    def solve(self):
+        """Solve the problem step by step using the environment's mechanics"""
+        self.start_time = time.time()
+        observation, _ = self.reset()  # Reset environment to initial state
+        
+        terminated = False
+        total_reward = 0
+        step_count = 0
+        
+        while not terminated:
+            step_count += 1
+            
+            # Choose the best action for the current state using beam search
+            action = self.select_best_action()
+            flight_action, aircraft_action = self.map_index_to_action(action)
+            print(f"Selected action: index={action} (flight={flight_action}, aircraft={aircraft_action})")
+            
+            # Take the action in the environment
+            observation, reward, terminated, truncated, info = self.step(action)
+            print(f"Action result: reward={reward}, terminated={terminated}, something_happened={self.something_happened}, something_happened_testing={self.something_happened_testing}")
+            total_reward += reward
+            
+            # Record action history
+            self.action_history.append({
+                'step': step_count,
+                'action_index': action,
+                'flight': flight_action,
+                'aircraft': aircraft_action,
+                'reward': reward,
+                'conflicts': len(self.get_current_conflicts())
+            })
+            
+            # Update solution based on the action taken
+            self.update_solution(info)
+        
+        self.scenario_wide_reward_total = total_reward
+        
+        # Finalize solution
+        self.solution["objective_value"] = total_reward 
+        self.solution["statistics"]["runtime"] = time.time() - self.start_time
+        self.solution["statistics"]["status"] = "Complete"
+        
+        return self.solution
+
+    def update_solution(self, info):
+        """Update the solution dictionary based on the action taken"""
+        # Update cancellations
+        if 'cancelled_flights_count' in info and info['cancelled_flights_count'] > 0:
+            self.solution['cancellations'] = list(self.cancelled_flights)
+        
+        # Update assignments
+        if 'flight_action' in info and 'aircraft_action' in info:
+            flight_id = info['flight_action']
+            aircraft_idx = info['aircraft_action']
+            if flight_id != 0 and aircraft_idx != 0:
+                aircraft_id = self.aircraft_ids[aircraft_idx - 1]
+                if aircraft_id != self.rotations_dict[flight_id]['Aircraft']:
+                    self.solution['assignments'][flight_id] = aircraft_id
+        
+        # Update delays
+        if self.environment_delayed_flights:
+            self.solution['delays'] = {k: v for k, v in self.environment_delayed_flights.items()}
+            self.solution['total_delay_minutes'] = sum(self.environment_delayed_flights.values())
+
 
 def main():
     scenario_folder = "data/Training/6ac-100-superdiverse/Scenario_00001"
@@ -21,7 +194,7 @@ def main():
     end_datetime = datetime.strptime(f"{recovery_period['EndDate']} {recovery_period['EndTime']}", '%d/%m/%y %H:%M')
     
     # Initialize optimizer with loaded data
-    optimizer = AircraftDisruptionOptimizer(
+    optimizer = AircraftDisruptionExactInference(
         aircraft_dict=aircraft_dict,
         flights_dict=flights_dict,
         rotations_dict=rotations_dict,
