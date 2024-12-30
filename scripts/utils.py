@@ -124,10 +124,10 @@ def parse_time_with_day_offset(time_str, reference_date):
             
         return parsed_time
 # Print state
-def print_state_nicely(state, env_type):
+def print_state_nicely(state):
     # First print the information row in tabular form
     info_row = state[0]
-    print("\nState for: ", env_type)
+    print("\nCurrent State:")
     # print("┌────────────────────┬────────────────────┬────────────────────┬────────────────────┐")
     print("│ Current Time       │ Time Until End     │   ")
     # print("├────────────────────┼────────────────────┼────────────────────┼────────────────────┤")
@@ -170,21 +170,6 @@ def print_state_nicely(state, env_type):
     for row in state[1:]:
         formatted_values = []
         for i, x in enumerate(row):
-            # For myopic env, mask disruption info if probability is not 1.00
-            if env_type == 'myopic' and i in [1,2,3]:
-                if i == 1 and x != 1.0 and not np.isnan(x):
-                    x = np.nan
-                if i in [2,3] and not np.isnan(row[1]) and row[1] != 1.0:
-                    x = np.nan
-            
-            # For reactive env, mask disruption info if start time is after current time
-            if env_type == 'reactive' and i in [1,2,3]:
-                if not np.isnan(row[2]) and row[2] > current_time:
-                    if i == 1:
-                        x = np.nan
-                    if i in [2,3]:
-                        x = np.nan
-                    
             # Add vertical line before flight groups
             if i >= 4 and (i - 4) % 3 == 0:
                 formatted_values.append("|")
