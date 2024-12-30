@@ -58,7 +58,7 @@ def run_train_dqn_both_timesteps(
     BATCH_SIZE = 128
     TARGET_UPDATE_INTERVAL = 100
     NEURAL_NET_STRUCTURE = dict(net_arch=[256, 256*2, 256])
-    LEARNING_STARTS = 10000
+    LEARNING_STARTS = 0
     TRAIN_FREQ = 4
 
     EPSILON_START = 1.0
@@ -371,7 +371,7 @@ def run_train_dqn_both_timesteps(
                     np.random.seed(current_seed)
 
                     action_reason = "None"
-                    if env_type == "drl-greedy":
+                    if env_type == "drl-greedy" or env_type == "myopic" or env_type == "proactive" or env_type == "reactive":
                         if np.random.rand() < epsilon or brute_force_flag:
                             # During exploration (50% greedy, 50% random)
                             if np.random.rand() < 0.5:
@@ -519,20 +519,23 @@ def run_train_dqn_both_timesteps(
             rewards[episode]["total_timesteps"] = total_timesteps
 
             current_time = time.time()
-            elapsed_time = current_time - starting_time
             percentage_complete = (total_timesteps / MAX_TOTAL_TIMESTEPS) * 100
 
-            estimated_time_remaining = (elapsed_time / percentage_complete) * (100 - percentage_complete)
-            hours = int(estimated_time_remaining // 3600)
-            minutes = int((estimated_time_remaining % 3600) // 60)
-
-            # Calculate time per 1000 timesteps
+            # Calculate time per 10k timesteps
             if episode > 0:
                 time_this_episode = current_time - previous_episode_time
                 timesteps_this_episode = total_timesteps - previous_timesteps
                 time_per_10000 = (time_this_episode / timesteps_this_episode) * 10000
+                
+                # Calculate remaining time based on recent timestep rate
+                remaining_timesteps = MAX_TOTAL_TIMESTEPS - total_timesteps
+                estimated_time_remaining = (time_per_10000 / 10000) * remaining_timesteps
+                hours = int(estimated_time_remaining // 3600)
+                minutes = int((estimated_time_remaining % 3600) // 60)
             else:
                 time_per_10000 = 0
+                hours = 0
+                minutes = 0
             
             rewards[episode]["timestamp"] = current_time
             time_remaining_str = f"{hours}h{minutes}m" if hours > 0 else f"{minutes}m"
