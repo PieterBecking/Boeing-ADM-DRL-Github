@@ -132,8 +132,8 @@ class StatePlotter:
                                                      minute=int(arr_datetime_str.split(':')[1].split('+')[0]))
                 
                 # Debug print
-                if '+1' in dep_datetime_str or '+1' in arr_datetime_str:
-                    print(f"Flight {flight_id} times - Dep: {dep_datetime_str} -> {dep_datetime}, Arr: {arr_datetime_str} -> {arr_datetime}")
+                # if '+1' in dep_datetime_str or '+1' in arr_datetime_str:
+                #     print(f"Flight {flight_id} times - Dep: {dep_datetime_str} -> {dep_datetime}, Arr: {arr_datetime_str} -> {arr_datetime}")
                 
                 # Recalculate earliest and latest times after fixing arr_datetime
                 earliest_time = min(earliest_time, dep_datetime)
