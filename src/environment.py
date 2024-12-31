@@ -420,7 +420,6 @@ class AircraftDisruptionEnv(gym.Env):
                 # pick a random flight from the valid flight IDs
                 print(f"*** flight_action: {flight_action} not in flight_id_to_idx.keys() ***")
                 flight_action = random.choice(list(self.flight_id_to_idx.keys()))
-                print(f"*** picked flight_action: {flight_action} ***")
             else:
                 pass
         else:
@@ -469,28 +468,68 @@ class AircraftDisruptionEnv(gym.Env):
         Checks if the stopping criteria are met:
 
         Stopping criteria:
-        1. There are no uncertainties in the system anymore.
-           (All probabilities are either np.nan, 0.0, or 1.0.)
-        2. There is no overlap of breakdowns (Probability == 1.0) and flights.
+        1. There are no conflicts with any probability in the system
+           (No overlaps between flights and any unavailabilities, regardless of probability)
+        2. OR end of recovery period is reached
 
         Returns:
-            bool: True if both criteria are met, False otherwise.
+            bool: True if either criterion is met, False otherwise.
         """
-        # Check that all probabilities are either nan, 0.0, or 1.0
-        for aircraft_id in self.aircraft_ids:
-            prob = self.unavailabilities_dict[aircraft_id]['Probability']
-            if not (np.isnan(prob) or prob == 0.0 or prob == 1.0):
-                if DEBUG_MODE_STOPPING_CRITERIA:
-                    print(f"    prob: {prob} is not nan, 0.0, or 1.0, for aircraft {aircraft_id}, so termination = False")
-                return False
-
-        # Check that there is no overlap between flights and breakdowns with prob == 1.0
-        # get_current_conflicts() only returns conflicts for probability == 1.0 breakdowns.
-        if len(self.get_current_conflicts_with_prob_1()) > 0:
+        # Check if we've reached the end of recovery period
+        if self.current_datetime >= self.end_datetime:
             if DEBUG_MODE_STOPPING_CRITERIA:
-                print(f"    get_current_conflicts_with_prob_1() returns {self.get_current_conflicts_with_prob_1()}, so termination = False")
-            return False
+                print(f"    Current datetime {self.current_datetime} >= end datetime {self.end_datetime}, so termination = True")
+            return True
 
+        # Check for any conflicts by examining rotations and unavailabilities
+        for aircraft_id in self.aircraft_ids:
+            # Skip if aircraft has no unavailability or probability is 0
+            if aircraft_id not in self.alt_aircraft_dict:
+                continue
+
+            # Get unavailability info
+            unavails = self.alt_aircraft_dict[aircraft_id]
+            if not isinstance(unavails, list):
+                unavails = [unavails]
+
+            for unavail in unavails:
+                # Skip if probability is 0
+                prob = unavail.get('Probability', 0)
+                if DEBUG_MODE_STOPPING_CRITERIA:
+                    print(f"prob of aircraft {aircraft_id}: {prob}")
+                if np.isnan(prob):
+                    prob = 0
+                if prob == 0:
+                    continue
+
+                # Get unavailability period
+                unavail_start = datetime.strptime(f"{unavail['StartDate']} {unavail['StartTime']}", '%d/%m/%y %H:%M')
+                unavail_end = datetime.strptime(f"{unavail['EndDate']} {unavail['EndTime']}", '%d/%m/%y %H:%M')
+
+                # Check all flights assigned to this aircraft
+                for flight_id, rotation in self.rotations_dict.items():
+                    if rotation['Aircraft'] != aircraft_id:
+                        continue
+
+                    # Skip if flight is cancelled
+                    if flight_id in self.cancelled_flights:
+                        continue
+
+                    # Get flight times
+                    flight_info = self.flights_dict[flight_id]
+                    flight_dep = parse_time_with_day_offset(flight_info['DepTime'], self.start_datetime)
+                    flight_arr = parse_time_with_day_offset(flight_info['ArrTime'], self.start_datetime)
+
+                    # Check for overlap
+                    if flight_dep < unavail_end and flight_arr > unavail_start:
+                        if DEBUG_MODE_STOPPING_CRITERIA:
+                            print(f"    Found conflict: Aircraft {aircraft_id}, Flight {flight_id}, so termination = False")
+                            print(f"    prob {prob} is not nan, 0.0, or 1.0, for aircraft {aircraft_id}, so termination = False")
+                        return False
+
+        # If we get here, there are no conflicts
+        if DEBUG_MODE_STOPPING_CRITERIA:
+            print("    No conflicts found, so termination = True")
         return True
 
 
