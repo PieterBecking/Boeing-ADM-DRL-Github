@@ -36,18 +36,22 @@ class AircraftDisruptionExactInference(AircraftDisruptionEnv):
 
         self.scenario_wide_reward_total = 0
         
-
     def select_best_action(self):
         """Select the best action using beam search with width 3.
         
         This method looks ahead until terminal states, keeping only the top 3 paths at each step.
         Returns the first action of the best-performing path.
         """
-        BEAM_WIDTH = 5
+        BEAM_WIDTH = 10
         
         # Get valid actions using the environment's action mask
         action_mask = self.get_action_mask()
         valid_actions = np.where(action_mask == 1)[0]
+
+        # For first step only, print rewards for all actions
+        if not hasattr(self, 'step_counter'):
+            self.step_counter = 0
+        self.step_counter += 1
         
         # Initialize beam with empty paths
         # Each path is (sequence_of_actions, total_reward, env_state, terminated)
@@ -59,6 +63,22 @@ class AircraftDisruptionExactInference(AircraftDisruptionEnv):
         
         # Track total sequences considered
         total_sequences_considered = 0
+        
+        # For first step only, evaluate and print top 10 actions
+        if self.step_counter == 1:
+            print("\nTop 10 actions being considered in first step:")
+            action_rewards = []
+            for action in valid_actions:
+                env_copy = copy.deepcopy(self)
+                flight_action, ac_action = self.map_index_to_action(action)
+                _, reward, _, _, _ = env_copy.step(action)
+                action_rewards.append((action, flight_action, ac_action, reward))
+            
+            # Sort by reward and print top 10
+            action_rewards.sort(key=lambda x: x[3], reverse=True)
+            for i, (action, flight, ac, reward) in enumerate(action_rewards[:10]):
+                print(f"{i+1}. Flight {flight}, Aircraft {ac}, Expected Reward: {reward}")
+            print()
         
         while current_beam:
             next_beam = []
@@ -127,7 +147,7 @@ class AircraftDisruptionExactInference(AircraftDisruptionEnv):
             # Choose the best action for the current state using beam search
             action = self.select_best_action()
             flight_action, aircraft_action = self.map_index_to_action(action)
-            print(f"Selected action: index={action} (flight={flight_action}, aircraft={aircraft_action})")
+            print(f"Selected action: (flight={flight_action}, aircraft={aircraft_action})")
             
             # Take the action in the environment
             observation, reward, terminated, truncated, info = self.step(action)
@@ -178,7 +198,7 @@ class AircraftDisruptionExactInference(AircraftDisruptionEnv):
 
 
 def main():
-    scenario_folder = "data/Training/6ac-100-superdiverse/Scenario_00001"
+    scenario_folder = "data/Training/6ac-10-deterministic/Scenario_00009"
     
     # Load scenario data first
     data_dict = load_scenario_data(scenario_folder)

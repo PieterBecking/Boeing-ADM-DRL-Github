@@ -300,13 +300,7 @@ def run_train_dqn_both_timesteps(
             target_update_interval=TARGET_UPDATE_INTERVAL,
             verbose=0,
             policy_kwargs=NEURAL_NET_STRUCTURE,
-            device=device,
-            replay_buffer_class=PrioritizedReplayBuffer,
-            replay_buffer_kwargs=dict(
-                alpha=0.6,  # Prioritization exponent (0 = no prioritization, 1 = full prioritization)
-                beta=0.4,   # Initial importance sampling correction (increases to 1 over training)
-                epsilon=1e-6  # Small constant to ensure non-zero probabilities
-            )
+            device=device
         )
 
         logger = configure()
@@ -373,49 +367,51 @@ def run_train_dqn_both_timesteps(
                     action_reason = "None"
                     if env_type == "drl-greedy" or env_type == "myopic" or env_type == "proactive" or env_type == "reactive":
                         if np.random.rand() < epsilon or brute_force_flag:
-                            # During exploration (50% greedy, 50% random)
+                            # During exploration (50% the conflicted flights, 50% random)
                             if np.random.rand() < 0.5:
-                                # Use the greedy optimizer to select action
-                                from src.environment import AircraftDisruptionOptimizer
-                                # Create a copy of the current environment state for the optimizer
-                                optimizer = AircraftDisruptionOptimizer(
+                                # Use the conflicted environment to select action
+                                from src.environment import AircraftDisruptionConflicted
+                                # Create a copy of the current environment state for the conflicted env
+                                conflicted_env = AircraftDisruptionConflicted(
                                     aircraft_dict=env.aircraft_dict,
                                     flights_dict=env.flights_dict,
                                     rotations_dict=env.rotations_dict,
                                     alt_aircraft_dict=env.alt_aircraft_dict,
                                     config_dict=env.config_dict
                                 )
-                                # Set the optimizer's state to match current environment
-                                optimizer.current_datetime = env.current_datetime
-                                optimizer.state = env.state.copy()
-                                optimizer.unavailabilities_dict = env.unavailabilities_dict.copy()
-                                optimizer.cancelled_flights = env.cancelled_flights.copy()
-                                optimizer.environment_delayed_flights = env.environment_delayed_flights.copy()
-                                optimizer.penalized_delays = env.penalized_delays.copy()
-                                optimizer.penalized_cancelled_flights = env.penalized_cancelled_flights.copy()
-                                optimizer.initial_conflict_combinations = env.initial_conflict_combinations
-                                optimizer.eligible_flights_for_resolved_bonus = env.eligible_flights_for_resolved_bonus
-                                optimizer.eligible_flights_for_not_being_cancelled_when_disruption_happens = env.eligible_flights_for_not_being_cancelled_when_disruption_happens
-                                optimizer.scenario_wide_initial_disrupted_flights_list = env.scenario_wide_initial_disrupted_flights_list
-                                optimizer.scenario_wide_actual_disrupted_flights = env.scenario_wide_actual_disrupted_flights
-                                optimizer.something_happened = False
-                                optimizer.tail_swap_happened = False
-                                optimizer.scenario_wide_reward_components = env.scenario_wide_reward_components.copy()
-                                optimizer.scenario_wide_delay_minutes = env.scenario_wide_delay_minutes
-                                optimizer.scenario_wide_cancelled_flights = env.scenario_wide_cancelled_flights
-                                optimizer.scenario_wide_steps = env.scenario_wide_steps
-                                optimizer.scenario_wide_resolved_conflicts = env.scenario_wide_resolved_conflicts
-                                optimizer.scenario_wide_solution_slack = env.scenario_wide_solution_slack
-                                optimizer.scenario_wide_tail_swaps = env.scenario_wide_tail_swaps
-                                optimizer.info_after_step = {}
+                                # Set the conflicted env's state to match current environment
+                                conflicted_env.current_datetime = env.current_datetime
+                                conflicted_env.state = env.state.copy()
+                                conflicted_env.unavailabilities_dict = env.unavailabilities_dict.copy()
+                                conflicted_env.cancelled_flights = env.cancelled_flights.copy()
+                                conflicted_env.environment_delayed_flights = env.environment_delayed_flights.copy()
+                                conflicted_env.penalized_delays = env.penalized_delays.copy()
+                                conflicted_env.penalized_cancelled_flights = env.penalized_cancelled_flights.copy()
+                                conflicted_env.initial_conflict_combinations = env.initial_conflict_combinations
+                                conflicted_env.eligible_flights_for_resolved_bonus = env.eligible_flights_for_resolved_bonus
+                                conflicted_env.eligible_flights_for_not_being_cancelled_when_disruption_happens = env.eligible_flights_for_not_being_cancelled_when_disruption_happens
+                                conflicted_env.scenario_wide_initial_disrupted_flights_list = env.scenario_wide_initial_disrupted_flights_list
+                                conflicted_env.scenario_wide_actual_disrupted_flights = env.scenario_wide_actual_disrupted_flights
+                                conflicted_env.something_happened = False
+                                conflicted_env.tail_swap_happened = False
+                                conflicted_env.scenario_wide_reward_components = env.scenario_wide_reward_components.copy()
+                                conflicted_env.scenario_wide_delay_minutes = env.scenario_wide_delay_minutes
+                                conflicted_env.scenario_wide_cancelled_flights = env.scenario_wide_cancelled_flights
+                                conflicted_env.scenario_wide_steps = env.scenario_wide_steps
+                                conflicted_env.scenario_wide_resolved_conflicts = env.scenario_wide_resolved_conflicts
+                                conflicted_env.scenario_wide_solution_slack = env.scenario_wide_solution_slack
+                                conflicted_env.scenario_wide_tail_swaps = env.scenario_wide_tail_swaps
+                                conflicted_env.info_after_step = {}
 
-                                
-                                # Get the best action from the optimizer and convert to numpy array
-                                action = optimizer.select_best_action()
+                                # Get action mask from conflicted env
+                                action_mask = conflicted_env.get_action_mask()
+                                # Choose random action from valid actions in the restricted mask
+                                valid_actions = np.where(action_mask == 1)[0]
+                                action = np.random.choice(valid_actions)
                                 action = np.array(action).reshape(1, -1)
-                                action_reason = "greedy-optimizer"
+                                action_reason = "conflicted-random"
                             else:
-                                # Random exploration
+                                # Random exploration from original action mask
                                 valid_actions = np.where(action_mask == 1)[0]
                                 action = np.random.choice(valid_actions)
                                 action = np.array(action).reshape(1, -1)
@@ -439,6 +435,7 @@ def run_train_dqn_both_timesteps(
 
                     result = env.step(action.item())  # Convert back to scalar for the environment
                     obs_next, reward, terminated, truncated, info = result
+                    # print(f"    ****    Action: {action}, flight: {env.map_index_to_action(action)[0]}, aircraft: {env.map_index_to_action(action)[1]}")
 
                     rewards[episode][scenario_folder][timesteps_local] = reward
 

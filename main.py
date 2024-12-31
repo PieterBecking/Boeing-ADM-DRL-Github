@@ -262,11 +262,11 @@ if __name__ == "__main__":
     early_stopping_flag = False
     CROSS_VAL_INTERVAL = 5
     printing_intermediate_results = False
-    save_folder = "26-run"
-    TESTING_FOLDERS_PATH = "data/Testing/6ac-100-superdiverse/"
+    save_folder = "30-run"
 
     # Define environment types
     env_types = ['myopic', 'proactive', 'reactive']
+    # env_types = ['proactive']
 
     if not os.path.exists(save_folder):
         os.makedirs(save_folder)
@@ -278,8 +278,12 @@ if __name__ == "__main__":
         # "data/Training/6ac-700-diverse/",
         # "data/Training/6ac-1-deterministic/",
         # "data/Training/6ac-100-deterministic/",
-        "data/Training/6ac-1000-superdiverse/", # 3AC!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        # "data/Training/6ac-1000-superdiverse/",
+        "data/Training/6ac-10000-deterministic/",
     ]
+
+
+    TESTING_FOLDERS_PATH = "data/Testing/6ac-100-superdiverse/"
 
     if args.seed is None and args.training_folder is None:
         # Controller mode: Spawn multiple subprocesses, one per combination of seed and env_type

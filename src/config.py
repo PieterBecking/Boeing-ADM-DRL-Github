@@ -24,7 +24,7 @@ DUMMY_VALUE = -999  # Dummy value for padding
 # Reward and Penalty Values
 RESOLVED_CONFLICT_REWARD = 50000     # Reward for resolving a conflict
 DELAY_MINUTE_PENALTY = 50           # Penalty per minute of delay
-MAX_DELAY_PENALTY = 25000000            # Maximum penalty for delay
+MAX_DELAY_PENALTY = np.inf            # Maximum penalty for delay
 NO_ACTION_PENALTY = 20000               # Penalty for no action while conflict(s) exist
 CANCELLED_FLIGHT_PENALTY = 5000    # Penalty for cancelling a flight
 LAST_MINUTE_THRESHOLD = 120           # Threshold for last-minute changes in minutes
