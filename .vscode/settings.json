@@ -3,5 +3,6 @@
 
         "window.activeBorder": "#444444"
     }
-}
+},
+"git.ignoreLimitWarning": true
 }

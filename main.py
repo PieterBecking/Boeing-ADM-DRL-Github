@@ -205,7 +205,8 @@ def aggregate_results_and_plot(SEEDS, MAX_TOTAL_TIMESTEPS, brute_force_flag, cro
         # Plot cross validation results if enabled
         if cross_val_flag:
             plt.figure(figsize=(12, 6))
-            
+            cv_steps = np.arange(len(next(iter(processed_data.values()))['mean_sm'])) * CROSS_VAL_INTERVAL
+
             # Plot training curves
             for env_type in available_env_types:
                 name = env_type['name']
@@ -218,16 +219,11 @@ def aggregate_results_and_plot(SEEDS, MAX_TOTAL_TIMESTEPS, brute_force_flag, cro
                                    data['mean_sm'] + data['std_sm'],
                                    alpha=0.2, color=env_type['color'])
 
-                    # Plot cross validation points if available
-                    if all_test_rewards[name] and len(all_test_rewards[name]) > 0:
+                    # Plot cross validation points
+                    if all_test_rewards[name]:
                         test_data = np.array(all_test_rewards[name])
                         test_mean = np.mean(test_data, axis=0)
                         test_std = np.std(test_data, axis=0)
-                        
-                        # Calculate cv_steps based on the actual number of test points
-                        num_test_points = len(test_mean)
-                        cv_steps = np.linspace(0, len(data['steps_sm']), num_test_points)
-                        
                         plt.plot(cv_steps, test_mean, 'o-', 
                                 label=f"CV {env_type['label']}", 
                                 color=env_type['color'], alpha=0.5, markersize=4)
@@ -255,18 +251,18 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Common configuration
-    MAX_TOTAL_TIMESTEPS = 1e5
-    SEEDS = [2023, 2024, 2025]
+    MAX_TOTAL_TIMESTEPS = 2e7
+    SEEDS = [2020]
     brute_force_flag = False
     cross_val_flag = False
     early_stopping_flag = False
-    CROSS_VAL_INTERVAL = 5
+    CROSS_VAL_INTERVAL = 1
     printing_intermediate_results = False
-    save_folder = "35-run"
+    save_folder = "1-aaa-20m-run"
+    TESTING_FOLDERS_PATH = "data/Testing/6ac-100-superdiverse/"
 
     # Define environment types
     env_types = ['myopic', 'proactive', 'reactive']
-    # env_types = ['proactive']
 
     if not os.path.exists(save_folder):
         os.makedirs(save_folder)
@@ -276,17 +272,8 @@ if __name__ == "__main__":
         # "data/Training/6ac-100-stochastic-medium/",
         # "data/Training/6ac-100-stochastic-high/",
         # "data/Training/6ac-700-diverse/",
-        # "data/Training/6ac-1-deterministic/",
-        # "data/Training/6ac-100-deterministic/",
-        # "data/Training/6ac-1000-superdiverse/",
-
-        "data/Training/6ac-10-deterministic/",
-
-        # "data/Training/6ac-1000-deterministic/",
+        "data/Training/6ac-1000-superdiverse/",
     ]
-
-
-    TESTING_FOLDERS_PATH = "data/Testing/6ac-100-superdiverse/"
 
     if args.seed is None and args.training_folder is None:
         # Controller mode: Spawn multiple subprocesses, one per combination of seed and env_type
