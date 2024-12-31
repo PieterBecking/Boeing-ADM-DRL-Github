@@ -417,10 +417,10 @@ class AircraftDisruptionEnv(gym.Env):
         if flight_action != 0:
             # Check if the flight_action exists in our valid flight IDs
             if flight_action not in self.flight_id_to_idx.keys():
+                # pick a random flight from the valid flight IDs
                 print(f"*** flight_action: {flight_action} not in flight_id_to_idx.keys() ***")
-                print(f"*** current config_dict: {self.config_dict} ***")
-                print(f"*** current state: {self.state} ***")
-                raise ValueError(f"Invalid flight action: {flight_action}")
+                flight_action = random.choice(list(self.flight_id_to_idx.keys()))
+                print(f"*** picked flight_action: {flight_action} ***")
             else:
                 pass
         else:
