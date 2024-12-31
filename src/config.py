@@ -1,14 +1,14 @@
 import numpy as np
 
 # General Environment Settings
+# General Environment Settings
 MAX_AIRCRAFT = 6  # Maximum number of aircraft considered in the environment
-MAX_FLIGHTS_PER_AIRCRAFT = 17  # Maximum number of flights per aircraft
-MAX_FLIGHTS_IN_SCENARIO = 40
-
-# Space sizes Settings
+MAX_FLIGHTS_PER_AIRCRAFT = 20  # Maximum number of flights per aircraft
 ROWS_STATE_SPACE = 1 + MAX_AIRCRAFT  # Number of rows in the state space
 COLUMNS_STATE_SPACE = 1 + 2 + 3 * MAX_FLIGHTS_PER_AIRCRAFT # Number of columns in the state space: 1 for ac id, 2 for ac unavail, 3 for each flight (id, start, end)
-ACTION_SPACE_SIZE = (MAX_AIRCRAFT + 1) * (MAX_FLIGHTS_IN_SCENARIO + 1)  # Number of possible actions (+1 for the zero for no action and cancellations)
+
+# Calculate the flattened action space size
+ACTION_SPACE_SIZE = (MAX_AIRCRAFT + 1) * (MAX_FLIGHTS_PER_AIRCRAFT + 1)  # Number of possible actions (+1 for the zero for no action and cancellations)
 
 
 # Data Generation Settings

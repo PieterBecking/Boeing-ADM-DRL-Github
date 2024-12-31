@@ -6,6 +6,7 @@ __pycache__/
 # add Training and Testing folders
 data/Training*/
 data/Testing*/
+data/RESULTS*/
 
 # add the action sequences folder
 results/*/action_sequences/

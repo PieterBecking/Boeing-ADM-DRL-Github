@@ -198,8 +198,7 @@ class AircraftDisruptionExactInference(AircraftDisruptionEnv):
 
 
 def main():
-    scenario_folder = "data/Training/6ac-10-deterministic/Scenario_00009"
-    
+    scenario_folder = "data/RESULTS/6ac-1000-superdiverse/Scenario_00749"
     # Load scenario data first
     data_dict = load_scenario_data(scenario_folder)
     aircraft_dict = data_dict['aircraft']
