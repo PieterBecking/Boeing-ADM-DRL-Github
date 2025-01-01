@@ -255,14 +255,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Common configuration
-    MAX_TOTAL_TIMESTEPS = 1e5
-    SEEDS = [2023, 2024, 2025]
+    MAX_TOTAL_TIMESTEPS = 1e4
+    SEEDS = [2023]
     brute_force_flag = False
     cross_val_flag = False
     early_stopping_flag = False
     CROSS_VAL_INTERVAL = 5
     printing_intermediate_results = False
-    save_folder = "35-run"
+    save_folder = "1-bbbb-multi-ac-6ac-run"
 
     # Define environment types
     env_types = ['myopic', 'proactive', 'reactive']
@@ -280,7 +280,7 @@ if __name__ == "__main__":
         # "data/Training/6ac-100-deterministic/",
         # "data/Training/6ac-1000-superdiverse/",
 
-        "data/Training/6ac-10-deterministic/",
+        "data/TEMPOOOOOO/2ac-10-multi-ac-deterministic/",
 
         # "data/Training/6ac-1000-deterministic/",
     ]

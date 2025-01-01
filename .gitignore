@@ -7,7 +7,7 @@ __pycache__/
 data/Training*/
 data/Testing*/
 data/RESULTS*/
-
+data/TEMPOOOOOO*/
 # add the action sequences folder
 results/*/action_sequences/
 data/temp/
