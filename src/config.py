@@ -19,8 +19,6 @@ TIMESTEP_HOURS = 1  # Length of each timestep in hours
 
 
 DUMMY_VALUE = -999  # Dummy value for padding
-
-
 # Reward and Penalty Values
 RESOLVED_CONFLICT_REWARD = 50000     # Reward for resolving a conflict
 DELAY_MINUTE_PENALTY = 50           # Penalty per minute of delay
@@ -41,7 +39,7 @@ MIN_BREAKDOWN_PROBABILITY = 0
 # Logging and Debug Settings
 DEBUG_MODE = False # Turn on/off debug mode
 DEBUG_MODE_TRAINING = False  # Turn on/off debug mode for training
-DEBUG_MODE_REWARD = False  # Turn on/off debug mode for reward calculation
+DEBUG_MODE_REWARD = False    # Turn on/off debug mode for reward calculation
 DEBUG_MODE_PRINT_STATE = False         # Turn on/off debug mode for printing state
 DEBUG_MODE_CANCELLED_FLIGHT = False  # Turn on/off debug mode for cancelled flight
 DEBUG_MODE_VISUALIZATION = False
