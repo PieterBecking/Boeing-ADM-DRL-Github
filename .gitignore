@@ -8,6 +8,7 @@ __pycache__/
 data/Training*/
 data/Testing*/
 data/RESULTS*/
+data/REVERSED*/
 
 # add the action sequences folder
 results/*/action_sequences/
