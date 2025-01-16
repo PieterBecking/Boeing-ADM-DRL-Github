@@ -155,6 +155,9 @@ class StatePlotter:
                 elif swapped:
                     plot_color = 'green'
                     plot_label = 'Swapped Flight'
+                elif delayed:
+                    plot_color = 'orange'
+                    plot_label = 'Environment Delayed Flight'
                 else:
                     plot_color = 'blue'
                     plot_label = 'Scheduled Flight'
@@ -169,11 +172,7 @@ class StatePlotter:
                 dep_marker = dep_datetime + marker_offset
                 arr_marker = arr_datetime - marker_offset
 
-                if delayed:
-                    ax.plot(dep_marker, y_offset, color='red', marker='>', markersize=6, markeredgewidth=0, label='Environment Delayed Flight' if not labels['Environment Delayed Flight'] else None)
-                    labels['Environment Delayed Flight'] = True
-                else:
-                    ax.plot(dep_marker, y_offset, color=plot_color, marker='>', markersize=6, markeredgewidth=0)
+                ax.plot(dep_marker, y_offset, color=plot_color, marker='>', markersize=6, markeredgewidth=0)
                 ax.plot(arr_marker, y_offset, color=plot_color, marker='<', markersize=6, markeredgewidth=0)
 
                 if delayed:
@@ -354,7 +353,7 @@ class StatePlotterDemo:
         self.earliest_datetime = min(parse_time_with_day_offset(flight_info['DepTime'], start_datetime) for flight_info in flights_dict.values())
         self.latest_datetime = max(parse_time_with_day_offset(flight_info['ArrTime'], start_datetime) for flight_info in flights_dict.values())
 
-    def plot_state(self, flights_dict, swapped_flights, environment_delayed_flights, cancelled_flights, current_datetime, title_appendix="", debug_print=False, show_plot=True, reward_and_action=None, legend=True):
+    def plot_state(self, flights_dict, swapped_flights, environment_delayed_flights, cancelled_flights, current_datetime, title_appendix="", debug_print=False, show_plot=True, reward_and_action=None, legend=True, uncertain_breakdown=True):
         if debug_print:
             print(f"Plotting state with following flights: {flights_dict}")
 
@@ -385,7 +384,7 @@ class StatePlotterDemo:
             'Disruption Start': False,
             'Disruption End': False,
             'Delay of Flight': False,
-            'Uncertain Breakdown': False,
+            'Uncertain Breakdown': False,  # Set to False initially
             'Zero Probability': False,
             'Current Action Flight': False
         }
@@ -393,6 +392,7 @@ class StatePlotterDemo:
         # Hard code earliest and latest times
         earliest_time = self.start_datetime.replace(hour=7, minute=30)
         latest_time = self.start_datetime.replace(hour=20, minute=0)
+
 
         for rotation_id, rotation_info in updated_rotations_dict.items():
             flight_id = rotation_id
@@ -468,6 +468,12 @@ class StatePlotterDemo:
                 mid_datetime = dep_datetime + (arr_datetime - dep_datetime) / 2
                 ax.text(mid_datetime, y_offset + self.offset_id_number, flight_id, 
                         ha='center', va='bottom', fontsize=8, color='black')
+            
+        # If uncertain_breakdown is True, add a dummy rectangle to force legend entry
+        if uncertain_breakdown:
+            dummy_rect = patches.Rectangle((0,0), 1, 1, color='orange', alpha=0.3, label='Uncertain Breakdown')
+            ax.add_patch(dummy_rect)
+            labels['Uncertain Breakdown'] = True
 
         # Function to compute the data height that corresponds to a given number of pixels
         def get_height_in_data_units(ax, pixels):
