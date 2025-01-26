@@ -14,14 +14,14 @@ import re  # Make sure to import re at the top
 # StatePlotter class for visualizing the state of the environment
 class StatePlotter:
     def __init__(self, aircraft_dict, flights_dict, rotations_dict, alt_aircraft_dict, start_datetime, end_datetime, 
-                 uncertain_breakdowns=None, offset_baseline=0, offset_id_number=-0.05, offset_delayed_flight=0, offset_marker_minutes=4, plot_title=None):
+                 uncertain_breakdowns=None, offset_baseline=0, offset_id_number=-0.05, offset_delayed_flight=0, offset_marker_minutes=4, plot_title=None, last_flight_action=None):
         self.aircraft_dict = aircraft_dict
         self.initial_flights_dict = flights_dict
         self.rotations_dict = rotations_dict
         self.alt_aircraft_dict = alt_aircraft_dict
         self.start_datetime = start_datetime
         self.end_datetime = end_datetime
-        
+        self.last_flight_action = last_flight_action
         # Initialize uncertain_breakdowns
         self.uncertain_breakdowns = uncertain_breakdowns if uncertain_breakdowns is not None else {}
         
@@ -50,7 +50,10 @@ class StatePlotter:
             end_datetime
         )
 
-    def plot_state(self, flights_dict, swapped_flights, environment_delayed_flights, cancelled_flights, current_datetime, title_appendix="", debug_print=False, show_plot=True, reward_and_action=None):
+    def plot_state(self, flights_dict, swapped_flights, environment_delayed_flights, cancelled_flights, current_datetime, 
+                  title_appendix="", debug_print=False, show_plot=True, reward_and_action=None, last_flight_action=None,
+                  show_flights=True, show_certain_disruptions=True, show_uncertain_disruptions=True,
+                  show_current_time=True, show_recovery_window=True):
         if debug_print:
             print(f"Plotting state with following flights: {flights_dict}")
 
@@ -73,9 +76,22 @@ class StatePlotter:
             return (letters, ) + numbers
 
         # Collect and sort aircraft IDs using the custom sort key
-        all_aircraft_ids = set([rotation_info['Aircraft'] for rotation_info in updated_rotations_dict.values()]).union(set(self.aircraft_dict.keys()))
-        aircraft_ids = sorted(all_aircraft_ids, key=extract_sort_key)
-        aircraft_indices = {aircraft_id: index + 1 for index, aircraft_id in enumerate(aircraft_ids)}
+        all_aircraft_ids = sorted(list(set([rotation_info['Aircraft'] for rotation_info in updated_rotations_dict.values()]).union(set(self.aircraft_dict.keys()))))
+        aircraft_indices = {aircraft_id: index + 1 for index, aircraft_id in enumerate(all_aircraft_ids)}
+
+        # Add permanent invisible flights for first and last aircraft to maintain proper spacing
+        if all_aircraft_ids:
+            # Add invisible flight for first aircraft
+            first_aircraft_id = all_aircraft_ids[0]
+            first_y_offset = aircraft_indices[first_aircraft_id]
+            dummy_start = self.start_datetime
+            dummy_end = dummy_start + timedelta(minutes=30)
+            ax.plot([dummy_start, dummy_end], [first_y_offset, first_y_offset], color='blue', alpha=0)
+
+            # Add invisible flight for last aircraft
+            last_aircraft_id = all_aircraft_ids[-1]
+            last_y_offset = aircraft_indices[last_aircraft_id]
+            ax.plot([dummy_start, dummy_end], [last_y_offset, last_y_offset], color='blue', alpha=0)
 
         labels = {
             'Scheduled Flight': False,
@@ -88,101 +104,108 @@ class StatePlotter:
             'Delay of Flight': False,
             'Uncertain Breakdown': False,
             'Zero Probability': False,
-            'Current Action Flight': False
+            'Current Action Flight': False,
+            'Last Action Flight': False
         }
 
         earliest_time = self.earliest_datetime
         latest_time = self.latest_datetime
 
-        for rotation_id, rotation_info in updated_rotations_dict.items():
-            flight_id = rotation_id
-            aircraft_id = rotation_info['Aircraft']
-            
-            if flight_id in flights_dict:
-                flight_info = flights_dict[flight_id]
-                dep_datetime_str = flight_info['DepTime']
-                arr_datetime_str = flight_info['ArrTime']
+        # Only plot flights if show_flights is True
+        if show_flights:
+            for rotation_id, rotation_info in updated_rotations_dict.items():
+                flight_id = rotation_id
+                aircraft_id = rotation_info['Aircraft']
                 
-                dep_datetime = parse_time_with_day_offset(dep_datetime_str, self.start_datetime)
-                arr_datetime = parse_time_with_day_offset(arr_datetime_str, dep_datetime)
-                
-                # Handle flights crossing midnight properly
-                if '+1' in dep_datetime_str and '+1' in arr_datetime_str:
-                    # Both departure and arrival are on next day
-                    dep_datetime = self.start_datetime + timedelta(days=1)
-                    dep_datetime = dep_datetime.replace(hour=int(dep_datetime_str.split(':')[0]), 
-                                                     minute=int(dep_datetime_str.split(':')[1].split('+')[0]))
-                    arr_datetime = dep_datetime + timedelta(days=0)  # Same day as departure
-                    arr_datetime = arr_datetime.replace(hour=int(arr_datetime_str.split(':')[0]), 
-                                                     minute=int(arr_datetime_str.split(':')[1].split('+')[0]))
-                elif '+1' in dep_datetime_str:
-                    # Only departure is next day
-                    dep_datetime = self.start_datetime + timedelta(days=1)
-                    dep_datetime = dep_datetime.replace(hour=int(dep_datetime_str.split(':')[0]), 
-                                                     minute=int(dep_datetime_str.split(':')[1].split('+')[0]))
-                    arr_datetime = dep_datetime
-                    arr_datetime = arr_datetime.replace(hour=int(arr_datetime_str.split(':')[0]), 
-                                                     minute=int(arr_datetime_str.split(':')[1]))
-                elif '+1' in arr_datetime_str:
-                    # Only arrival is next day relative to departure
-                    dep_datetime = dep_datetime.replace(hour=int(dep_datetime_str.split(':')[0]), 
-                                                     minute=int(dep_datetime_str.split(':')[1]))
-                    arr_datetime = dep_datetime + timedelta(days=1)
-                    arr_datetime = arr_datetime.replace(hour=int(arr_datetime_str.split(':')[0]), 
-                                                     minute=int(arr_datetime_str.split(':')[1].split('+')[0]))
-                
-                # Debug print
-                # if '+1' in dep_datetime_str or '+1' in arr_datetime_str:
-                #     print(f"Flight {flight_id} times - Dep: {dep_datetime_str} -> {dep_datetime}, Arr: {arr_datetime_str} -> {arr_datetime}")
-                
-                # Recalculate earliest and latest times after fixing arr_datetime
-                earliest_time = min(earliest_time, dep_datetime)
-                latest_time = max(latest_time, arr_datetime)
-                
-                swapped = any(flight_id == swap[0] for swap in swapped_flights)
-                delayed = flight_id in environment_delayed_flights
-                cancelled = flight_id in cancelled_flights
-                
-                # Add check for current action flight
-                is_current_action = reward_and_action and flight_id == reward_and_action[1][0]
-                
-                if cancelled:
-                    plot_color = 'red'
-                    plot_label = 'Cancelled Flight'
-                elif is_current_action:
-                    plot_color = 'green'
-                    plot_label = 'Current Action Flight'
-                elif swapped:
-                    plot_color = 'green'
-                    plot_label = 'Swapped Flight'
-                elif delayed:
-                    plot_color = 'orange'
-                    plot_label = 'Environment Delayed Flight'
-                else:
-                    plot_color = 'blue'
-                    plot_label = 'Scheduled Flight'
-                
-                y_offset = aircraft_indices[aircraft_id] + self.offset_baseline
-                if delayed:
-                    y_offset += self.offset_delayed_flight
+                if flight_id in flights_dict:
+                    flight_info = flights_dict[flight_id]
+                    dep_datetime_str = flight_info['DepTime']
+                    arr_datetime_str = flight_info['ArrTime']
+                    
+                    dep_datetime = parse_time_with_day_offset(dep_datetime_str, self.start_datetime)
+                    arr_datetime = parse_time_with_day_offset(arr_datetime_str, dep_datetime)
+                    
+                    # Handle flights crossing midnight properly
+                    if '+1' in dep_datetime_str and '+1' in arr_datetime_str:
+                        # Both departure and arrival are on next day
+                        dep_datetime = self.start_datetime + timedelta(days=1)
+                        dep_datetime = dep_datetime.replace(hour=int(dep_datetime_str.split(':')[0]), 
+                                                         minute=int(dep_datetime_str.split(':')[1].split('+')[0]))
+                        arr_datetime = dep_datetime + timedelta(days=0)  # Same day as departure
+                        arr_datetime = arr_datetime.replace(hour=int(arr_datetime_str.split(':')[0]), 
+                                                         minute=int(arr_datetime_str.split(':')[1].split('+')[0]))
+                    elif '+1' in dep_datetime_str:
+                        # Only departure is next day
+                        dep_datetime = self.start_datetime + timedelta(days=1)
+                        dep_datetime = dep_datetime.replace(hour=int(dep_datetime_str.split(':')[0]), 
+                                                         minute=int(dep_datetime_str.split(':')[1].split('+')[0]))
+                        arr_datetime = dep_datetime
+                        arr_datetime = arr_datetime.replace(hour=int(arr_datetime_str.split(':')[0]), 
+                                                         minute=int(arr_datetime_str.split(':')[1]))
+                    elif '+1' in arr_datetime_str:
+                        # Only arrival is next day relative to departure
+                        dep_datetime = dep_datetime.replace(hour=int(dep_datetime_str.split(':')[0]), 
+                                                         minute=int(dep_datetime_str.split(':')[1]))
+                        arr_datetime = dep_datetime + timedelta(days=1)
+                        arr_datetime = arr_datetime.replace(hour=int(arr_datetime_str.split(':')[0]), 
+                                                         minute=int(arr_datetime_str.split(':')[1].split('+')[0]))
+                    
+                    # Recalculate earliest and latest times after fixing arr_datetime
+                    earliest_time = min(earliest_time, dep_datetime)
+                    latest_time = max(latest_time, arr_datetime)
+                    
+                    swapped = any(flight_id == swap[0] for swap in swapped_flights)
+                    delayed = flight_id in environment_delayed_flights
+                    cancelled = flight_id in cancelled_flights
+                    
+                    # Debug prints for last flight action
+                    print(f"Current flight_id: {flight_id}, type: {type(flight_id)}")
+                    print(f"Last flight action: {last_flight_action}, type: {type(last_flight_action) if last_flight_action else None}")
+                    if last_flight_action:
+                        print(f"Last flight action[0]: {last_flight_action[0]}, type: {type(last_flight_action[0])}")
+                    
+                    # Check if this is the last flight action using the parameter - compare as integers
+                    is_last_action = last_flight_action and flight_id == last_flight_action[0]
+                    print(f"is_last_action: {is_last_action}")
+                    
+                    if cancelled:
+                        plot_color = 'red'
+                        plot_label = 'Cancelled Flight'
+                    elif is_last_action:
+                        print("Setting color to green for last action!")
+                        plot_color = 'green'
+                        plot_label = 'Last Action Flight'
+                    elif swapped:
+                        plot_color = 'blue'
+                        plot_label = 'Swapped Flight'
+                    elif delayed:
+                        plot_color = 'orange'
+                        plot_label = 'Environment Delayed Flight'
+                    else:
+                        plot_color = 'blue'
+                        plot_label = 'Scheduled Flight'
+                    
+                    y_offset = aircraft_indices[aircraft_id] + self.offset_baseline
+                    if delayed:
+                        y_offset += self.offset_delayed_flight
 
-                ax.plot([dep_datetime, arr_datetime], [y_offset, y_offset], color=plot_color, label=plot_label if not labels[plot_label] else None)
-                
-                marker_offset = timedelta(minutes=self.offset_marker_minutes)
-                dep_marker = dep_datetime + marker_offset
-                arr_marker = arr_datetime - marker_offset
+                    ax.plot([dep_datetime, arr_datetime], [y_offset, y_offset], color=plot_color, label=plot_label if not labels[plot_label] else None)
+                    
+                    marker_offset = timedelta(minutes=self.offset_marker_minutes)
+                    dep_marker = dep_datetime + marker_offset
+                    arr_marker = arr_datetime - marker_offset
 
-                ax.plot(dep_marker, y_offset, color=plot_color, marker='>', markersize=6, markeredgewidth=0)
-                ax.plot(arr_marker, y_offset, color=plot_color, marker='<', markersize=6, markeredgewidth=0)
+                    ax.plot(dep_marker, y_offset, color=plot_color, marker='>', markersize=6, markeredgewidth=0)
+                    ax.plot(arr_marker, y_offset, color=plot_color, marker='<', markersize=6, markeredgewidth=0)
 
-                if delayed:
-                    ax.vlines([dep_datetime, arr_datetime], y_offset - self.offset_delayed_flight, y_offset, color='orange', linestyle='-', linewidth=2)
+                    if delayed:
+                        ax.vlines([dep_datetime, arr_datetime], y_offset - self.offset_delayed_flight, y_offset, color='orange', linestyle='-', linewidth=2)
 
-                labels[plot_label] = True
-                
-                mid_datetime = dep_datetime + (arr_datetime - dep_datetime) / 2
-                ax.text(mid_datetime, y_offset + self.offset_id_number, flight_id, 
-                        ha='center', va='bottom', fontsize=10, color='black')
+                    labels[plot_label] = True
+                    
+                    mid_datetime = dep_datetime + (arr_datetime - dep_datetime) / 2
+                    ax.text(mid_datetime, y_offset + self.offset_id_number, flight_id, 
+                            ha='center', va='bottom', fontsize=10, color='black')
 
         # Function to compute the data height that corresponds to a given number of pixels
         def get_height_in_data_units(ax, pixels):
@@ -208,16 +231,6 @@ class StatePlotter:
                     end_time = unavail['EndTime']
                     probability = unavail.get('Probability', 1.0)  # Default to 1.0 if Probability is not given
                     
-
-
-                    # print("In state plotter:")
-                    # print(f"    aircraft_id: {aircraft_id}")
-                    # print(f"    start_time: {start_time}")
-                    # print(f"    end_time: {end_time}")
-                    # print(f"    probability: {probability}")
-
-
-
                     # Convert to datetime objects
                     unavail_start = datetime.strptime(f"{start_date} {start_time}", '%d/%m/%y %H:%M')
                     unavail_end = datetime.strptime(f"{end_date} {end_time}", '%d/%m/%y %H:%M')
@@ -228,12 +241,18 @@ class StatePlotter:
                     
                     # Set color based on probability
                     if probability == 0.0:
+                        if not show_certain_disruptions:
+                            continue
                         rect_color = 'lightgrey'  # Very light grey for zero probability
                         plot_label = 'Zero Probability'
                     elif probability < 1.0:
+                        if not show_uncertain_disruptions:
+                            continue
                         rect_color = 'orange'  # Uncertain breakdown
                         plot_label = 'Uncertain Breakdown'
                     else:
+                        if not show_certain_disruptions:
+                            continue
                         rect_color = 'red'  # Certain unavailability
                         plot_label = 'Aircraft Unavailable'
                     
@@ -250,9 +269,10 @@ class StatePlotter:
                     labels[plot_label] = True
 
                     # Plot the probability below the rectangle
-                    x_position = unavail_start + (unavail_end - unavail_start) / 2
-                    y_position = y_offset - rect_height / 2 - get_height_in_data_units(ax, 10) +0.2  # Adjust offset as needed
-                    ax.text(x_position, y_position + 0.1, f"{probability:.2f}", ha='center', va='top', fontsize=9)
+                    if probability < 1.0 and show_uncertain_disruptions:
+                        x_position = unavail_start + (unavail_end - unavail_start) / 2
+                        y_position = y_offset - rect_height / 2 - get_height_in_data_units(ax, 10) +0.2  # Adjust offset as needed
+                        ax.text(x_position, y_position + 0.1, f"{probability:.2f}", ha='center', va='top', fontsize=9)
 
         # Add transparent rectangles for each aircraft at start of recovery period
         for aircraft_id in all_aircraft_ids:
@@ -286,17 +306,20 @@ class StatePlotter:
         
         plt.xticks(rotation=45)
 
-        ax.axvline(self.start_datetime, color='green', linestyle='--', label='Start Recovery Period')
-        ax.axvline(self.end_datetime, color='green', linestyle='-', label='End Recovery Period')
-        ax.axvline(current_datetime, color='black', linestyle='-', label='Current Time')
+        # Plot recovery window and current time based on boolean flags
+        if show_recovery_window:
+            ax.axvline(self.start_datetime, color='green', linestyle='--', linewidth=2, label='Start/End Recovery Period')
+            ax.axvline(self.end_datetime, color='green', linestyle='--', linewidth=2)  # Same style, no label
+            ax.axvspan(self.end_datetime, latest_time + timedelta(hours=1), color='lightgrey', alpha=0.3)
+            ax.axvspan(earliest_time - timedelta(hours=1), self.start_datetime, color='lightgrey', alpha=0.3)
 
-        ax.axvspan(self.end_datetime, latest_time + timedelta(hours=1), color='lightgrey', alpha=0.3)
-        ax.axvspan(earliest_time - timedelta(hours=1), self.start_datetime, color='lightgrey', alpha=0.3)
-        
+        if show_current_time:
+            ax.axvline(current_datetime, color='black', linestyle='-', label='Current Time')
+
         ax.invert_yaxis()
 
-        ytick_labels = [f"{index + 1}: {aircraft_id}" for index, aircraft_id in enumerate(aircraft_ids)]
-        plt.yticks(range(1, len(aircraft_ids) + 1), ytick_labels)
+        ytick_labels = [f"{index + 1}: {aircraft_id}" for index, aircraft_id in enumerate(all_aircraft_ids)]
+        plt.yticks(range(1, len(all_aircraft_ids) + 1), ytick_labels)
 
         plt.xlabel('Time')
         plt.ylabel('Aircraft')
@@ -369,9 +392,8 @@ class StatePlotterDemo:
             return (letters, ) + numbers
 
         # Collect and sort aircraft IDs using the custom sort key
-        all_aircraft_ids = set([rotation_info['Aircraft'] for rotation_info in updated_rotations_dict.values()]).union(set(self.aircraft_dict.keys()))
-        aircraft_ids = sorted(all_aircraft_ids, key=extract_sort_key)
-        aircraft_indices = {aircraft_id: index + 1 for index, aircraft_id in enumerate(aircraft_ids)}
+        all_aircraft_ids = sorted(list(set([rotation_info['Aircraft'] for rotation_info in updated_rotations_dict.values()]).union(set(self.aircraft_dict.keys()))))
+        aircraft_indices = {aircraft_id: index + 1 for index, aircraft_id in enumerate(all_aircraft_ids)}
 
         fig, ax = plt.subplots(figsize=(6, 2))
 
@@ -386,7 +408,8 @@ class StatePlotterDemo:
             'Delay of Flight': False,
             'Uncertain Breakdown': False,  # Set to False initially
             'Zero Probability': False,
-            'Current Action Flight': False
+            'Current Action Flight': False,
+            'Last Action Flight': False
         }
 
         # Hard code earliest and latest times
@@ -686,7 +709,11 @@ def visualize_aircraft_rotations(data_dict):
 
             y_offset = aircraft_indices[aircraft_id]
 
-            ax.plot([dep_datetime, arr_datetime], [y_offset, y_offset], color=plot_color, label=plot_label if not labels['Scheduled Flight'] else "")
+            # Special handling for first flight (ID 1) and last aircraft
+            if flight_id == 1 or aircraft_id == all_aircraft_ids[-1]:
+                ax.plot([dep_datetime, arr_datetime], [y_offset, y_offset], color='blue', alpha=0, label=plot_label if not labels['Scheduled Flight'] else "")
+            else:
+                ax.plot([dep_datetime, arr_datetime], [y_offset, y_offset], color=plot_color, label=plot_label if not labels['Scheduled Flight'] else "")
             labels['Scheduled Flight'] = True
 
             # Departure and arrival markers
@@ -735,8 +762,8 @@ def visualize_aircraft_rotations(data_dict):
             # ax.plot([], [], label=f'{aircraft_id} (No Flights/Unavailability)', color='gray')
 
     # Plot recovery period
-    ax.axvline(start_datetime, color='green', linestyle='--', label='Start Recovery Period')
-    ax.axvline(end_datetime, color='green', linestyle='-', label='End Recovery Period')
+    ax.axvline(start_datetime, color='green', linestyle='--', linewidth=2, label='Start/End Recovery Period')
+    ax.axvline(end_datetime, color='green', linestyle='--', linewidth=2)  # Same style, no label
 
     # Grey out periods outside recovery time
     ax.axvspan(end_datetime, latest_datetime + timedelta(hours=1), color='lightgrey', alpha=0.3)
@@ -850,8 +877,8 @@ def visualize_flight_airport_unavailability(data_dict):
     ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
     ax.xaxis.set_minor_locator(mdates.MinuteLocator(interval=30))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-    ax.axvline(start_datetime, color='green', linestyle='--', label='Start Recovery Period')
-    ax.axvline(end_datetime, color='green', linestyle='-', label='End Recovery Period')
+    ax.axvline(start_datetime, color='green', linestyle='--', label='Start/End Recovery Period')
+    ax.axvline(end_datetime, color='green', linestyle='--')  # Same style, no label
 
     # Grey out periods outside recovery time
     ax.axvspan(end_datetime, latest_datetime + timedelta(hours=1), color='lightgrey', alpha=0.3)
